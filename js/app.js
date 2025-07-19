@@ -50,35 +50,44 @@ document.addEventListener('DOMContentLoaded', () => {
     const renderScheduleInfo = (todo) => {
         if (!todo.schedule) return '';
         
-        let scheduleHTML = '';
+        // 시작 시간이나 마감 시간이 하나라도 있는지 확인
+        const hasSchedule = todo.schedule.startTime || todo.schedule.dueTime;
+        if (!hasSchedule) return '';
         
-        // 시작 시간 표시
+        let startTimeHTML = '';
+        let dueTimeHTML = '';
+        
+        // 시작 시간 표시 (왼쪽 고정 자리)
         if (todo.schedule.startTime) {
             const startDate = new Date(todo.schedule.startTime);
             const formattedStart = utils.formatDateTime(startDate);
-            const startIcon = icons.get('clock', 14);
+            const startIcon = icons.get('clock', 12);
             const modalIcon = todo.schedule.startModal !== false ? 
-                icons.get('bell', 12) : icons.get('bellOff', 12);
+                icons.get('bell', 10) : icons.get('bellOff', 10);
             const soundIcon = todo.schedule.startNotification ? 
-                icons.get('volume', 12) : icons.get('volumeX', 12);
+                icons.get('volume', 10) : icons.get('volumeX', 10);
             
-            scheduleHTML += `<span class="schedule-info start-time">${startIcon} 시작: ${formattedStart} <span class="schedule-icon-clickable" data-todo-id="${todo.id}" data-type="start-modal" title="시작 모달 토글">${modalIcon}</span> <span class="schedule-icon-clickable" data-todo-id="${todo.id}" data-type="start-sound" title="시작 소리 토글">${soundIcon}</span></span>`;
+            startTimeHTML = `<span class="schedule-info start-time">${startIcon} 시작: ${formattedStart} <span class="schedule-icon-clickable" data-todo-id="${todo.id}" data-type="start-modal" title="시작 모달 토글">${modalIcon}</span> <span class="schedule-icon-clickable" data-todo-id="${todo.id}" data-type="start-sound" title="시작 소리 토글">${soundIcon}</span></span>`;
+        } else {
+            startTimeHTML = `<span class="schedule-info start-time"></span>`; // 빈 자리 확보
         }
         
-        // 마감 시간 표시
+        // 마감 시간 표시 (오른쪽 고정 자리)
         if (todo.schedule.dueTime) {
             const dueDate = new Date(todo.schedule.dueTime);
             const formattedDue = utils.formatDateTime(dueDate);
-            const dueIcon = icons.get('clock', 14);
+            const dueIcon = icons.get('clock', 12);
             const modalIcon = todo.schedule.dueModal !== false ? 
-                icons.get('bell', 12) : icons.get('bellOff', 12);
+                icons.get('bell', 10) : icons.get('bellOff', 10);
             const soundIcon = todo.schedule.dueNotification ? 
-                icons.get('volume', 12) : icons.get('volumeX', 12);
+                icons.get('volume', 10) : icons.get('volumeX', 10);
             
-            scheduleHTML += `<span class="schedule-info due-time">${dueIcon} 마감: ${formattedDue} <span class="schedule-icon-clickable" data-todo-id="${todo.id}" data-type="due-modal" title="마감 모달 토글">${modalIcon}</span> <span class="schedule-icon-clickable" data-todo-id="${todo.id}" data-type="due-sound" title="마감 소리 토글">${soundIcon}</span></span>`;
+            dueTimeHTML = `<span class="schedule-info due-time">${dueIcon} 마감: ${formattedDue} <span class="schedule-icon-clickable" data-todo-id="${todo.id}" data-type="due-modal" title="마감 모달 토글">${modalIcon}</span> <span class="schedule-icon-clickable" data-todo-id="${todo.id}" data-type="due-sound" title="마감 소리 토글">${soundIcon}</span></span>`;
+        } else {
+            dueTimeHTML = `<span class="schedule-info due-time"></span>`; // 빈 자리 확보
         }
         
-        return scheduleHTML;
+        return `<div class="schedule-times">${startTimeHTML}${dueTimeHTML}</div>`;
     };
 
     const renderTodos = () => {
@@ -138,17 +147,17 @@ document.addEventListener('DOMContentLoaded', () => {
         todoItem.innerHTML = `
             <input type="checkbox" ${todo.completed ? 'checked' : ''}>
             <div class="todo-content">
-                <span class="todo-text">${security.escapeHtml(todo.text)}</span>
-            </div>
-            <div class="todo-right">
-                <div class="meta-info">
+                <div class="todo-main-line">
+                    <span class="todo-text">${security.escapeHtml(todo.text)}</span>
+                    <div class="todo-buttons">
+                        <button class="schedule-btn icon-btn" title="일정 설정"></button>
+                        <button class="delete-btn icon-btn" title="삭제"></button>
+                    </div>
+                </div>
+                <div class="todo-meta-line">
                     <span class="category-tag">${security.escapeHtml(todo.category)}</span>
                     ${renderScheduleInfo(todo)}
                     ${todo.recurring ? `<span class="recurring-info">(${security.escapeHtml(todo.recurring)})</span>` : ''}
-                </div>
-                <div class="todo-buttons">
-                    <button class="schedule-btn icon-btn" title="일정 설정"></button>
-                    <button class="delete-btn icon-btn" title="삭제"></button>
                 </div>
             </div>
         `;
@@ -226,20 +235,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const clickableElement = target.classList.contains('schedule-icon-clickable') ? 
                 target : target.closest('.schedule-icon-clickable');
             
-            if (!clickableElement) {
-                console.log('clickableElement를 찾을 수 없음');
-                return;
-            }
+            if (!clickableElement) return;
             
             const type = clickableElement.dataset.type;
             const todoId = Number(clickableElement.dataset.todoId);
             
-            if (!type || !todoId) {
-                console.log('type 또는 todoId가 없음:', type, todoId);
-                return;
-            }
+            if (!type || !todoId) return;
             
-            console.log('Schedule icon clicked:', type, todoId); // 디버깅용
+
             toggleScheduleSetting(todoId, type);
         }
     };
@@ -420,41 +423,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 일정 설정 토글 함수
     const toggleScheduleSetting = (todoId, type) => {
-        console.log('toggleScheduleSetting 호출:', todoId, type);
         const todo = todoManager.getTodos().find(t => t.id === todoId);
-        if (!todo || !todo.schedule) {
-            console.log('할 일을 찾을 수 없거나 일정이 없음:', todo);
-            return;
-        }
+        if (!todo || !todo.schedule) return;
 
         const scheduleData = { ...todo.schedule };
-        console.log('현재 schedule 데이터:', scheduleData);
 
         switch (type) {
             case 'start-modal':
                 scheduleData.startModal = !scheduleData.startModal;
-                console.log('start-modal 토글:', scheduleData.startModal);
                 break;
             case 'start-sound':
                 scheduleData.startNotification = !scheduleData.startNotification;
-                console.log('start-sound 토글:', scheduleData.startNotification);
                 break;
             case 'due-modal':
                 scheduleData.dueModal = !scheduleData.dueModal;
-                console.log('due-modal 토글:', scheduleData.dueModal);
                 break;
             case 'due-sound':
                 scheduleData.dueNotification = !scheduleData.dueNotification;
-                console.log('due-sound 토글:', scheduleData.dueNotification);
                 break;
             default:
-                console.log('알 수 없는 type:', type);
                 return;
         }
 
-        console.log('업데이트할 schedule 데이터:', scheduleData);
-        const updateResult = todoManager.updateTodoSchedule(todoId, scheduleData);
-        console.log('updateTodoSchedule 결과:', updateResult);
+        todoManager.updateTodoSchedule(todoId, scheduleData);
         render();
     };
 
