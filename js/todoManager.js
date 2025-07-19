@@ -115,6 +115,15 @@ const todoManager = (() => {
         }
     };
 
+    const updateTodoCategory = (id, newCategory) => {
+        const todo = todos.find(todo => todo.id === id);
+        if (todo && newCategory.trim()) {
+            todo.category = newCategory.trim();
+            storage.saveTodos(todos);
+            triggerChange();
+        }
+    };
+
     // F-02: 할 일 상태 변경
     const toggleTodoStatus = (id) => {
         const todo = todos.find(todo => todo.id === id);
@@ -142,8 +151,8 @@ const todoManager = (() => {
         addCategory,
         updateCategory,
         deleteCategory,
-        // updateTodoNotificationTime 등 관련 export 제거
         updateTodoText,
+        updateTodoCategory,
         toggleTodoStatus,
         deleteTodo
     };
