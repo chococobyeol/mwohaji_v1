@@ -15,15 +15,70 @@ document.addEventListener('DOMContentLoaded', () => {
     const addCategoryBtn = document.getElementById('add-category-btn');
     const newCategoryInput = document.getElementById('new-category-input');
 
+    // 일정 설정 모달 관련 DOM Elements
+    const scheduleModal = document.getElementById('schedule-modal');
+    const closeScheduleModalBtn = document.getElementById('close-schedule-modal-btn');
+    const scheduleTodoTitle = document.getElementById('schedule-todo-title');
+    const startTimeEnabled = document.getElementById('start-time-enabled');
+    const startTimeInputs = document.getElementById('start-time-inputs');
+    const startDate = document.getElementById('start-date');
+    const startTime = document.getElementById('start-time');
+    const startModalBtn = document.getElementById('start-modal-btn');
+    const startNotificationBtn = document.getElementById('start-notification-btn');
+    const dueTimeEnabled = document.getElementById('due-time-enabled');
+    const dueTimeInputs = document.getElementById('due-time-inputs');
+    const dueDate = document.getElementById('due-date');
+    const dueTime = document.getElementById('due-time');
+    const dueModalBtn = document.getElementById('due-modal-btn');
+    const dueNotificationBtn = document.getElementById('due-notification-btn');
+    const saveScheduleBtn = document.getElementById('save-schedule-btn');
+    const cancelScheduleBtn = document.getElementById('cancel-schedule-btn');
+
     // App State
     let currentView = 'project';
     let selectedCategoryId = 'default';
+    let currentEditingTodoId = null;
 
     // RENDER FUNCTIONS
     const render = () => {
         renderTodos();
         renderCategorySelector();
         renderCategoryList();
+    };
+
+    // 일정 정보 렌더링 함수
+    const renderScheduleInfo = (todo) => {
+        if (!todo.schedule) return '';
+        
+        let scheduleHTML = '';
+        
+        // 시작 시간 표시
+        if (todo.schedule.startTime) {
+            const startDate = new Date(todo.schedule.startTime);
+            const formattedStart = utils.formatDateTime(startDate);
+            const startIcon = icons.get('clock', 14);
+            const modalIcon = todo.schedule.startModal !== false ? 
+                icons.get('bell', 12) : icons.get('bellOff', 12);
+            const soundIcon = todo.schedule.startNotification ? 
+                icons.get('volume', 12) : icons.get('volumeX', 12);
+            
+            scheduleHTML += `<span class="schedule-info start-time">${startIcon} 시작: ${formattedStart} <span class="schedule-icon-clickable" data-todo-id="${todo.id}" data-type="start-modal" title="시작 모달 토글">${modalIcon}</span> <span class="schedule-icon-clickable" data-todo-id="${todo.id}" data-type="start-sound" title="시작 소리 토글">${soundIcon}</span></span>`;
+        }
+        
+        // 마감 시간 표시
+        if (todo.schedule.dueTime) {
+            const dueDate = new Date(todo.schedule.dueTime);
+            const formattedDue = utils.formatDateTime(dueDate);
+            const dueIcon = icons.get('clock', 14);
+            const modalIcon = todo.schedule.dueModal !== false ? 
+                icons.get('bell', 12) : icons.get('bellOff', 12);
+            const soundIcon = todo.schedule.dueNotification ? 
+                icons.get('volume', 12) : icons.get('volumeX', 12);
+            
+            scheduleHTML += `<span class="schedule-info due-time">${dueIcon} 마감: ${formattedDue} <span class="schedule-icon-clickable" data-todo-id="${todo.id}" data-type="due-modal" title="마감 모달 토글">${modalIcon}</span> <span class="schedule-icon-clickable" data-todo-id="${todo.id}" data-type="due-sound" title="마감 소리 토글">${soundIcon}</span></span>`;
+        }
+        
+        return scheduleHTML;
     };
 
     const renderTodos = () => {
@@ -88,25 +143,21 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="todo-right">
                 <div class="meta-info">
                     <span class="category-tag">${security.escapeHtml(todo.category)}</span>
-                    ${todo.notificationTime ? `<span class="notification-time">@notify: ${utils.formatDateTime(todo.notificationTime)}</span>` : ''}
+                    ${renderScheduleInfo(todo)}
                     ${todo.recurring ? `<span class="recurring-info">(${security.escapeHtml(todo.recurring)})</span>` : ''}
                 </div>
                 <div class="todo-buttons">
-                    <button class="sound-toggle-btn icon-btn" data-sound="${todo.soundEnabled !== false ? 'on' : 'off'}" title="${todo.soundEnabled !== false ? '소리 끄기' : '소리 켜기'}"></button>
+                    <button class="schedule-btn icon-btn" title="일정 설정"></button>
                     <button class="delete-btn icon-btn" title="삭제"></button>
                 </div>
             </div>
         `;
         
         // 아이콘 설정
-        const soundBtn = todoItem.querySelector('.sound-toggle-btn');
+        const scheduleBtn = todoItem.querySelector('.schedule-btn');
         const deleteBtn = todoItem.querySelector('.delete-btn');
         
-        if (todo.soundEnabled !== false) {
-            icons.setButtonIcon(soundBtn, 'volume', '소리 끄기', 16);
-        } else {
-            icons.setButtonIcon(soundBtn, 'volumeX', '소리 켜기', 16);
-        }
+        icons.setButtonIcon(scheduleBtn, 'calendar', '일정 설정', 16);
         icons.setButtonIcon(deleteBtn, 'trash', '삭제', 16);
         
         return todoItem;
@@ -166,21 +217,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 todoManager.deleteTodo(id);
                 renderTodos();
             }
-        } else if (target.classList.contains('sound-toggle-btn') || target.closest('.sound-toggle-btn')) {
-            const soundBtn = target.closest('.sound-toggle-btn') || target;
-            const currentSound = soundBtn.dataset.sound;
-            const newSound = currentSound === 'on' ? 'off' : 'on';
+        } else if (target.classList.contains('schedule-btn') || target.closest('.schedule-btn')) {
+            openScheduleModal(id);
+        } else if (target.classList.contains('schedule-icon-clickable') || target.closest('.schedule-icon-clickable')) {
+            event.preventDefault(); // 기본 동작 방지
+            event.stopPropagation(); // 이벤트 버블링 방지
             
-            // 소리 설정 토글 (현재 미구현 기능이지만 UI는 동작)
-            soundBtn.dataset.sound = newSound;
-            if (newSound === 'on') {
-                icons.setButtonIcon(soundBtn, 'volume', '소리 끄기', 16);
-            } else {
-                icons.setButtonIcon(soundBtn, 'volumeX', '소리 켜기', 16);
+            const clickableElement = target.classList.contains('schedule-icon-clickable') ? 
+                target : target.closest('.schedule-icon-clickable');
+            
+            if (!clickableElement) {
+                console.log('clickableElement를 찾을 수 없음');
+                return;
             }
             
-            // 실제 데이터 업데이트 (향후 알림 기능 구현 시 사용)
-            // todoManager.updateTodoSoundEnabled(id, newSound === 'on');
+            const type = clickableElement.dataset.type;
+            const todoId = Number(clickableElement.dataset.todoId);
+            
+            if (!type || !todoId) {
+                console.log('type 또는 todoId가 없음:', type, todoId);
+                return;
+            }
+            
+            console.log('Schedule icon clicked:', type, todoId); // 디버깅용
+            toggleScheduleSetting(todoId, type);
         }
     };
     
@@ -240,6 +300,164 @@ document.addEventListener('DOMContentLoaded', () => {
         categorySelect.addEventListener('change', saveChanges);
     };
 
+    // 일정 설정 모달 관련 함수들
+    const openScheduleModal = (todoId) => {
+        const todo = todoManager.getTodos().find(t => t.id === todoId);
+        if (!todo) return;
+
+        currentEditingTodoId = todoId;
+        scheduleTodoTitle.textContent = todo.text;
+
+        // 기존 일정 데이터 로드
+        const schedule = todo.schedule;
+        
+        if (schedule && schedule.startTime) {
+            startTimeEnabled.checked = true;
+            const startDateTime = new Date(schedule.startTime);
+            startDate.value = startDateTime.toISOString().split('T')[0];
+            startTime.value = startDateTime.toTimeString().slice(0, 5);
+            startModalBtn.dataset.enabled = schedule.startModal !== false ? 'true' : 'false';
+            startNotificationBtn.dataset.enabled = schedule.startNotification ? 'true' : 'false';
+            startTimeInputs.classList.add('enabled');
+        } else {
+            startTimeEnabled.checked = false;
+            startDate.value = '';
+            startTime.value = '';
+            startModalBtn.dataset.enabled = 'true';
+            startNotificationBtn.dataset.enabled = 'true';
+            startTimeInputs.classList.remove('enabled');
+        }
+
+        if (schedule && schedule.dueTime) {
+            dueTimeEnabled.checked = true;
+            const dueDateTime = new Date(schedule.dueTime);
+            dueDate.value = dueDateTime.toISOString().split('T')[0];
+            dueTime.value = dueDateTime.toTimeString().slice(0, 5);
+            dueModalBtn.dataset.enabled = schedule.dueModal !== false ? 'true' : 'false';
+            dueNotificationBtn.dataset.enabled = schedule.dueNotification ? 'true' : 'false';
+            dueTimeInputs.classList.add('enabled');
+        } else {
+            dueTimeEnabled.checked = false;
+            dueDate.value = '';
+            dueTime.value = '';
+            dueModalBtn.dataset.enabled = 'true';
+            dueNotificationBtn.dataset.enabled = 'true';
+            dueTimeInputs.classList.remove('enabled');
+        }
+
+        updateNotificationButtons();
+        scheduleModal.style.display = 'flex';
+    };
+
+    const closeScheduleModal = () => {
+        scheduleModal.style.display = 'none';
+        currentEditingTodoId = null;
+    };
+
+    const updateNotificationButtons = () => {
+        // 시작 모달 버튼 아이콘 설정
+        if (startModalBtn.dataset.enabled === 'true') {
+            icons.setButtonIcon(startModalBtn, 'bell', '모달 끄기', 16);
+        } else {
+            icons.setButtonIcon(startModalBtn, 'bellOff', '모달 켜기', 16);
+        }
+
+        // 시작 알림 버튼 아이콘 설정
+        if (startNotificationBtn.dataset.enabled === 'true') {
+            icons.setButtonIcon(startNotificationBtn, 'volume', '소리 끄기', 16);
+        } else {
+            icons.setButtonIcon(startNotificationBtn, 'volumeX', '소리 켜기', 16);
+        }
+
+        // 마감 모달 버튼 아이콘 설정
+        if (dueModalBtn.dataset.enabled === 'true') {
+            icons.setButtonIcon(dueModalBtn, 'bell', '모달 끄기', 16);
+        } else {
+            icons.setButtonIcon(dueModalBtn, 'bellOff', '모달 켜기', 16);
+        }
+
+        // 마감 알림 버튼 아이콘 설정
+        if (dueNotificationBtn.dataset.enabled === 'true') {
+            icons.setButtonIcon(dueNotificationBtn, 'volume', '소리 끄기', 16);
+        } else {
+            icons.setButtonIcon(dueNotificationBtn, 'volumeX', '소리 켜기', 16);
+        }
+    };
+
+    const saveSchedule = () => {
+        if (currentEditingTodoId === null) return;
+
+        const scheduleData = {};
+
+        // 시작 시간 처리
+        if (startTimeEnabled.checked && startDate.value && startTime.value) {
+            const startDateTime = new Date(`${startDate.value}T${startTime.value}`);
+            scheduleData.startTime = startDateTime.toISOString();
+            scheduleData.startModal = startModalBtn.dataset.enabled === 'true';
+            scheduleData.startNotification = startNotificationBtn.dataset.enabled === 'true';
+        } else {
+            scheduleData.startTime = null;
+            scheduleData.startModal = true;
+            scheduleData.startNotification = true;
+        }
+
+        // 마감 시간 처리
+        if (dueTimeEnabled.checked && dueDate.value && dueTime.value) {
+            const dueDateTime = new Date(`${dueDate.value}T${dueTime.value}`);
+            scheduleData.dueTime = dueDateTime.toISOString();
+            scheduleData.dueModal = dueModalBtn.dataset.enabled === 'true';
+            scheduleData.dueNotification = dueNotificationBtn.dataset.enabled === 'true';
+        } else {
+            scheduleData.dueTime = null;
+            scheduleData.dueModal = true;
+            scheduleData.dueNotification = true;
+        }
+
+        todoManager.updateTodoSchedule(currentEditingTodoId, scheduleData);
+        closeScheduleModal();
+        render();
+    };
+
+    // 일정 설정 토글 함수
+    const toggleScheduleSetting = (todoId, type) => {
+        console.log('toggleScheduleSetting 호출:', todoId, type);
+        const todo = todoManager.getTodos().find(t => t.id === todoId);
+        if (!todo || !todo.schedule) {
+            console.log('할 일을 찾을 수 없거나 일정이 없음:', todo);
+            return;
+        }
+
+        const scheduleData = { ...todo.schedule };
+        console.log('현재 schedule 데이터:', scheduleData);
+
+        switch (type) {
+            case 'start-modal':
+                scheduleData.startModal = !scheduleData.startModal;
+                console.log('start-modal 토글:', scheduleData.startModal);
+                break;
+            case 'start-sound':
+                scheduleData.startNotification = !scheduleData.startNotification;
+                console.log('start-sound 토글:', scheduleData.startNotification);
+                break;
+            case 'due-modal':
+                scheduleData.dueModal = !scheduleData.dueModal;
+                console.log('due-modal 토글:', scheduleData.dueModal);
+                break;
+            case 'due-sound':
+                scheduleData.dueNotification = !scheduleData.dueNotification;
+                console.log('due-sound 토글:', scheduleData.dueNotification);
+                break;
+            default:
+                console.log('알 수 없는 type:', type);
+                return;
+        }
+
+        console.log('업데이트할 schedule 데이터:', scheduleData);
+        const updateResult = todoManager.updateTodoSchedule(todoId, scheduleData);
+        console.log('updateTodoSchedule 결과:', updateResult);
+        render();
+    };
+
     // 아이콘 초기화
     const initIcons = () => {
         // 헤더 버튼들
@@ -247,6 +465,7 @@ document.addEventListener('DOMContentLoaded', () => {
         icons.setButtonIcon(importBtn, 'upload', '가져오기');
         icons.setButtonIcon(exportBtn, 'download', '내보내기');
         icons.setButtonIcon(closeModalBtn, 'close', '닫기');
+        icons.setButtonIcon(closeScheduleModalBtn, 'close', '닫기');
     };
 
     // INITIALIZATION
@@ -265,9 +484,6 @@ document.addEventListener('DOMContentLoaded', () => {
     todoListContainer.addEventListener('dblclick', handleListDoubleClick);
     settingsBtn.addEventListener('click', () => categoryModal.style.display = 'flex');
     closeModalBtn.addEventListener('click', () => categoryModal.style.display = 'none');
-    window.addEventListener('click', (e) => {
-        if (e.target === categoryModal) categoryModal.style.display = 'none';
-    });
     addCategoryBtn.addEventListener('click', () => {
         const name = newCategoryInput.value;
         if (todoManager.addCategory(name)) {
@@ -323,6 +539,73 @@ document.addEventListener('DOMContentLoaded', () => {
     allViewBtn.addEventListener('click', () => {
         currentView = 'all';
         renderTodos();
+    });
+
+    // 일정 설정 모달 이벤트 리스너들
+    closeScheduleModalBtn.addEventListener('click', closeScheduleModal);
+    cancelScheduleBtn.addEventListener('click', closeScheduleModal);
+    saveScheduleBtn.addEventListener('click', saveSchedule);
+
+    // 체크박스 변경 시 입력 필드 활성화/비활성화
+    startTimeEnabled.addEventListener('change', (e) => {
+        if (e.target.checked) {
+            startTimeInputs.classList.add('enabled');
+            // 현재 날짜/시간으로 기본값 설정
+            if (!startDate.value) {
+                const now = new Date();
+                startDate.value = now.toISOString().split('T')[0];
+                startTime.value = now.toTimeString().slice(0, 5);
+            }
+        } else {
+            startTimeInputs.classList.remove('enabled');
+        }
+    });
+
+    dueTimeEnabled.addEventListener('change', (e) => {
+        if (e.target.checked) {
+            dueTimeInputs.classList.add('enabled');
+            // 현재 날짜/시간으로 기본값 설정
+            if (!dueDate.value) {
+                const now = new Date();
+                now.setHours(now.getHours() + 1); // 1시간 후로 설정
+                dueDate.value = now.toISOString().split('T')[0];
+                dueTime.value = now.toTimeString().slice(0, 5);
+            }
+        } else {
+            dueTimeInputs.classList.remove('enabled');
+        }
+    });
+
+    // 알림 모달 토글 버튼들
+    startModalBtn.addEventListener('click', () => {
+        const currentEnabled = startModalBtn.dataset.enabled === 'true';
+        startModalBtn.dataset.enabled = currentEnabled ? 'false' : 'true';
+        updateNotificationButtons();
+    });
+
+    dueModalBtn.addEventListener('click', () => {
+        const currentEnabled = dueModalBtn.dataset.enabled === 'true';
+        dueModalBtn.dataset.enabled = currentEnabled ? 'false' : 'true';
+        updateNotificationButtons();
+    });
+
+    // 알림 소리 토글 버튼들
+    startNotificationBtn.addEventListener('click', () => {
+        const currentEnabled = startNotificationBtn.dataset.enabled === 'true';
+        startNotificationBtn.dataset.enabled = currentEnabled ? 'false' : 'true';
+        updateNotificationButtons();
+    });
+
+    dueNotificationBtn.addEventListener('click', () => {
+        const currentEnabled = dueNotificationBtn.dataset.enabled === 'true';
+        dueNotificationBtn.dataset.enabled = currentEnabled ? 'false' : 'true';
+        updateNotificationButtons();
+    });
+
+    // 모달 외부 클릭 시 닫기
+    window.addEventListener('click', (e) => {
+        if (e.target === categoryModal) categoryModal.style.display = 'none';
+        if (e.target === scheduleModal) closeScheduleModal();
     });
 
     init();

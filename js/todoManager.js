@@ -141,6 +141,82 @@ const todoManager = (() => {
         triggerChange();
     };
 
+    // F-09: 일정 설정 관련 함수들
+    const updateTodoSchedule = (id, scheduleData) => {
+        const todo = todos.find(todo => todo.id === id);
+        if (!todo) return false;
+
+        // 기존 schedule 객체가 없으면 초기화
+        if (!todo.schedule) {
+            todo.schedule = {
+                startTime: null,
+                startModal: true,
+                startNotification: true,
+                dueTime: null,
+                dueModal: true,
+                dueNotification: true,
+                notifiedStart: false,
+                notifiedDue: false
+            };
+        }
+
+        // 새로운 일정 데이터로 업데이트
+        Object.assign(todo.schedule, scheduleData);
+
+        // 시간이 null로 설정되면 해당 알림 상태도 초기화
+        if (!todo.schedule.startTime) {
+            todo.schedule.notifiedStart = false;
+        }
+        if (!todo.schedule.dueTime) {
+            todo.schedule.notifiedDue = false;
+        }
+
+        storage.saveTodos(todos);
+        triggerChange();
+        return true;
+    };
+
+    const getTodoSchedule = (id) => {
+        const todo = todos.find(todo => todo.id === id);
+        return todo?.schedule || null;
+    };
+
+    const clearTodoSchedule = (id) => {
+        const todo = todos.find(todo => todo.id === id);
+        if (!todo) return false;
+
+        todo.schedule = {
+            startTime: null,
+            startModal: true,
+            startNotification: true,
+            dueTime: null,
+            dueModal: true,
+            dueNotification: true,
+            notifiedStart: false,
+            notifiedDue: false
+        };
+
+        storage.saveTodos(todos);
+        triggerChange();
+        return true;
+    };
+
+    // 알림 상태 업데이트 (F-07 알림 기능을 위한 준비)
+    const markNotified = (id, type) => {
+        const todo = todos.find(todo => todo.id === id);
+        if (!todo || !todo.schedule) return false;
+
+        if (type === 'start') {
+            todo.schedule.notifiedStart = true;
+        } else if (type === 'due') {
+            todo.schedule.notifiedDue = true;
+        }
+
+        storage.saveTodos(todos);
+        triggerChange();
+        return true;
+    };
+
     return {
         onTodosChange,
         setTodos,
@@ -154,6 +230,11 @@ const todoManager = (() => {
         updateTodoText,
         updateTodoCategory,
         toggleTodoStatus,
-        deleteTodo
+        deleteTodo,
+        // 일정 관련 함수들
+        updateTodoSchedule,
+        getTodoSchedule,
+        clearTodoSchedule,
+        markNotified
     };
 })();

@@ -56,6 +56,66 @@
         </div>
     </div>
 
+    <!-- 일정 설정 모달 -->
+    <div id="schedule-modal" class="modal-wrapper" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>일정 설정</h2>
+                <button id="close-schedule-modal-btn" class="icon-btn"></button>
+            </div>
+            <div class="modal-body">
+                <div class="todo-title-display">
+                    <h3 id="schedule-todo-title"></h3>
+                </div>
+                
+                <!-- 시작 시간 설정 영역 -->
+                <div class="schedule-section">
+                    <div class="schedule-checkbox-row">
+                        <input type="checkbox" id="start-time-enabled">
+                        <label for="start-time-enabled" class="schedule-label">시작 시간 설정</label>
+                    </div>
+                    <div class="schedule-inputs" id="start-time-inputs">
+                        <div class="datetime-row">
+                            <input type="date" id="start-date" class="date-input">
+                            <input type="time" id="start-time" class="time-input">
+                        </div>
+                        <div class="notification-row">
+                            <span class="notification-label">알림 모달:</span>
+                            <button id="start-modal-btn" class="notification-toggle-btn icon-btn" data-enabled="true"></button>
+                            <span class="notification-label">알림 소리:</span>
+                            <button id="start-notification-btn" class="notification-toggle-btn icon-btn" data-enabled="true"></button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 마감 시간 설정 영역 -->
+                <div class="schedule-section">
+                    <div class="schedule-checkbox-row">
+                        <input type="checkbox" id="due-time-enabled">
+                        <label for="due-time-enabled" class="schedule-label">마감 시간 설정</label>
+                    </div>
+                    <div class="schedule-inputs" id="due-time-inputs">
+                        <div class="datetime-row">
+                            <input type="date" id="due-date" class="date-input">
+                            <input type="time" id="due-time" class="time-input">
+                        </div>
+                        <div class="notification-row">
+                            <span class="notification-label">알림 모달:</span>
+                            <button id="due-modal-btn" class="notification-toggle-btn icon-btn" data-enabled="true"></button>
+                            <span class="notification-label">알림 소리:</span>
+                            <button id="due-notification-btn" class="notification-toggle-btn icon-btn" data-enabled="true"></button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button id="save-schedule-btn" class="primary-btn">저장</button>
+                    <button id="cancel-schedule-btn" class="secondary-btn">취소</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="js/icons.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/security.js"></script>

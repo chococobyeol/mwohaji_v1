@@ -426,3 +426,190 @@ button:hover {
     gap: 5px;
     align-items: center;
 }
+
+/* 일정 설정 모달 */
+#schedule-modal .modal-content {
+    max-width: 500px;
+    width: 90%;
+}
+
+.todo-title-display {
+    margin-bottom: 20px;
+    padding: 10px;
+    background-color: var(--card-bg);
+    border-radius: 6px;
+}
+
+.todo-title-display h3 {
+    margin: 0;
+    color: var(--primary-text);
+    font-size: 16px;
+}
+
+.schedule-section {
+    margin-bottom: 25px;
+    padding: 15px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background-color: #fafafa;
+}
+
+.schedule-checkbox-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.schedule-checkbox-row input[type="checkbox"] {
+    margin-right: 8px;
+    width: 16px;
+    height: 16px;
+}
+
+.schedule-label {
+    font-weight: 600;
+    color: var(--primary-text);
+    cursor: pointer;
+}
+
+.schedule-inputs {
+    margin-left: 24px; /* 체크박스와 맞춤 */
+    opacity: 0.5;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+
+.schedule-inputs.enabled {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.datetime-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.date-input, .time-input {
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 14px;
+}
+
+.date-input {
+    flex: 1;
+}
+
+.time-input {
+    width: 120px;
+}
+
+.notification-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.notification-label {
+    font-size: 14px;
+    color: var(--secondary-text);
+}
+
+.notification-toggle-btn {
+    padding: 4px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: white;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.notification-toggle-btn:hover {
+    background-color: var(--card-bg);
+}
+
+.notification-toggle-btn[data-enabled="true"] {
+    color: var(--accent-blue);
+    border-color: var(--accent-blue);
+}
+
+.notification-toggle-btn[data-enabled="false"] {
+    color: var(--secondary-text);
+}
+
+.modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 25px;
+    padding-top: 15px;
+    border-top: 1px solid var(--border-color);
+}
+
+.primary-btn {
+    background-color: var(--accent-blue);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background-color 0.2s ease;
+}
+
+.primary-btn:hover {
+    background-color: #3B5BDB;
+}
+
+.secondary-btn {
+    background-color: white;
+    color: var(--secondary-text);
+    border: 1px solid var(--border-color);
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.secondary-btn:hover {
+    background-color: var(--card-bg);
+    color: var(--primary-text);
+}
+
+/* 일정 정보 표시 스타일 */
+.schedule-info {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--secondary-text);
+    margin-right: 10px;
+}
+
+.schedule-info svg {
+    flex-shrink: 0;
+}
+
+.schedule-info.start-time {
+    color: var(--accent-blue);
+}
+
+.schedule-info.due-time {
+    color: var(--accent-red);
+}
+
+.schedule-icon-clickable {
+    cursor: pointer;
+    padding: 2px;
+    border-radius: 3px;
+    display: inline-flex;
+    align-items: center;
+    transition: background-color 0.2s ease;
+}
+
+.schedule-icon-clickable:hover {
+    background-color: var(--card-bg);
+}

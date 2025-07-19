@@ -9,15 +9,24 @@ const fileHandler = (() => {
         content += categories.map(c => `${c.id}|${c.name}`).join('\n');
         content += "\n\n";
 
-        // 할 일 목록 저장 - PRD 형식: [상태] 내용 @cat:카테고리 @notify:YYYY-MM-DD HH:mm @rec:규칙
+        // 할 일 목록 저장 - PRD 개선된 형식
         content += "#TODOS:\n";
         content += todos.map(t => {
             const completedMark = t.completed ? '[x]' : '[ ]';
             let todoLine = `${completedMark} ${t.text} @cat:${t.category}`;
             
-            // 알림 시간이 있다면 추가 (현재 미구현이지만 구조 준비)
-            if (t.notificationTime) {
-                todoLine += ` @notify:${utils.formatDateTime(t.notificationTime)}`;
+            // F-09: 일정 정보 저장
+            if (t.schedule) {
+                if (t.schedule.startTime) {
+                    todoLine += ` @start:${utils.formatDateTime(new Date(t.schedule.startTime))}`;
+                    todoLine += ` @smodal:${t.schedule.startModal !== false}`;
+                    todoLine += ` @snotify:${t.schedule.startNotification}`;
+                }
+                if (t.schedule.dueTime) {
+                    todoLine += ` @due:${utils.formatDateTime(new Date(t.schedule.dueTime))}`;
+                    todoLine += ` @dmodal:${t.schedule.dueModal !== false}`;
+                    todoLine += ` @dnotify:${t.schedule.dueNotification}`;
+                }
             }
             
             // 반복 규칙이 있다면 추가 (현재 미구현이지만 구조 준비)
@@ -64,7 +73,7 @@ const fileHandler = (() => {
                     importedData.categories.push({ id, name });
                 }
             } else if (isTodosSection) {
-                // PRD 형식 파싱: [상태] 내용 @cat:카테고리 @notify:YYYY-MM-DD HH:mm @rec:규칙 @id:숫자
+                // PRD 개선된 형식 파싱: [상태] 내용 @cat:카테고리 @start:YYYY-MM-DD HH:mm @due:YYYY-MM-DD HH:mm @smodal:true/false @snotify:true/false @dmodal:true/false @dnotify:true/false @id:숫자
                 const completed = line.startsWith('[x]');
                 const content = line.substring(4); // '[x] ' 또는 '[ ] ' 제거
                 
@@ -73,17 +82,38 @@ const fileHandler = (() => {
                 const todoText = parts[0]; // 첫 번째 부분은 할 일 텍스트
                 
                 let category = '일반';
-                let notificationTime = null;
                 let recurring = null;
                 let id = Date.now(); // 기본값
+                let schedule = null;
                 
                 // @ 파라미터들 파싱
                 parts.slice(1).forEach(part => {
                     if (part.startsWith('cat:')) {
                         category = part.substring(4);
-                    } else if (part.startsWith('notify:')) {
-                        const dateStr = part.substring(7);
-                        notificationTime = new Date(dateStr).toISOString();
+                    } else if (part.startsWith('start:')) {
+                        const dateStr = part.substring(6);
+                        if (!schedule) schedule = {};
+                        schedule.startTime = new Date(dateStr).toISOString();
+                    } else if (part.startsWith('due:')) {
+                        const dateStr = part.substring(4);
+                        if (!schedule) schedule = {};
+                        schedule.dueTime = new Date(dateStr).toISOString();
+                    } else if (part.startsWith('smodal:')) {
+                        const enabled = part.substring(7) === 'true';
+                        if (!schedule) schedule = {};
+                        schedule.startModal = enabled;
+                    } else if (part.startsWith('snotify:')) {
+                        const enabled = part.substring(8) === 'true';
+                        if (!schedule) schedule = {};
+                        schedule.startNotification = enabled;
+                    } else if (part.startsWith('dmodal:')) {
+                        const enabled = part.substring(7) === 'true';
+                        if (!schedule) schedule = {};
+                        schedule.dueModal = enabled;
+                    } else if (part.startsWith('dnotify:')) {
+                        const enabled = part.substring(8) === 'true';
+                        if (!schedule) schedule = {};
+                        schedule.dueNotification = enabled;
                     } else if (part.startsWith('rec:')) {
                         recurring = part.substring(4);
                     } else if (part.startsWith('id:')) {
@@ -100,8 +130,36 @@ const fileHandler = (() => {
                         createdAt: new Date(id).toISOString()
                     };
                     
-                    // 알림/반복 기능이 구현되면 추가
-                    if (notificationTime) todo.notificationTime = notificationTime;
+                    // F-09: 일정 정보 추가
+                    if (schedule) {
+                        // 기본값으로 알림 상태 초기화
+                        schedule.notifiedStart = false;
+                        schedule.notifiedDue = false;
+                        
+                        // startModal, startNotification 기본값 처리
+                        if (schedule.startTime) {
+                            if (schedule.startModal === undefined) {
+                                schedule.startModal = true;
+                            }
+                            if (schedule.startNotification === undefined) {
+                                schedule.startNotification = true;
+                            }
+                        }
+                        
+                        // dueModal, dueNotification 기본값 처리
+                        if (schedule.dueTime) {
+                            if (schedule.dueModal === undefined) {
+                                schedule.dueModal = true;
+                            }
+                            if (schedule.dueNotification === undefined) {
+                                schedule.dueNotification = true;
+                            }
+                        }
+                        
+                        todo.schedule = schedule;
+                    }
+                    
+                    // 반복 기능 (추후 구현)
                     if (recurring) todo.recurring = recurring;
                     
                     importedData.todos.push(todo);
