@@ -60,12 +60,21 @@
     <div id="schedule-modal" class="modal-wrapper" style="display: none;">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>일정 설정</h2>
+                <h2>할 일 편집</h2>
                 <button id="close-schedule-modal-btn" class="icon-btn"></button>
             </div>
             <div class="modal-body">
-                <div class="todo-title-display">
-                    <h3 id="schedule-todo-title"></h3>
+                <div class="todo-edit-section">
+                    <div class="edit-row">
+                        <label for="edit-todo-text">할 일 내용:</label>
+                        <input type="text" id="edit-todo-text" class="edit-input-field">
+                    </div>
+                    <div class="edit-row">
+                        <label for="edit-todo-category">카테고리:</label>
+                        <select id="edit-todo-category" class="edit-select-field">
+                            <!-- 카테고리 옵션들이 동적으로 추가됩니다 -->
+                        </select>
+                    </div>
                 </div>
                 
                 <!-- 시작 시간 설정 영역 -->

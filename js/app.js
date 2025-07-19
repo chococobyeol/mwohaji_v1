@@ -18,7 +18,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // 일정 설정 모달 관련 DOM Elements
     const scheduleModal = document.getElementById('schedule-modal');
     const closeScheduleModalBtn = document.getElementById('close-schedule-modal-btn');
-    const scheduleTodoTitle = document.getElementById('schedule-todo-title');
+    const editTodoText = document.getElementById('edit-todo-text');
+    const editTodoCategory = document.getElementById('edit-todo-category');
     const startTimeEnabled = document.getElementById('start-time-enabled');
     const startTimeInputs = document.getElementById('start-time-inputs');
     const startDate = document.getElementById('start-date');
@@ -57,34 +58,30 @@ document.addEventListener('DOMContentLoaded', () => {
         let startTimeHTML = '';
         let dueTimeHTML = '';
         
-        // 시작 시간 표시 (왼쪽 고정 자리)
+        // 시작 시간 표시
         if (todo.schedule.startTime) {
             const startDate = new Date(todo.schedule.startTime);
             const formattedStart = utils.formatDateTime(startDate);
-            const startIcon = icons.get('clock', 16);
+            const startIcon = icons.get('clock', 14);
             const modalIcon = todo.schedule.startModal !== false ? 
-                icons.get('bell', 16) : icons.get('bellOff', 16);
+                icons.get('bell', 14) : icons.get('bellOff', 14);
             const soundIcon = todo.schedule.startNotification ? 
-                icons.get('volume', 16) : icons.get('volumeX', 16);
+                icons.get('volume', 14) : icons.get('volumeX', 14);
             
-            startTimeHTML = `<span class="schedule-info start-time">${startIcon} 시작: ${formattedStart} <span class="schedule-icon-clickable" data-todo-id="${todo.id}" data-type="start-modal" title="시작 모달 토글">${modalIcon}</span> <span class="schedule-icon-clickable" data-todo-id="${todo.id}" data-type="start-sound" title="시작 소리 토글">${soundIcon}</span></span>`;
-        } else {
-            startTimeHTML = `<span class="schedule-info start-time"></span>`; // 빈 자리 확보
+            startTimeHTML = `<span class="schedule-info start-time">${startIcon} ${formattedStart} <span class="schedule-icon-clickable" data-todo-id="${todo.id}" data-type="start-modal" title="시작 모달 토글">${modalIcon}</span> <span class="schedule-icon-clickable" data-todo-id="${todo.id}" data-type="start-sound" title="시작 소리 토글">${soundIcon}</span></span>`;
         }
         
-        // 마감 시간 표시 (오른쪽 고정 자리)
+        // 마감 시간 표시
         if (todo.schedule.dueTime) {
             const dueDate = new Date(todo.schedule.dueTime);
             const formattedDue = utils.formatDateTime(dueDate);
-            const dueIcon = icons.get('clock', 16);
+            const dueIcon = icons.get('clock', 14);
             const modalIcon = todo.schedule.dueModal !== false ? 
-                icons.get('bell', 16) : icons.get('bellOff', 16);
+                icons.get('bell', 14) : icons.get('bellOff', 14);
             const soundIcon = todo.schedule.dueNotification ? 
-                icons.get('volume', 16) : icons.get('volumeX', 16);
+                icons.get('volume', 14) : icons.get('volumeX', 14);
             
-            dueTimeHTML = `<span class="schedule-info due-time">${dueIcon} 마감: ${formattedDue} <span class="schedule-icon-clickable" data-todo-id="${todo.id}" data-type="due-modal" title="마감 모달 토글">${modalIcon}</span> <span class="schedule-icon-clickable" data-todo-id="${todo.id}" data-type="due-sound" title="마감 소리 토글">${soundIcon}</span></span>`;
-        } else {
-            dueTimeHTML = `<span class="schedule-info due-time"></span>`; // 빈 자리 확보
+            dueTimeHTML = `<span class="schedule-info due-time">${dueIcon} ${formattedDue} <span class="schedule-icon-clickable" data-todo-id="${todo.id}" data-type="due-modal" title="마감 모달 토글">${modalIcon}</span> <span class="schedule-icon-clickable" data-todo-id="${todo.id}" data-type="due-sound" title="마감 소리 토글">${soundIcon}</span></span>`;
         }
         
         return `<div class="schedule-times">${startTimeHTML}${dueTimeHTML}</div>`;
@@ -146,27 +143,25 @@ document.addEventListener('DOMContentLoaded', () => {
         if (todo.completed) todoItem.classList.add('completed');
         todoItem.innerHTML = `
             <input type="checkbox" ${todo.completed ? 'checked' : ''}>
+            <button class="schedule-btn icon-btn" title="할 일 편집"></button>
             <div class="todo-content">
                 <div class="todo-main-line">
                     <span class="todo-text">${security.escapeHtml(todo.text)}</span>
                 </div>
                 <div class="todo-meta-line">
                     <span class="category-tag">${security.escapeHtml(todo.category)}</span>
-                    ${renderScheduleInfo(todo)}
                     ${todo.recurring ? `<span class="recurring-info">(${security.escapeHtml(todo.recurring)})</span>` : ''}
                 </div>
             </div>
-            <div class="todo-buttons">
-                <button class="schedule-btn icon-btn" title="일정 설정"></button>
-                <button class="delete-btn icon-btn" title="삭제"></button>
-            </div>
+            ${renderScheduleInfo(todo)}
+            <button class="delete-btn icon-btn" title="삭제"></button>
         `;
         
         // 아이콘 설정
         const scheduleBtn = todoItem.querySelector('.schedule-btn');
         const deleteBtn = todoItem.querySelector('.delete-btn');
         
-        icons.setButtonIcon(scheduleBtn, 'calendar', '일정 설정', 16);
+        icons.setButtonIcon(scheduleBtn, 'calendar', '할 일 편집', 16);
         icons.setButtonIcon(deleteBtn, 'trash', '삭제', 16);
         
         return todoItem;
@@ -247,61 +242,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     
-    const handleListDoubleClick = (event) => {
-        const target = event.target;
-        if (!target.classList.contains('todo-text')) return;
-        const todoItem = target.closest('.todo-item');
-        const id = Number(todoItem.dataset.id);
-        const todo = todoManager.getTodos().find(t => t.id === id);
-        if (!todo) return;
-
-        // 텍스트 입력 필드 생성
-        const textInput = document.createElement('input');
-        textInput.type = 'text';
-        textInput.value = todo.text;
-        textInput.className = 'edit-input';
-        
-        // 카테고리 선택 드롭다운 생성
-        const categorySelect = document.createElement('select');
-        categorySelect.className = 'edit-category-select';
-        const categories = todoManager.getCategories();
-        categories.forEach(cat => {
-            const option = document.createElement('option');
-            option.value = cat.id;
-            option.textContent = cat.name;
-            option.selected = cat.name === todo.category;
-            categorySelect.appendChild(option);
-        });
-        
-        // 기존 요소들 교체
-        const todoContent = todoItem.querySelector('.todo-content');
-        const metaInfo = todoItem.querySelector('.meta-info');
-        
-        todoContent.innerHTML = '';
-        todoContent.appendChild(textInput);
-        
-        metaInfo.innerHTML = '';
-        metaInfo.appendChild(categorySelect);
-        textInput.focus();
-        
-        const saveChanges = () => {
-            const newText = textInput.value.trim();
-            const selectedCategoryId = categorySelect.value;
-            const selectedCategory = categories.find(c => c.id === selectedCategoryId);
-            
-            if (newText) {
-                todoManager.updateTodoText(id, newText);
-                if (selectedCategory && selectedCategory.name !== todo.category) {
-                    todoManager.updateTodoCategory(id, selectedCategory.name);
-                }
-            }
-            renderTodos();
-        };
-        
-        textInput.addEventListener('blur', saveChanges);
-        textInput.addEventListener('keypress', (e) => e.key === 'Enter' && saveChanges());
-        categorySelect.addEventListener('change', saveChanges);
-    };
+    // 더블클릭으로 텍스트 수정 기능 제거 (일정 설정 모달에서 통합 관리)
 
     // 일정 설정 모달 관련 함수들
     const openScheduleModal = (todoId) => {
@@ -309,7 +250,20 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!todo) return;
 
         currentEditingTodoId = todoId;
-        scheduleTodoTitle.textContent = todo.text;
+        
+        // 텍스트와 카테고리 편집 필드 설정
+        editTodoText.value = todo.text;
+        
+        // 카테고리 선택 드롭다운 설정
+        const categories = todoManager.getCategories();
+        editTodoCategory.innerHTML = '';
+        categories.forEach(cat => {
+            const option = document.createElement('option');
+            option.value = cat.id;
+            option.textContent = cat.name;
+            option.selected = cat.name === todo.category;
+            editTodoCategory.appendChild(option);
+        });
 
         // 기존 일정 데이터 로드
         const schedule = todo.schedule;
@@ -390,6 +344,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveSchedule = () => {
         if (currentEditingTodoId === null) return;
 
+        // 텍스트와 카테고리 변경사항 저장
+        const newText = editTodoText.value.trim();
+        const selectedCategoryId = editTodoCategory.value;
+        const selectedCategory = todoManager.getCategories().find(c => c.id === selectedCategoryId);
+        
+        if (newText) {
+            todoManager.updateTodoText(currentEditingTodoId, newText);
+            if (selectedCategory) {
+                todoManager.updateTodoCategory(currentEditingTodoId, selectedCategory.name);
+            }
+        }
+
+        // 일정 데이터 처리
         const scheduleData = {};
 
         // 시작 시간 처리
@@ -472,7 +439,7 @@ document.addEventListener('DOMContentLoaded', () => {
     todoInput.addEventListener('keypress', (e) => e.key === 'Enter' && handleAddTodo());
     categorySelector.addEventListener('click', handleCategorySelect);
     todoListContainer.addEventListener('click', handleListClick);
-    todoListContainer.addEventListener('dblclick', handleListDoubleClick);
+
     settingsBtn.addEventListener('click', () => categoryModal.style.display = 'flex');
     closeModalBtn.addEventListener('click', () => categoryModal.style.display = 'none');
     addCategoryBtn.addEventListener('click', () => {

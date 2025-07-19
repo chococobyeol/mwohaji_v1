@@ -203,16 +203,21 @@ button:hover {
 
 .todo-item {
     display: flex !important;
-    align-items: flex-start !important; /* 다시 flex-start로 변경 */
-    padding: 10px 12px; /* 위아래 패딩을 줄여서 간격 조정 */
+    align-items: flex-start !important; 
+    padding: 16px 12px; 
     border-bottom: 1px solid var(--border-color);
-    transition: background-color 0.2s;
+    background: white;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    transition: all 0.2s ease;
     gap: 8px;
-    min-height: 55px !important; /* 높이를 줄여서 간격 줄이기 */
+    min-height: 70px !important;
+    position: relative; /* 삭제 버튼 절대 위치를 위해 */
 }
 
 .todo-item:hover {
-    background-color: var(--main-bg);
+    background-color: var(--card-bg);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transform: translateY(-1px);  /* 미묘한 상승 효과 */
 }
 
 .todo-item input[type="checkbox"] {
@@ -221,7 +226,7 @@ button:hover {
     height: 16px;
     flex-shrink: 0;
     margin-right: 2px;
-    align-self: center !important; /* 할 일 상자 전체의 세로 중앙에 배치 */
+    align-self: center; /* 할 일 상자 전체의 세로 중앙에 배치 */
 }
 
 .todo-content {
@@ -229,23 +234,26 @@ button:hover {
     min-width: 0;
     display: flex !important;
     flex-direction: column !important;
-    justify-content: space-between !important; /* 메타 라인을 다시 아래쪽으로! */
+    justify-content: flex-start !important; /* 자연스럽게 위에서 아래로 배치 */
     align-self: stretch !important; /* 전체 높이 사용하도록 */
-    /* gap 제거 */
+    gap: 8px;  /* 메인라인과 메타라인 사이 간격 약간 증가 */
 }
 
 .todo-main-line {
     display: flex;
     align-items: center;
-    justify-content: flex-start; /* 버튼이 없으니까 왼쪽 정렬 */
+    justify-content: flex-start; /* 할일 내용만 왼쪽 정렬 */
+    gap: 12px;
 }
 
 .todo-meta-line {
     display: flex !important;
     align-items: center !important;
-    justify-content: space-between !important;
-    font-size: 11px;
+    justify-content: flex-start !important; /* 카테고리만 왼쪽 정렬 */
+    font-size: 12px;  /* 현재 11px에서 조금 크게 */
+    font-weight: 400;  /* 얇게 유지 */
     color: var(--secondary-text);
+    opacity: 0.8;  /* 투명도로 중요도 차별화 */
     padding-left: 2px;
     margin-top: auto !important; /* 다시 아래쪽으로 밀어내기 */
 }
@@ -254,30 +262,108 @@ button:hover {
 
 .todo-text {
     font-size: 16px;
+    font-weight: 500;  /* 메인 텍스트를 더 굵게 */
+    color: var(--primary-text);
     cursor: pointer;
     line-height: 1.4;
+    flex-grow: 1; /* 남은 공간을 차지하여 시간 정보와 균형 맞춤 */
+    min-width: 0; /* 텍스트가 길 때 줄임표 가능하도록 */
 }
 
 
+
+/* 완료된 할일 */
+.todo-item.completed {
+    background-color: var(--main-bg);
+    opacity: 0.7;
+}
 
 .todo-item.completed .todo-text {
     text-decoration: line-through;
     color: var(--secondary-text);
 }
 
+.todo-item.completed .todo-meta-line {
+    opacity: 0.5;
+}
+
+/* 시간 정보 컨테이너 - todo-item 레벨에서 세로 가운데 정렬 */
 .schedule-times {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    min-width: 400px; /* 시작시간과 마감시간 고정 위치 확보 */
+    flex-direction: column;
+    align-items: flex-end; /* 오른쪽 정렬 */
+    justify-content: center; /* 세로 가운데 정렬 */
+    gap: 2px;  /* 시작시간과 마감시간 사이 간격 */
+    padding: 2px 30px 2px 4px; /* 오른쪽 패딩을 늘려서 휴지통 버튼과 거리 확보 */
+    min-width: 160px; /* 시간 정보 텍스트를 위한 적절한 너비 */
+    flex-shrink: 0; /* 크기 고정 */
+    align-self: center; /* todo-item 내에서 세로 가운데 정렬 */
+}
+
+/* 모바일 반응형 - 768px 이하에서 레이아웃 변경 */
+@media (max-width: 768px) {
+    .todo-item {
+        flex-wrap: wrap; /* 요소들이 아래줄로 내려갈 수 있게 */
+        min-height: auto; /* 고정 높이 해제 */
+        padding: 12px 8px; /* 패딩 줄이기 */
+    }
+    
+    .todo-item .schedule-times {
+        order: 10; /* 맨 아래로 이동 */
+        width: 100%; /* 전체 너비 사용 */
+        align-items: flex-start; /* 왼쪽 정렬로 변경 */
+        align-self: stretch; /* 전체 너비 사용 */
+        min-width: auto;
+        margin-top: 8px;
+        padding: 2px 4px 2px 24px; /* 왼쪽 패딩으로 체크박스 + 스케줄 버튼과 정렬 */
+    }
+    
+    .todo-item .delete-btn {
+        top: 4px;
+        right: 2px;
+    }
+    
+    .todo-content {
+        flex: 1; /* 남은 공간 모두 사용 */
+        min-width: 0; /* 텍스트 오버플로우 방지 */
+    }
+    
+    .todo-item .schedule-btn {
+        margin-right: 4px; /* 간격 줄이기 */
+    }
+    
+    /* 모바일에서 시간 정보 더 컴팩트하게 */
+    .schedule-info {
+        font-size: 9px; /* 더 작게 */
+        padding: 1px 4px; /* 패딩 줄이기 */
+        min-height: 14px; /* 높이 줄이기 */
+        gap: 2px; /* 간격 줄이기 */
+    }
+    
+    .schedule-times {
+        gap: 1px; /* 시작시간과 마감시간 간격 줄이기 */
+        margin-top: 4px; /* 위쪽 간격 줄이기 */
+    }
+    
+    /* 모바일에서 시간 정보 아이콘 크기 줄이기 */
+    .schedule-info svg {
+        width: 10px !important;
+        height: 10px !important;
+    }
+    
+    .schedule-icon-clickable svg {
+        width: 10px !important;
+        height: 10px !important;
+    }
 }
 
 .category-tag {
-    background-color: var(--card-bg);
-    color: var(--secondary-text);
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-size: 10px;
+    background-color: var(--accent-blue);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;  /* 더 둥글게 */
+    font-size: 11px;
+    font-weight: 500;
     white-space: nowrap;
 }
 
@@ -298,20 +384,25 @@ button:hover {
     font-size: 12px;
 }
 
-.todo-buttons {
-    display: flex !important;
-    align-items: center !important;
-    gap: 4px;
-    flex-shrink: 0;
-    align-self: center !important; /* 이제 체크박스처럼 바깥에 있어서 중앙 정렬 가능! */
+/* 개별 버튼 위치 조정 */
+.todo-item .schedule-btn {
+    align-self: center; /* 세로 가운데 정렬 */
 }
 
-.schedule-btn, .delete-btn {
+.todo-item .delete-btn {
+    position: absolute;
+    top: 6px;
+    right: 2px;
+    align-self: flex-start;
+}
+
+/* 스케줄 버튼 - 기본 기능 */
+.schedule-btn {
     background: none;
     color: var(--secondary-text);
+    opacity: 0.6;
     visibility: visible !important; /* 항상 표시 */
-    opacity: 1 !important; /* 항상 표시 */
-    transition: opacity 0.2s;
+    transition: all 0.2s ease;
     padding: 4px;
     border-radius: 4px;
     min-width: 24px;
@@ -325,10 +416,32 @@ button:hover {
 
 .schedule-btn:hover {
     color: var(--accent-blue);
+    opacity: 1;
+    background-color: rgba(66, 99, 235, 0.1);
+}
+
+/* 삭제 버튼 - 위험한 동작이므로 더 눈에 띄지 않게 */
+.delete-btn {
+    background: none;
+    color: var(--secondary-text);
+    opacity: 0.4;  /* 더 낮은 투명도 */
+    visibility: visible !important; /* 항상 표시 */
+    transition: all 0.2s ease;
+    padding: 4px;
+    border-radius: 4px;
+    min-width: 24px;
+    min-height: 24px;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    cursor: pointer;
 }
 
 .delete-btn:hover {
     color: var(--accent-red);
+    opacity: 1;
+    background-color: rgba(255, 107, 107, 0.1);
 }
 
 /* 7.5. 모달 */
@@ -442,17 +555,48 @@ button:hover {
     width: 90%;
 }
 
-.todo-title-display {
+/* 할 일 편집 섹션 */
+.todo-edit-section {
     margin-bottom: 20px;
-    padding: 10px;
+    padding: 15px;
     background-color: var(--card-bg);
     border-radius: 6px;
 }
 
-.todo-title-display h3 {
-    margin: 0;
+.edit-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+    gap: 10px;
+}
+
+.edit-row:last-child {
+    margin-bottom: 0;
+}
+
+.edit-row label {
+    min-width: 80px;
+    font-weight: 500;
     color: var(--primary-text);
-    font-size: 16px;
+}
+
+.edit-input-field {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+}
+
+.edit-select-field {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 14px;
+    background-color: white;
+    font-family: inherit;
 }
 
 .schedule-section {
@@ -588,13 +732,18 @@ button:hover {
     color: var(--primary-text);
 }
 
-/* 일정 정보 표시 스타일 */
+/* 일정 정보 표시 스타일 - 각 줄별로 배치 */
 .schedule-info {
     display: inline-flex;
     align-items: center;
-    gap: 4px; /* 아이콘 크기가 커져서 간격도 조금 늘림 */
-    font-size: 11px;
+    gap: 3px;
+    font-size: 10px;
     color: var(--secondary-text);
+    padding: 2px 6px;
+    border-radius: 4px;
+    background-color: rgba(0, 0, 0, 0.03);
+    min-height: 16px;
+    white-space: nowrap;
 }
 
 .schedule-info svg {
@@ -603,12 +752,12 @@ button:hover {
 
 .schedule-info.start-time {
     color: var(--accent-blue);
-    flex-shrink: 0; /* 크기 고정 */
+    background-color: rgba(66, 99, 235, 0.1);
 }
 
 .schedule-info.due-time {
     color: var(--accent-red);
-    flex-shrink: 0; /* 크기 고정 */
+    background-color: rgba(255, 107, 107, 0.1);
 }
 
 .schedule-icon-clickable {
