@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mwohaji - 당신의 할 일 관리자</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="app">
+        <header class="header">
+            <div class="header-left">
+                <button id="settings-btn" class="icon-btn" title="카테고리 관리">⚙️</button>
+            </div>
+            <div class="view-toggle">
+                <button id="view-project" class="active">프로젝트별 보기</button>
+                <button id="view-all">전체 보기</button>
+            </div>
+            <div class="data-management">
+                <!-- 오디오 상태 버튼 제거 -->
+                <button id="import-btn" title="가져오기">📥</button>
+                <button id="export-btn" title="내보내기">📤</button>
+            </div>
+        </header>
+        <main class="main">
+            <div class="todo-input-container">
+                <input type="text" id="todo-input" placeholder="새로운 할 일을 추가하세요...">
+                <div id="category-selector" class="category-selector">
+                    <!-- 카테고리 버튼들이 동적으로 추가됩니다. -->
+                </div>
+                <button id="add-todo-btn">추가</button>
+            </div>
+            <div id="todo-list" class="todo-list">
+                <!-- 할 일 목록이 여기에 동적으로 추가됩니다. -->
+            </div>
+        </main>
+    </div>
+
+    <!-- 카테고리 관리 모달 -->
+    <div id="category-modal" class="modal-wrapper" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>카테고리 관리</h2>
+                <button id="close-modal-btn" class="icon-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <ul id="category-list" class="category-manage-list">
+                    <!-- 카테고리 목록이 동적으로 추가됩니다. -->
+                </ul>
+                <div class="category-input-container">
+                    <input type="text" id="new-category-input" placeholder="새 카테고리 이름">
+                    <button id="add-category-btn">카테고리 추가</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 알림 모달 제거 -->
+
+    <script src="js/utils.js"></script>
+    <script src="js/security.js"></script>
+    <script src="js/storage.js"></script>
+    <script src="js/todoManager.js"></script>
+    <script src="js/fileHandler.js"></script>
+    <!-- notificationManager.js 스크립트 태그 제거 -->
+    <script src="js/app.js"></script>
+    <!-- flatpickr 스크립트 태그 제거 -->
+</body>
+</html>
