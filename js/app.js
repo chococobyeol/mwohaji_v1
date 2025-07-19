@@ -450,14 +450,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     categoryList.addEventListener('click', (e) => {
-        const id = e.target.dataset.id;
+        // SVG 아이콘 클릭 시에도 올바른 버튼을 찾기 위해 closest 사용
+        const deleteBtn = e.target.closest('.cat-delete-btn');
+        const editBtn = e.target.closest('.cat-edit-btn');
         
-        if (e.target.classList.contains('cat-delete-btn')) {
+        if (deleteBtn) {
+            const id = deleteBtn.dataset.id;
             if (confirm('카테고리를 삭제하면 해당 카테고리의 할 일은 "일반"으로 변경됩니다. 계속하시겠습니까?')) {
                 todoManager.deleteCategory(id);
                 render();
             }
-        } else if (e.target.classList.contains('cat-edit-btn')) {
+        } else if (editBtn) {
+            const id = editBtn.dataset.id;
             const categoryName = todoManager.getCategories().find(c => c.id === id)?.name;
             if (categoryName) {
                 const newName = prompt('새 카테고리 이름을 입력하세요:', categoryName);

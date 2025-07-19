@@ -18,13 +18,13 @@
     --border-color: #E9ECEF;
 }
 
-/* 7.1. 디자인 원칙 & 7.3 폰트 */
+/* 페이퍼스타일 화이트 배경 */
 body {
     font-family: "Pretendard", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background-color: var(--main-bg);
+    background-color: white; /* 순백색 배경 */
     color: var(--primary-text);
     margin: 0;
-    padding: 20px;
+    padding: 24px;
     line-height: 1.6;
 }
 
@@ -32,18 +32,20 @@ body {
     max-width: 800px;
     margin: 0 auto;
     background-color: white;
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    border: 1px solid #e5e7eb; /* 연한 회색 테두리 */
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.08); /* 페이퍼 그림자 */
+    overflow: hidden;
 }
 
-/* 7.4. 화면 레이아웃 - 헤더 */
+/* 페이퍼스타일 헤더 */
 .header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 15px 20px;
-    border-bottom: 1px solid var(--border-color);
+    padding: 20px 24px;
+    border-bottom: 1px solid #f3f4f6; /* 더 연한 구분선 */
+    background-color: #fefefe; /* 아주 연한 배경 */
 }
 
 .header h1 {
@@ -75,67 +77,94 @@ body {
     padding: 5px;
 }
 
-/* 7.4. 화면 레이아웃 - 메인 */
+/* 페이퍼스타일 메인 */
 .main {
-    padding: 20px;
+    padding: 24px;
+    background-color: white;
 }
 
 .todo-input-container {
-    margin-bottom: 20px;
+    margin-bottom: 32px; /* 간격 증가 */
     display: flex;
     flex-direction: column;
     gap: 12px;
+    padding: 0; /* 패딩 제거 - 심플하게 */
+    /* 테두리, 배경, 그림자 모두 제거 - 깔끔하게 */
 }
 
 .input-row {
     display: flex;
-    gap: 10px;
+    gap: 12px; /* 간격 증가 */
     align-items: center;
 }
 
 #todo-input {
     flex-grow: 1;
-    padding: 12px 15px;
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
+    padding: 16px 20px; /* 더 넉넉한 패딩 */
+    border: 2px solid #e5e7eb; /* 더 진한 테두리 */
+    border-radius: 12px; /* 더 둥근 모서리 */
     font-size: 16px;
     box-sizing: border-box;
+    transition: all 0.2s ease; /* 부드러운 전환 */
+    background-color: #fafafa; /* 아주 연한 배경 */
+}
+
+#todo-input:focus {
+    outline: none;
+    border-color: var(--accent-blue); /* 포커스 시 파란색 테두리 */
+    background-color: white; /* 포커스 시 흰색 배경 */
+    box-shadow: 0 0 0 3px rgba(66, 99, 235, 0.1); /* 포커스 링 */
 }
 
 #add-todo-btn {
     background-color: var(--accent-blue);
     color: white;
-    padding: 12px 20px;
-    border-radius: 6px;
+    padding: 16px 24px; /* 인풋과 동일한 높이 */
+    border-radius: 12px; /* 인풋과 동일한 둥글기 */
     font-size: 16px;
+    font-weight: 600; /* 약간 굵게 */
     white-space: nowrap;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+#add-todo-btn:hover {
+    background-color: #2563eb; /* 약간 더 진한 파란색 */
+    transform: translateY(-1px); /* 살짝 올라가는 효과 */
+    box-shadow: 0 4px 12px rgba(66, 99, 235, 0.3); /* 호버 그림자 */
 }
 
 .category-selector {
     display: flex;
-    gap: 6px;
+    gap: 8px; /* 간격 증가 */
     flex-wrap: wrap;
+    margin-top: 4px; /* 위쪽 간격 */
 }
 
 .category-selector button {
-    padding: 6px 12px;
-    border: 1px solid var(--border-color);
+    padding: 8px 16px; /* 패딩 증가 */
+    border: 2px solid #e5e7eb; /* 더 진한 테두리 */
     background-color: white;
-    border-radius: 16px;
+    border-radius: 20px; /* 더 둥근 모서리 */
     cursor: pointer;
     font-size: 14px;
-    transition: background-color 0.2s;
+    font-weight: 500; /* 약간 굵게 */
+    transition: all 0.2s ease; /* 모든 속성 전환 */
     white-space: nowrap;
 }
 
 .category-selector button:hover {
-    background-color: var(--card-bg);
+    background-color: #fafafa; /* 연한 회색 */
+    border-color: #d1d5db; /* 약간 더 진한 테두리 */
+    transform: translateY(-1px); /* 살짝 올라가는 효과 */
 }
 
 .category-selector button.selected {
     background-color: var(--accent-green);
     color: white;
     border-color: var(--accent-green);
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3); /* 그림자 추가 */
 }
 
 #todo-input:focus {
@@ -204,21 +233,32 @@ button:hover {
 .todo-item {
     display: flex !important;
     align-items: flex-start !important; 
-    padding: 16px 12px; 
-    border-bottom: 1px solid var(--border-color);
+    padding: 18px 16px;
+    border: none;
+    border-left: 4px solid #e5e7eb; /* 기본 회색 바 */
     background: white;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06); /* 페이퍼 그림자 */
+    margin-bottom: 12px;
     transition: all 0.2s ease;
-    gap: 8px;
+    gap: 10px;
     min-height: 70px !important;
-    position: relative; /* 삭제 버튼 절대 위치를 위해 */
+    position: relative;
 }
 
 .todo-item:hover {
-    background-color: var(--card-bg);
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    transform: translateY(-1px);  /* 미묘한 상승 효과 */
+    background-color: #fafafa; /* 아주 연한 회색 */
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1); /* 호버 시 더 진한 그림자 */
+    transform: translateY(-1px);
 }
+
+/* 페이퍼스타일 카테고리별 색깔 바 */
+.todo-item[data-category="work"] { border-left-color: #3b82f6; }
+.todo-item[data-category="personal"] { border-left-color: #10b981; }
+.todo-item[data-category="shopping"] { border-left-color: #f59e0b; }
+.todo-item[data-category="health"] { border-left-color: #ef4444; }
+.todo-item[data-category="study"] { border-left-color: #8b5cf6; }
+.todo-item[data-category="other"] { border-left-color: #6b7280; }
 
 .todo-item input[type="checkbox"] {
     cursor: pointer;
@@ -272,10 +312,11 @@ button:hover {
 
 
 
-/* 완료된 할일 */
+/* 페이퍼스타일 완료된 할일 */
 .todo-item.completed {
-    background-color: var(--main-bg);
-    opacity: 0.7;
+    background-color: #f8f9fa; /* 연한 회색 배경 */
+    opacity: 0.8;
+    border-left-color: #9ca3af !important; /* 회색으로 통일 */
 }
 
 .todo-item.completed .todo-text {
@@ -284,7 +325,7 @@ button:hover {
 }
 
 .todo-item.completed .todo-meta-line {
-    opacity: 0.5;
+    opacity: 0.6;
 }
 
 /* 시간 정보 컨테이너 - todo-item 레벨에서 세로 가운데 정렬 */
@@ -300,12 +341,40 @@ button:hover {
     align-self: center; /* todo-item 내에서 세로 가운데 정렬 */
 }
 
-/* 모바일 반응형 - 768px 이하에서 레이아웃 변경 */
+/* 페이퍼스타일 모바일 반응형 - 768px 이하에서 레이아웃 변경 */
 @media (max-width: 768px) {
+    body {
+        padding: 16px;
+    }
+    
+    .header {
+        padding: 16px 20px;
+    }
+    
+    .main {
+        padding: 20px;
+    }
+    
+    /* 모바일에서 인풋 스타일 조정 */
+    #todo-input {
+        padding: 14px 16px; /* 모바일에서 패딩 줄이기 */
+        font-size: 16px; /* iOS에서 줌 방지를 위해 16px 유지 */
+    }
+    
+    #add-todo-btn {
+        padding: 14px 20px; /* 모바일에서 패딩 줄이기 */
+    }
+    
+    .category-selector button {
+        padding: 6px 12px; /* 모바일에서 카테고리 버튼 작게 */
+        font-size: 13px;
+    }
+    
     .todo-item {
         flex-wrap: wrap; /* 요소들이 아래줄로 내려갈 수 있게 */
         min-height: auto; /* 고정 높이 해제 */
-        padding: 12px 8px; /* 패딩 줄이기 */
+        padding: 14px 12px; /* 패딩 줄이기 */
+        margin-bottom: 10px; /* 간격 줄이기 */
     }
     
     .todo-item .schedule-times {
@@ -319,8 +388,8 @@ button:hover {
     }
     
     .todo-item .delete-btn {
-        top: 4px;
-        right: 2px;
+        top: 10px;
+        right: 10px;
     }
     
     .todo-content {
@@ -361,7 +430,7 @@ button:hover {
     background-color: var(--accent-blue);
     color: white;
     padding: 2px 8px;
-    border-radius: 12px;  /* 더 둥글게 */
+    border-radius: 12px;
     font-size: 11px;
     font-weight: 500;
     white-space: nowrap;
@@ -391,8 +460,8 @@ button:hover {
 
 .todo-item .delete-btn {
     position: absolute;
-    top: 6px;
-    right: 2px;
+    top: 12px;
+    right: 12px;
     align-self: flex-start;
 }
 
@@ -401,7 +470,7 @@ button:hover {
     background: none;
     color: var(--secondary-text);
     opacity: 0.6;
-    visibility: visible !important; /* 항상 표시 */
+    visibility: visible !important;
     transition: all 0.2s ease;
     padding: 4px;
     border-radius: 4px;
@@ -424,8 +493,8 @@ button:hover {
 .delete-btn {
     background: none;
     color: var(--secondary-text);
-    opacity: 0.4;  /* 더 낮은 투명도 */
-    visibility: visible !important; /* 항상 표시 */
+    opacity: 0.4;
+    visibility: visible !important;
     transition: all 0.2s ease;
     padding: 4px;
     border-radius: 4px;
