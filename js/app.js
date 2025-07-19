@@ -61,11 +61,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (todo.schedule.startTime) {
             const startDate = new Date(todo.schedule.startTime);
             const formattedStart = utils.formatDateTime(startDate);
-            const startIcon = icons.get('clock', 12);
+            const startIcon = icons.get('clock', 16);
             const modalIcon = todo.schedule.startModal !== false ? 
-                icons.get('bell', 10) : icons.get('bellOff', 10);
+                icons.get('bell', 16) : icons.get('bellOff', 16);
             const soundIcon = todo.schedule.startNotification ? 
-                icons.get('volume', 10) : icons.get('volumeX', 10);
+                icons.get('volume', 16) : icons.get('volumeX', 16);
             
             startTimeHTML = `<span class="schedule-info start-time">${startIcon} 시작: ${formattedStart} <span class="schedule-icon-clickable" data-todo-id="${todo.id}" data-type="start-modal" title="시작 모달 토글">${modalIcon}</span> <span class="schedule-icon-clickable" data-todo-id="${todo.id}" data-type="start-sound" title="시작 소리 토글">${soundIcon}</span></span>`;
         } else {
@@ -76,11 +76,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (todo.schedule.dueTime) {
             const dueDate = new Date(todo.schedule.dueTime);
             const formattedDue = utils.formatDateTime(dueDate);
-            const dueIcon = icons.get('clock', 12);
+            const dueIcon = icons.get('clock', 16);
             const modalIcon = todo.schedule.dueModal !== false ? 
-                icons.get('bell', 10) : icons.get('bellOff', 10);
+                icons.get('bell', 16) : icons.get('bellOff', 16);
             const soundIcon = todo.schedule.dueNotification ? 
-                icons.get('volume', 10) : icons.get('volumeX', 10);
+                icons.get('volume', 16) : icons.get('volumeX', 16);
             
             dueTimeHTML = `<span class="schedule-info due-time">${dueIcon} 마감: ${formattedDue} <span class="schedule-icon-clickable" data-todo-id="${todo.id}" data-type="due-modal" title="마감 모달 토글">${modalIcon}</span> <span class="schedule-icon-clickable" data-todo-id="${todo.id}" data-type="due-sound" title="마감 소리 토글">${soundIcon}</span></span>`;
         } else {
@@ -149,16 +149,16 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="todo-content">
                 <div class="todo-main-line">
                     <span class="todo-text">${security.escapeHtml(todo.text)}</span>
-                    <div class="todo-buttons">
-                        <button class="schedule-btn icon-btn" title="일정 설정"></button>
-                        <button class="delete-btn icon-btn" title="삭제"></button>
-                    </div>
                 </div>
                 <div class="todo-meta-line">
                     <span class="category-tag">${security.escapeHtml(todo.category)}</span>
                     ${renderScheduleInfo(todo)}
                     ${todo.recurring ? `<span class="recurring-info">(${security.escapeHtml(todo.recurring)})</span>` : ''}
                 </div>
+            </div>
+            <div class="todo-buttons">
+                <button class="schedule-btn icon-btn" title="일정 설정"></button>
+                <button class="delete-btn icon-btn" title="삭제"></button>
             </div>
         `;
         

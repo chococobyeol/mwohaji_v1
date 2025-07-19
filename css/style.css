@@ -202,13 +202,13 @@ button:hover {
 }
 
 .todo-item {
-    display: flex;
-    align-items: flex-start;
-    padding: 10px 12px;
+    display: flex !important;
+    align-items: flex-start !important; /* 다시 flex-start로 변경 */
+    padding: 10px 12px; /* 위아래 패딩을 줄여서 간격 조정 */
     border-bottom: 1px solid var(--border-color);
     transition: background-color 0.2s;
     gap: 8px;
-    min-height: 60px; /* 체크박스 중앙 정렬을 위해 높이 증가 */
+    min-height: 55px !important; /* 높이를 줄여서 간격 줄이기 */
 }
 
 .todo-item:hover {
@@ -221,30 +221,33 @@ button:hover {
     height: 16px;
     flex-shrink: 0;
     margin-right: 2px;
-    align-self: center; /* 할 일 상자 전체의 세로 중앙에 배치 */
+    align-self: center !important; /* 할 일 상자 전체의 세로 중앙에 배치 */
 }
 
 .todo-content {
     flex-grow: 1;
     min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important; /* 메타 라인을 다시 아래쪽으로! */
+    align-self: stretch !important; /* 전체 높이 사용하도록 */
+    /* gap 제거 */
 }
 
 .todo-main-line {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start; /* 버튼이 없으니까 왼쪽 정렬 */
 }
 
 .todo-meta-line {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
     font-size: 11px;
     color: var(--secondary-text);
     padding-left: 2px;
+    margin-top: auto !important; /* 다시 아래쪽으로 밀어내기 */
 }
 
 
@@ -296,39 +299,36 @@ button:hover {
 }
 
 .todo-buttons {
-    display: flex;
-    align-items: center;
+    display: flex !important;
+    align-items: center !important;
     gap: 4px;
     flex-shrink: 0;
+    align-self: center !important; /* 이제 체크박스처럼 바깥에 있어서 중앙 정렬 가능! */
 }
 
-.delete-btn, .sound-toggle-btn {
+.schedule-btn, .delete-btn {
     background: none;
     color: var(--secondary-text);
-    visibility: hidden;
-    opacity: 0;
+    visibility: visible !important; /* 항상 표시 */
+    opacity: 1 !important; /* 항상 표시 */
     transition: opacity 0.2s;
     padding: 4px;
     border-radius: 4px;
     min-width: 24px;
     min-height: 24px;
-    display: inline-flex;
+    display: inline-flex !important;
     align-items: center;
     justify-content: center;
+    border: none;
+    cursor: pointer;
 }
 
-.todo-item:hover .delete-btn,
-.todo-item:hover .sound-toggle-btn {
-    visibility: visible;
-    opacity: 1;
+.schedule-btn:hover {
+    color: var(--accent-blue);
 }
 
 .delete-btn:hover {
     color: var(--accent-red);
-}
-
-.sound-toggle-btn:hover {
-    color: var(--accent-blue);
 }
 
 /* 7.5. 모달 */
@@ -592,7 +592,7 @@ button:hover {
 .schedule-info {
     display: inline-flex;
     align-items: center;
-    gap: 3px;
+    gap: 4px; /* 아이콘 크기가 커져서 간격도 조금 늘림 */
     font-size: 11px;
     color: var(--secondary-text);
 }
