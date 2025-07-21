@@ -18,7 +18,7 @@ const todoManager = (() => {
     };
 
     const getTodos = () => {
-        return todos;
+        return todos; // 이 한 줄만 남겨주세요.
     };
 
     const setCategories = (newCategories) => {
@@ -43,6 +43,16 @@ const todoManager = (() => {
             category: categoryName, // 카테고리 이름을 저장
             completed: false,
             createdAt: new Date().toISOString(),
+            schedule: { // schedule 객체 추가 및 초기화
+                startTime: null,
+                startModal: true,
+                startNotification: true,
+                dueTime: null,
+                dueModal: true,
+                dueNotification: true,
+                notifiedStart: false,
+                notifiedDue: false
+            }
             // notificationTime, recurring, soundEnabled, notified 속성 제거
         };
 
@@ -146,6 +156,9 @@ const todoManager = (() => {
         const todo = todos.find(todo => todo.id === id);
         if (!todo) return false;
 
+        console.log(`[updateTodoSchedule] Before update - Todo ID: ${id}, Current schedule:`, JSON.parse(JSON.stringify(todo.schedule)));
+        console.log(`[updateTodoSchedule] Incoming scheduleData:`, scheduleData);
+
         // 기존 schedule 객체가 없으면 초기화
         if (!todo.schedule) {
             todo.schedule = {
@@ -160,19 +173,80 @@ const todoManager = (() => {
             };
         }
 
-        // 새로운 일정 데이터로 업데이트
-        Object.assign(todo.schedule, scheduleData);
+        // 이전 startTime과 dueTime 값을 저장하여 비교
+        const oldStartTime = todo.schedule.startTime;
+        const oldDueTime = todo.schedule.dueTime;
 
-        // 시간이 null로 설정되면 해당 알림 상태도 초기화
-        if (!todo.schedule.startTime) {
+        // 새로운 일정 데이터로 업데이트 (개별 속성 처리)
+        // startTime 처리
+        let newStartTimeDate = null;
+        if (scheduleData.hasOwnProperty('startTime')) {
+            if (scheduleData.startTime !== null) {
+                newStartTimeDate = new Date(scheduleData.startTime);
+                // Check if parsing was successful
+                if (isNaN(newStartTimeDate.getTime())) {
+                    console.error(`[updateTodoSchedule] Invalid startTime format: ${scheduleData.startTime}`);
+                    newStartTimeDate = null; // Reset to null if invalid
+                }
+            }
+            if ((oldStartTime instanceof Date ? oldStartTime.getTime() : null) !== (newStartTimeDate ? newStartTimeDate.getTime() : null)) {
+                todo.schedule.startTime = newStartTimeDate;
+                todo.schedule.notifiedStart = false;
+                console.log(`[updateTodoSchedule] notifiedStart reset to false for todo ${id} (startTime changed)`);
+            }
+        }
+
+        // startModal 처리
+        if (scheduleData.hasOwnProperty('startModal')) {
+            todo.schedule.startModal = scheduleData.startModal;
+        }
+
+        // startNotification 처리
+        if (scheduleData.hasOwnProperty('startNotification')) {
+            todo.schedule.startNotification = scheduleData.startNotification;
+        }
+
+        // dueTime 처리
+        let newDueTimeDate = null;
+        if (scheduleData.hasOwnProperty('dueTime')) {
+            if (scheduleData.dueTime !== null) {
+                newDueTimeDate = new Date(scheduleData.dueTime);
+                // Check if parsing was successful
+                if (isNaN(newDueTimeDate.getTime())) {
+                    console.error(`[updateTodoSchedule] Invalid dueTime format: ${scheduleData.dueTime}`);
+                    newDueTimeDate = null; // Reset to null if invalid
+                }
+            }
+            if ((oldDueTime instanceof Date ? oldDueTime.getTime() : null) !== (newDueTimeDate ? newDueTimeDate.getTime() : null)) {
+                todo.schedule.dueTime = newDueTimeDate;
+                todo.schedule.notifiedDue = false;
+                console.log(`[updateTodoSchedule] notifiedDue reset to false for todo ${id} (dueTime changed)`);
+            }
+        }
+
+        // dueModal 처리
+        if (scheduleData.hasOwnProperty('dueModal')) {
+            todo.schedule.dueModal = scheduleData.dueModal;
+        }
+
+        // dueNotification 처리
+        if (scheduleData.hasOwnProperty('dueNotification')) {
+            todo.schedule.dueNotification = scheduleData.dueNotification;
+        }
+
+        // 시간이 null로 설정되면 해당 알림 상태도 초기화 (기존 로직 유지)
+        // 이 부분은 위의 변경 감지 로직에 통합되어 중복될 수 있으므로, 제거하거나 명확히 분리해야 함.
+        // 현재는 시간 변경으로 인해 null이 될 경우에도 notified가 false로 설정되므로 이 로직은 유지.
+        if (todo.schedule.startTime === null) {
             todo.schedule.notifiedStart = false;
         }
-        if (!todo.schedule.dueTime) {
+        if (todo.schedule.dueTime === null) {
             todo.schedule.notifiedDue = false;
         }
 
         storage.saveTodos(todos);
         triggerChange();
+        console.log(`[updateTodoSchedule] After update - Todo ID: ${id}, Updated schedule:`, JSON.parse(JSON.stringify(todo.schedule)));
         return true;
     };
 

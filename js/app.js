@@ -271,8 +271,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (schedule && schedule.startTime) {
             startTimeEnabled.checked = true;
             const startDateTime = new Date(schedule.startTime);
-            startDate.value = startDateTime.toISOString().split('T')[0];
-            startTime.value = startDateTime.toTimeString().slice(0, 5);
+
+            // toLocaleDateString과 toLocaleTimeString을 사용하여 로컬 시간대 기반의 정확한 문자열 포맷팅
+            const formattedStartDate = startDateTime.toLocaleDateString('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' });
+            const formattedStartTime = startDateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+            
+            console.log(`[App] 로드된 시작 시간: ${startDateTime.toISOString()} -> 표시: ${formattedStartDate} ${formattedStartTime}`); // 디버그 로그 추가
+
+            startDate.value = formattedStartDate;
+            startTime.value = formattedStartTime;
+
             startModalBtn.dataset.enabled = schedule.startModal !== false ? 'true' : 'false';
             startNotificationBtn.dataset.enabled = schedule.startNotification ? 'true' : 'false';
             startTimeInputs.classList.add('enabled');
@@ -288,8 +296,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (schedule && schedule.dueTime) {
             dueTimeEnabled.checked = true;
             const dueDateTime = new Date(schedule.dueTime);
-            dueDate.value = dueDateTime.toISOString().split('T')[0];
-            dueTime.value = dueDateTime.toTimeString().slice(0, 5);
+
+            // toLocaleDateString과 toLocaleTimeString을 사용하여 로컬 시간대 기반의 정확한 문자열 포맷팅
+            const formattedDueDate = dueDateTime.toLocaleDateString('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' });
+            const formattedDueTime = dueDateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+
+            console.log(`[App] 로드된 마감 시간: ${dueDateTime.toISOString()} -> 표시: ${formattedDueDate} ${formattedDueTime}`); // 디버그 로그 추가
+
+            dueDate.value = formattedDueDate;
+            dueTime.value = formattedDueTime;
+
             dueModalBtn.dataset.enabled = schedule.dueModal !== false ? 'true' : 'false';
             dueNotificationBtn.dataset.enabled = schedule.dueNotification ? 'true' : 'false';
             dueTimeInputs.classList.add('enabled');
@@ -361,8 +377,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 시작 시간 처리
         if (startTimeEnabled.checked && startDate.value && startTime.value) {
-            const startDateTime = new Date(`${startDate.value}T${startTime.value}`);
-            scheduleData.startTime = startDateTime.toISOString();
+            // 로컬 날짜/시간 문자열을 ISO 형식 대신 그대로 저장하여 Date 객체가 로컬 타임존으로 파싱하도록 함
+            scheduleData.startTime = `${startDate.value}T${startTime.value}:00`;
             scheduleData.startModal = startModalBtn.dataset.enabled === 'true';
             scheduleData.startNotification = startNotificationBtn.dataset.enabled === 'true';
         } else {
@@ -373,8 +389,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 마감 시간 처리
         if (dueTimeEnabled.checked && dueDate.value && dueTime.value) {
-            const dueDateTime = new Date(`${dueDate.value}T${dueTime.value}`);
-            scheduleData.dueTime = dueDateTime.toISOString();
+            // 로컬 날짜/시간 문자열을 ISO 형식 대신 그대로 저장하여 Date 객체가 로컬 타임존으로 파싱하도록 함
+            scheduleData.dueTime = `${dueDate.value}T${dueTime.value}:00`;
             scheduleData.dueModal = dueModalBtn.dataset.enabled === 'true';
             scheduleData.dueNotification = dueNotificationBtn.dataset.enabled === 'true';
         } else {
@@ -431,7 +447,17 @@ document.addEventListener('DOMContentLoaded', () => {
         todoManager.setTodos(storage.getTodos());
         todoManager.setCategories(storage.getCategories());
         initIcons();
+
+        // 이벤트 리스너 추가
+        saveScheduleBtn.addEventListener('click', saveSchedule);
+        cancelScheduleBtn.addEventListener('click', closeScheduleModal);
+        closeScheduleModalBtn.addEventListener('click', closeScheduleModal);
+        scheduleModal.addEventListener('click', (e) => {
+            if (e.target === scheduleModal) closeScheduleModal();
+        });
         render();
+        // 알림 스케줄러 초기화
+        notificationScheduler.initScheduler();
     };
 
     // EVENT LISTENERS
@@ -513,11 +539,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target.checked) {
             startTimeInputs.classList.add('enabled');
             // 현재 날짜/시간으로 기본값 설정
-            if (!startDate.value) {
-                const now = new Date();
-                startDate.value = now.toISOString().split('T')[0];
-                startTime.value = now.toTimeString().slice(0, 5);
-            }
+            const now = new Date();
+            // 로컬 타임존 기준으로 날짜와 시간 설정
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+
+            startDate.value = `${year}-${month}-${day}`;
+            startTime.value = `${hours}:${minutes}`;
         } else {
             startTimeInputs.classList.remove('enabled');
         }
@@ -527,12 +558,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target.checked) {
             dueTimeInputs.classList.add('enabled');
             // 현재 날짜/시간으로 기본값 설정
-            if (!dueDate.value) {
-                const now = new Date();
-                now.setHours(now.getHours() + 1); // 1시간 후로 설정
-                dueDate.value = now.toISOString().split('T')[0];
-                dueTime.value = now.toTimeString().slice(0, 5);
-            }
+            const now = new Date();
+            now.setHours(now.getHours() + 1); // 1시간 후로 설정
+
+            // 로컬 타임존 기준으로 날짜와 시간 설정
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+
+            dueDate.value = `${year}-${month}-${day}`;
+            dueTime.value = `${hours}:${minutes}`;
         } else {
             dueTimeInputs.classList.remove('enabled');
         }
