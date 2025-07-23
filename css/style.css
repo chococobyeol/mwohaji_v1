@@ -1133,11 +1133,128 @@ button:hover {
 
 /* 반복 정보 표시 스타일 (recurring-info) */
 .recurring-info {
-    background-color: #51CF66;
-    color: white;
-    padding: 3px 6px;
-    border-radius: 4px;
-    font-size: 12px;
-    margin-left: 6px;
+    background-color: #e5e7eb;
+    color: #4b5563;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 11px;
     font-weight: 500;
+    white-space: nowrap;
+    margin-left: 6px;
+}
+
+
+
+/* 반복 설정 모달 - 주간/월간 버튼 UI */
+#repeat-modal #repeat-weekdays {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 6px;
+    align-items: center;
+}
+
+.weekday-btn {
+    width: 36px;
+    height: 36px;
+    border: 2px solid #d1d5db;
+    background-color: white;
+    color: #6b7280;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.weekday-btn:hover {
+    border-color: #9ca3af;
+    color: #374151;
+    background-color: #f9fafb;
+}
+
+.weekday-btn.active {
+    background-color: #4263EB;
+    border-color: #4263EB;
+    color: white;
+}
+
+.weekday-btn.active:hover {
+    background-color: #3b5bdb;
+    border-color: #3b5bdb;
+}
+
+#repeat-modal #repeat-monthdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    max-width: 350px;
+}
+
+.monthday-btn {
+    width: 40px;
+    height: 32px;
+    border: 2px solid #d1d5db;
+    background-color: white;
+    color: #6b7280;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.monthday-btn:hover {
+    border-color: #9ca3af;
+    color: #374151;
+    background-color: #f9fafb;
+}
+
+.monthday-btn.active {
+    background-color: #4263EB;
+    border-color: #4263EB;
+    color: white;
+}
+
+.monthday-btn.active:hover {
+    background-color: #3b5bdb;
+    border-color: #3b5bdb;
+}
+
+/* 모바일 반응형 */
+@media (max-width: 768px) {
+    .weekday-btn {
+        width: 32px;
+        height: 32px;
+        font-size: 13px;
+        gap: 4px;
+    }
+    
+    .monthday-btn {
+        width: 36px;
+        height: 28px;
+        font-size: 12px;
+    }
+    
+    #repeat-modal #repeat-monthdays {
+        max-width: 300px;
+        gap: 3px;
+    }
+}
+
+#repeat-modal .edit-row {
+    align-items: flex-start;
+    gap: 8px;
+}
+
+#repeat-modal .modal-body {
+    overflow-y: visible;
+    max-height: none;
 }

@@ -181,13 +181,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         <label for="repeat-interval">간격(일):</label>
                         <input type="number" id="repeat-interval" min="1" value="1">
                     </div>
-                    <div class="edit-row" id="repeat-weekly-row" style="display:none; gap:6px;">
+                    <div class="edit-row" id="repeat-weekly-row" style="display:none;">
                         <label>요일:</label>
-                        <div id="repeat-weekdays" style="display:flex; gap:4px;"></div>
+                        <div id="repeat-weekdays" class="weekday-buttons"></div>
                     </div>
-                    <div class="edit-row" id="repeat-monthly-row" style="display:none; gap:6px;">
+                    <div class="edit-row" id="repeat-monthly-row" style="display:none;">
                         <label>날짜:</label>
-                        <div id="repeat-monthdays" style="display:flex; gap:4px; flex-wrap:wrap;"></div>
+                        <div id="repeat-monthdays" class="monthday-grid"></div>
                     </div>
                 </div>
                 <div class="modal-actions">
@@ -207,32 +207,35 @@ document.addEventListener('DOMContentLoaded', () => {
         const dailyRow = document.getElementById('repeat-daily-row');
         const weekdaysDiv = document.getElementById('repeat-weekdays');
         const monthdaysDiv = document.getElementById('repeat-monthdays');
-        // 요일 체크박스 생성 (월~일: 1~7)
+        
+        // 요일 버튼 생성 (월~일: 1~7)
         weekdaysDiv.innerHTML = '';
         ['월','화','수','목','금','토','일'].forEach((label, idx) => {
-            const cb = document.createElement('input');
-            cb.type = 'checkbox';
-            cb.value = (idx+1).toString();
-            cb.id = 'weekday-' + (idx+1);
-            const lb = document.createElement('label');
-            lb.htmlFor = cb.id;
-            lb.textContent = label;
-            weekdaysDiv.appendChild(cb);
-            weekdaysDiv.appendChild(lb);
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'weekday-btn';
+            btn.dataset.value = (idx+1).toString();
+            btn.textContent = label;
+            btn.onclick = () => {
+                btn.classList.toggle('active');
+            };
+            weekdaysDiv.appendChild(btn);
         });
-        // 날짜 체크박스 생성 (1~31)
+        
+        // 날짜 버튼 생성 (1~31, 달력 모양)
         monthdaysDiv.innerHTML = '';
         for(let i=1;i<=31;i++){
-            const cb = document.createElement('input');
-            cb.type = 'checkbox';
-            cb.value = i.toString();
-            cb.id = 'monthday-' + i;
-            const lb = document.createElement('label');
-            lb.htmlFor = cb.id;
-            lb.textContent = i;
-            monthdaysDiv.appendChild(cb);
-            monthdaysDiv.appendChild(lb);
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'monthday-btn';
+            btn.dataset.value = i.toString();
+            btn.textContent = i;
+            btn.onclick = () => {
+                btn.classList.toggle('active');
+            };
+            monthdaysDiv.appendChild(btn);
         }
+        
         // 반복 타입 변경 시 UI 표시 전환
         repeatTypeSelect.onchange = () => {
             if(repeatTypeSelect.value==='daily'){
@@ -259,8 +262,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // 초기화
         repeatTypeSelect.value = 'none';
         repeatIntervalInput.value = 1;
-        document.querySelectorAll('#repeat-weekdays input[type="checkbox"]').forEach(cb=>cb.checked=false);
-        document.querySelectorAll('#repeat-monthdays input[type="checkbox"]').forEach(cb=>cb.checked=false);
+        document.querySelectorAll('#repeat-weekdays .weekday-btn').forEach(btn=>btn.classList.remove('active'));
+        document.querySelectorAll('#repeat-monthdays .monthday-btn').forEach(btn=>btn.classList.remove('active'));
         if (todo && todo.repeat) {
             if(todo.repeat.type==='daily'){
                 repeatTypeSelect.value='daily';
@@ -268,14 +271,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }else if(todo.repeat.type==='weekly'){
                 repeatTypeSelect.value='weekly';
                 (todo.repeat.days||[]).forEach(d=>{
-                    const cb=document.getElementById('weekday-'+d);
-                    if(cb)cb.checked=true;
+                    const btn=document.querySelector(`#repeat-weekdays .weekday-btn[data-value="${d}"]`);
+                    if(btn)btn.classList.add('active');
                 });
             }else if(todo.repeat.type==='monthly'){
                 repeatTypeSelect.value='monthly';
                 (todo.repeat.dates||[]).forEach(d=>{
-                    const cb=document.getElementById('monthday-'+d);
-                    if(cb)cb.checked=true;
+                    const btn=document.querySelector(`#repeat-monthdays .monthday-btn[data-value="${d}"]`);
+                    if(btn)btn.classList.add('active');
                 });
             }
         }
@@ -296,16 +299,51 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if(type==='daily'){
                 todo.repeat = { type, interval: parseInt(repeatIntervalInput.value,10)||1 };
             } else if(type==='weekly'){
-                const days = Array.from(document.querySelectorAll('#repeat-weekdays input[type="checkbox"]:checked')).map(cb=>parseInt(cb.value,10));
+                const days = Array.from(document.querySelectorAll('#repeat-weekdays .weekday-btn.active')).map(btn=>parseInt(btn.dataset.value, 10));
                 todo.repeat = { type, days };
             } else if(type==='monthly'){
-                const dates = Array.from(document.querySelectorAll('#repeat-monthdays input[type="checkbox"]:checked')).map(cb=>parseInt(cb.value,10));
+                const dates = Array.from(document.querySelectorAll('#repeat-monthdays .monthday-btn.active')).map(btn=>parseInt(btn.dataset.value, 10));
                 todo.repeat = { type, dates };
             }
             storage.saveTodos(todoManager.getTodos());
         }
         closeRepeatModal();
         render();
+    };
+
+    // 반복 정보를 자세히 표시하는 함수
+    const getDetailedRepeatInfo = (repeat) => {
+        if (!repeat) return '';
+        
+        let info = '';
+        
+        if (repeat.type === 'daily') {
+            if (repeat.interval === 1) {
+                info = '매일';
+            } else {
+                info = `${repeat.interval}일마다`;
+            }
+        } else if (repeat.type === 'weekly') {
+            if (repeat.days && repeat.days.length > 0) {
+                const dayNames = ['월', '화', '수', '목', '금', '토', '일'];
+                const selectedDays = repeat.days.map(day => dayNames[day - 1]).sort((a, b) => {
+                    const order = ['월', '화', '수', '목', '금', '토', '일'];
+                    return order.indexOf(a) - order.indexOf(b);
+                });
+                info = `매주 ${selectedDays.join(', ')}`;
+            } else {
+                info = '매주';
+            }
+        } else if (repeat.type === 'monthly') {
+            if (repeat.dates && repeat.dates.length > 0) {
+                const sortedDates = repeat.dates.sort((a, b) => a - b);
+                info = `매월 ${sortedDates.join(', ')}일`;
+            } else {
+                info = '매월';
+            }
+        }
+        
+        return info;
     };
 
     const createTodoElement = (todo) => {
@@ -323,7 +361,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
                 <div class="todo-meta-line">
                     <span class="category-tag">${security.escapeHtml(todo.category)}</span>
-                    ${todo.repeat ? `<span class="recurring-info">(${todo.repeat.type === 'daily' ? '매일' : todo.repeat.type === 'weekly' ? '매주' : '매월'}${todo.repeat.interval > 1 ? ' x' + todo.repeat.interval : ''})</span>` : ''}
+                    ${todo.repeat ? `<span class="recurring-info">(${getDetailedRepeatInfo(todo.repeat)})</span>` : ''}
                 </div>
             </div>
             ${renderScheduleInfo(todo)}
