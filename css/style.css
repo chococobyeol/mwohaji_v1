@@ -568,14 +568,6 @@ button:hover {
     white-space: nowrap;
 }
 
-.recurring-info {
-    background-color: var(--accent-green);
-    color: white;
-    padding: 3px 6px;
-    border-radius: 4px;
-    font-size: 12px;
-}
-
 /* 개별 버튼 위치 조정 */
 .todo-item .schedule-btn {
     align-self: center; /* 세로 가운데 정렬 */
@@ -1077,4 +1069,75 @@ button:hover {
 
 .schedule-icon-clickable:hover {
     background-color: var(--card-bg);
+}
+
+/* 반복 설정 모달 */
+#repeat-modal .modal-content {
+    max-width: 400px;
+    width: 90%;
+}
+#repeat-modal .modal-header h2 {
+    font-size: 18px;
+}
+#repeat-modal .edit-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+    gap: 12px;
+}
+#repeat-modal label {
+    min-width: 80px;
+    font-weight: 600;
+    color: #1a1a1a;
+}
+#repeat-modal select, #repeat-modal input[type="number"] {
+    flex: 1;
+    padding: 10px 14px;
+    border: 2px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 14px;
+    background-color: white;
+    color: #1a1a1a;
+    transition: all 0.2s ease;
+}
+#repeat-modal select:focus, #repeat-modal input[type="number"]:focus {
+    outline: none;
+    border-color: #374151;
+    box-shadow: 0 0 0 3px rgba(55, 65, 81, 0.1);
+}
+
+/* 반복 아이콘 버튼 스타일 (스케줄 아이콘과 동일하게) */
+.repeat-btn.icon-btn {
+    align-self: center;
+    margin-left: 2px;
+    margin-right: 2px;
+    color: #9ca3af;
+    opacity: 0.7;
+    background: none;
+    border: none;
+    padding: 4px;
+    border-radius: 4px;
+    min-width: 24px;
+    min-height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.repeat-btn.icon-btn:hover {
+    color: #1a1a1a;
+    opacity: 1;
+    background-color: rgba(26, 26, 26, 0.1);
+}
+
+/* 반복 정보 표시 스타일 (recurring-info) */
+.recurring-info {
+    background-color: #51CF66;
+    color: white;
+    padding: 3px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    margin-left: 6px;
+    font-weight: 500;
 }

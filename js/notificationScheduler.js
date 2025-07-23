@@ -111,23 +111,109 @@ const notificationScheduler = (() => {
         console.log(`[NotificationScheduler] ${titlePrefix} 예약: '${todo.text}' - ${diff / 1000}초 후`);
     };
 
+    // 반복 알림의 다음 알림 시각 계산 함수
+    function getNextRepeatTime(todo, type) {
+        const now = new Date();
+        let base = new Date(todo.schedule[type === 'start' ? 'startTime' : 'dueTime']);
+        if (!todo.repeat) { console.log('[RepeatAlarm] repeat 없음, 예약 불가'); return null; }
+        if (todo.repeat.type === 'daily') {
+            while (base <= now) base.setDate(base.getDate() + (todo.repeat.interval || 1));
+            console.log(`[RepeatAlarm] daily, nextTime: ${base}`);
+            return base;
+        }
+        if (todo.repeat.type === 'weekly') {
+            let days = todo.repeat.days || [];
+            if (days.length === 0) { console.log('[RepeatAlarm] weekly, days 없음'); return null; }
+            let minDiff = Infinity, next = null;
+            for (let i = 0; i < 14; i++) {
+                let candidate = new Date(base);
+                candidate.setDate(candidate.getDate() + i);
+                if (candidate > now) {
+                    let dow = candidate.getDay();
+                    let myDow = dow === 0 ? 7 : dow;
+                    if (days.includes(myDow)) {
+                        if (candidate - now < minDiff) {
+                            minDiff = candidate - now;
+                            next = candidate;
+                        }
+                    }
+                }
+            }
+            console.log(`[RepeatAlarm] weekly, nextTime: ${next}`);
+            return next;
+        }
+        if (todo.repeat.type === 'monthly') {
+            let dates = todo.repeat.dates || [];
+            if (dates.length === 0) { console.log('[RepeatAlarm] monthly, dates 없음'); return null; }
+            let nowY = now.getFullYear(), nowM = now.getMonth();
+            let candidates = [];
+            for (let m = 0; m < 2; m++) {
+                let y = nowY, mon = nowM + m;
+                if (mon > 11) { y++; mon -= 12; }
+                dates.forEach(d => {
+                    let candidate = new Date(base);
+                    candidate.setFullYear(y);
+                    candidate.setMonth(mon);
+                    candidate.setDate(d);
+                    candidate.setHours(base.getHours(), base.getMinutes(), 0, 0);
+                    if (candidate > now) candidates.push(candidate);
+                });
+            }
+            if (candidates.length === 0) { console.log('[RepeatAlarm] monthly, 후보 없음'); return null; }
+            candidates.sort((a, b) => a - b);
+            console.log(`[RepeatAlarm] monthly, nextTime: ${candidates[0]}`);
+            return candidates[0];
+        }
+        console.log('[RepeatAlarm] 알 수 없는 repeat type');
+        return null;
+    }
+
+    // 반복 알림 스케줄링 함수
+    const scheduleRepeatNotification = (todo, type) => {
+        if (!todo.repeat) { console.log('[RepeatAlarm] repeat 없음, 예약 스킵'); return; }
+        const timeProperty = type === 'start' ? 'startTime' : 'dueTime';
+        const modalProperty = type === 'start' ? 'startModal' : 'dueModal';
+        const notificationProperty = type === 'start' ? 'startNotification' : 'dueNotification';
+        const titlePrefix = type === 'start' ? '시작 알림' : '마감 알림';
+        if (!todo.schedule || !todo.schedule[timeProperty]) { console.log('[RepeatAlarm] schedule/timeProperty 없음, 예약 스킵'); return; }
+        const nextTime = getNextRepeatTime(todo, type);
+        if (!nextTime) { console.log('[RepeatAlarm] nextTime 없음, 예약 스킵'); return; }
+        const now = new Date();
+        const diff = nextTime.getTime() - now.getTime();
+        if (diff < 0) { console.log(`[RepeatAlarm] nextTime이 과거(${nextTime}), 예약 스킵`); return; }
+        const timeoutKey = `${todo.id}-repeat-${type}`;
+        if (scheduledTimeouts.has(timeoutKey)) {
+            clearTimeout(scheduledTimeouts.get(timeoutKey));
+            scheduledTimeouts.delete(timeoutKey);
+        }
+        console.log(`[RepeatAlarm] 예약: ${todo.text} (${type}), ${nextTime}까지 ${Math.round(diff/1000)}초 남음`);
+        const timeoutId = setTimeout(() => {
+            console.log(`[RepeatAlarm] 트리거: ${todo.text} (${type}), ${nextTime}`);
+            if (todo.schedule[modalProperty] !== false) {
+                showNotificationModal(titlePrefix, `'${todo.text}' (반복)`);
+            }
+            if (todo.schedule[notificationProperty]) {
+                playNotificationSound();
+            }
+            // 다음 알림만 예약
+            scheduleRepeatNotification(todo, type);
+        }, diff);
+        scheduledTimeouts.set(timeoutKey, timeoutId);
+    };
+
     // 모든 할 일의 알림을 재스케줄링하는 함수
     const rescheduleAllNotifications = (todos) => {
-        // 기존 모든 타이머 취소
         scheduledTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
         scheduledTimeouts.clear();
-
         todos.forEach(todo => {
-            if (todo.completed) return; // 완료된 할 일은 알림 스킵
-
-            // 시작 시간 알림 스케줄링
+            if (todo.completed) return;
             if (todo.schedule && todo.schedule.startTime) {
                 scheduleNotification(todo, 'start');
+                if (todo.repeat) scheduleRepeatNotification(todo, 'start');
             }
-
-            // 마감 시간 알림 스케줄링
             if (todo.schedule && todo.schedule.dueTime) {
                 scheduleNotification(todo, 'due');
+                if (todo.repeat) scheduleRepeatNotification(todo, 'due');
             }
         });
     };
@@ -141,6 +227,9 @@ const notificationScheduler = (() => {
     };
 
     return {
-        initScheduler
+        initScheduler,
+        getNextRepeatTime
     };
-})(); 
+})();
+
+window.notificationScheduler = notificationScheduler; 

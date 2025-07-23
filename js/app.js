@@ -35,6 +35,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveScheduleBtn = document.getElementById('save-schedule-btn');
     const cancelScheduleBtn = document.getElementById('cancel-schedule-btn');
 
+    // 반복 설정 모달 관련 DOM Elements (추가)
+    let repeatModal = null;
+    let repeatTypeSelect = null;
+    let repeatIntervalInput = null;
+    let saveRepeatBtn = null;
+    let cancelRepeatBtn = null;
+    let currentRepeatTodoId = null;
+
     // App State
     let currentView = 'project';
     let selectedCategoryId = 'default';
@@ -58,30 +66,40 @@ document.addEventListener('DOMContentLoaded', () => {
         let startTimeHTML = '';
         let dueTimeHTML = '';
         
+        // 반복 알림 모듈 import (전역)
+        const getNextRepeatTime = window.notificationScheduler && window.notificationScheduler.getNextRepeatTime;
         // 시작 시간 표시
         if (todo.schedule.startTime) {
-            const startDate = new Date(todo.schedule.startTime);
-            const formattedStart = utils.formatDateTime(startDate);
+            let displayTime;
+            if (todo.repeat && getNextRepeatTime) {
+                const next = getNextRepeatTime(todo, 'start');
+                displayTime = next ? utils.formatDateTime(next) : utils.formatDateTime(new Date(todo.schedule.startTime));
+            } else {
+                displayTime = utils.formatDateTime(new Date(todo.schedule.startTime));
+            }
             const startIcon = icons.get('clock', 14);
             const modalIcon = todo.schedule.startModal !== false ? 
                 icons.get('bell', 14) : icons.get('bellOff', 14);
             const soundIcon = todo.schedule.startNotification ? 
                 icons.get('volume', 14) : icons.get('volumeX', 14);
-            
-            startTimeHTML = `<span class="schedule-info start-time">${startIcon} ${formattedStart} <span class="schedule-icon-clickable" data-todo-id="${todo.id}" data-type="start-modal" title="시작 모달 토글">${modalIcon}</span> <span class="schedule-icon-clickable" data-todo-id="${todo.id}" data-type="start-sound" title="시작 소리 토글">${soundIcon}</span></span>`;
+            startTimeHTML = `<span class="schedule-info start-time">${startIcon} ${displayTime} <span class="schedule-icon-clickable" data-todo-id="${todo.id}" data-type="start-modal" title="시작 모달 토글">${modalIcon}</span> <span class="schedule-icon-clickable" data-todo-id="${todo.id}" data-type="start-sound" title="시작 소리 토글">${soundIcon}</span></span>`;
         }
         
         // 마감 시간 표시
         if (todo.schedule.dueTime) {
-            const dueDate = new Date(todo.schedule.dueTime);
-            const formattedDue = utils.formatDateTime(dueDate);
+            let displayTime;
+            if (todo.repeat && getNextRepeatTime) {
+                const next = getNextRepeatTime(todo, 'due');
+                displayTime = next ? utils.formatDateTime(next) : utils.formatDateTime(new Date(todo.schedule.dueTime));
+            } else {
+                displayTime = utils.formatDateTime(new Date(todo.schedule.dueTime));
+            }
             const dueIcon = icons.get('clock', 14);
             const modalIcon = todo.schedule.dueModal !== false ? 
                 icons.get('bell', 14) : icons.get('bellOff', 14);
             const soundIcon = todo.schedule.dueNotification ? 
                 icons.get('volume', 14) : icons.get('volumeX', 14);
-            
-            dueTimeHTML = `<span class="schedule-info due-time">${dueIcon} ${formattedDue} <span class="schedule-icon-clickable" data-todo-id="${todo.id}" data-type="due-modal" title="마감 모달 토글">${modalIcon}</span> <span class="schedule-icon-clickable" data-todo-id="${todo.id}" data-type="due-sound" title="마감 소리 토글">${soundIcon}</span></span>`;
+            dueTimeHTML = `<span class="schedule-info due-time">${dueIcon} ${displayTime} <span class="schedule-icon-clickable" data-todo-id="${todo.id}" data-type="due-modal" title="마감 모달 토글">${modalIcon}</span> <span class="schedule-icon-clickable" data-todo-id="${todo.id}" data-type="due-sound" title="마감 소리 토글">${soundIcon}</span></span>`;
         }
         
         return `<div class="schedule-times">${startTimeHTML}${dueTimeHTML}</div>`;
@@ -136,6 +154,160 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
+    // 반복 설정 모달 생성 함수 (동적으로 생성)
+    const createRepeatModal = () => {
+        if (document.getElementById('repeat-modal')) return;
+        repeatModal = document.createElement('div');
+        repeatModal.id = 'repeat-modal';
+        repeatModal.className = 'modal-wrapper';
+        repeatModal.style.display = 'none'; // 항상 숨김으로 초기화
+        repeatModal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>반복 설정</h2>
+                    <button id="close-repeat-modal-btn" class="icon-btn"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="edit-row">
+                        <label for="repeat-type">반복 주기:</label>
+                        <select id="repeat-type">
+                            <option value="none">없음</option>
+                            <option value="daily">매일</option>
+                            <option value="weekly">매주</option>
+                            <option value="monthly">매월</option>
+                        </select>
+                    </div>
+                    <div class="edit-row" id="repeat-daily-row">
+                        <label for="repeat-interval">간격(일):</label>
+                        <input type="number" id="repeat-interval" min="1" value="1">
+                    </div>
+                    <div class="edit-row" id="repeat-weekly-row" style="display:none; gap:6px;">
+                        <label>요일:</label>
+                        <div id="repeat-weekdays" style="display:flex; gap:4px;"></div>
+                    </div>
+                    <div class="edit-row" id="repeat-monthly-row" style="display:none; gap:6px;">
+                        <label>날짜:</label>
+                        <div id="repeat-monthdays" style="display:flex; gap:4px; flex-wrap:wrap;"></div>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button id="save-repeat-btn" class="primary-btn">저장</button>
+                    <button id="cancel-repeat-btn" class="secondary-btn">취소</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(repeatModal);
+        icons.setButtonIcon(document.getElementById('close-repeat-modal-btn'), 'close', '닫기', 16);
+        repeatTypeSelect = document.getElementById('repeat-type');
+        repeatIntervalInput = document.getElementById('repeat-interval');
+        saveRepeatBtn = document.getElementById('save-repeat-btn');
+        cancelRepeatBtn = document.getElementById('cancel-repeat-btn');
+        const weeklyRow = document.getElementById('repeat-weekly-row');
+        const monthlyRow = document.getElementById('repeat-monthly-row');
+        const dailyRow = document.getElementById('repeat-daily-row');
+        const weekdaysDiv = document.getElementById('repeat-weekdays');
+        const monthdaysDiv = document.getElementById('repeat-monthdays');
+        // 요일 체크박스 생성 (월~일: 1~7)
+        weekdaysDiv.innerHTML = '';
+        ['월','화','수','목','금','토','일'].forEach((label, idx) => {
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.value = (idx+1).toString();
+            cb.id = 'weekday-' + (idx+1);
+            const lb = document.createElement('label');
+            lb.htmlFor = cb.id;
+            lb.textContent = label;
+            weekdaysDiv.appendChild(cb);
+            weekdaysDiv.appendChild(lb);
+        });
+        // 날짜 체크박스 생성 (1~31)
+        monthdaysDiv.innerHTML = '';
+        for(let i=1;i<=31;i++){
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.value = i.toString();
+            cb.id = 'monthday-' + i;
+            const lb = document.createElement('label');
+            lb.htmlFor = cb.id;
+            lb.textContent = i;
+            monthdaysDiv.appendChild(cb);
+            monthdaysDiv.appendChild(lb);
+        }
+        // 반복 타입 변경 시 UI 표시 전환
+        repeatTypeSelect.onchange = () => {
+            if(repeatTypeSelect.value==='daily'){
+                dailyRow.style.display='flex'; weeklyRow.style.display='none'; monthlyRow.style.display='none';
+            }else if(repeatTypeSelect.value==='weekly'){
+                dailyRow.style.display='none'; weeklyRow.style.display='flex'; monthlyRow.style.display='none';
+            }else if(repeatTypeSelect.value==='monthly'){
+                dailyRow.style.display='none'; weeklyRow.style.display='none'; monthlyRow.style.display='flex';
+            }else{
+                dailyRow.style.display='none'; weeklyRow.style.display='none'; monthlyRow.style.display='none';
+            }
+        };
+        document.getElementById('close-repeat-modal-btn').onclick = closeRepeatModal;
+        cancelRepeatBtn.onclick = closeRepeatModal;
+        saveRepeatBtn.onclick = saveRepeat;
+        repeatModal.addEventListener('click', (e) => {
+            if (e.target === repeatModal) closeRepeatModal();
+        });
+    };
+    const openRepeatModal = (todoId) => {
+        createRepeatModal();
+        currentRepeatTodoId = todoId;
+        const todo = todoManager.getTodos().find(t => t.id === todoId);
+        // 초기화
+        repeatTypeSelect.value = 'none';
+        repeatIntervalInput.value = 1;
+        document.querySelectorAll('#repeat-weekdays input[type="checkbox"]').forEach(cb=>cb.checked=false);
+        document.querySelectorAll('#repeat-monthdays input[type="checkbox"]').forEach(cb=>cb.checked=false);
+        if (todo && todo.repeat) {
+            if(todo.repeat.type==='daily'){
+                repeatTypeSelect.value='daily';
+                repeatIntervalInput.value=todo.repeat.interval||1;
+            }else if(todo.repeat.type==='weekly'){
+                repeatTypeSelect.value='weekly';
+                (todo.repeat.days||[]).forEach(d=>{
+                    const cb=document.getElementById('weekday-'+d);
+                    if(cb)cb.checked=true;
+                });
+            }else if(todo.repeat.type==='monthly'){
+                repeatTypeSelect.value='monthly';
+                (todo.repeat.dates||[]).forEach(d=>{
+                    const cb=document.getElementById('monthday-'+d);
+                    if(cb)cb.checked=true;
+                });
+            }
+        }
+        repeatTypeSelect.onchange();
+        repeatModal.style.display = 'flex';
+    };
+    const closeRepeatModal = () => {
+        if (repeatModal) repeatModal.style.display = 'none';
+        currentRepeatTodoId = null;
+    };
+    const saveRepeat = () => {
+        if (currentRepeatTodoId == null) return;
+        const type = repeatTypeSelect.value;
+        const todo = todoManager.getTodos().find(t => t.id === currentRepeatTodoId);
+        if (todo) {
+            if (type === 'none') {
+                todo.repeat = null;
+            } else if(type==='daily'){
+                todo.repeat = { type, interval: parseInt(repeatIntervalInput.value,10)||1 };
+            } else if(type==='weekly'){
+                const days = Array.from(document.querySelectorAll('#repeat-weekdays input[type="checkbox"]:checked')).map(cb=>parseInt(cb.value,10));
+                todo.repeat = { type, days };
+            } else if(type==='monthly'){
+                const dates = Array.from(document.querySelectorAll('#repeat-monthdays input[type="checkbox"]:checked')).map(cb=>parseInt(cb.value,10));
+                todo.repeat = { type, dates };
+            }
+            storage.saveTodos(todoManager.getTodos());
+        }
+        closeRepeatModal();
+        render();
+    };
+
     const createTodoElement = (todo) => {
         const todoItem = document.createElement('div');
         todoItem.className = 'todo-item';
@@ -144,13 +316,14 @@ document.addEventListener('DOMContentLoaded', () => {
         todoItem.innerHTML = `
             <input type="checkbox" ${todo.completed ? 'checked' : ''}>
             <button class="schedule-btn icon-btn" title="할 일 편집"></button>
+            <button class="repeat-btn icon-btn" title="반복 설정"></button>
             <div class="todo-content">
                 <div class="todo-main-line">
                     <span class="todo-text">${security.escapeHtml(todo.text)}</span>
                 </div>
                 <div class="todo-meta-line">
                     <span class="category-tag">${security.escapeHtml(todo.category)}</span>
-                    ${todo.recurring ? `<span class="recurring-info">(${security.escapeHtml(todo.recurring)})</span>` : ''}
+                    ${todo.repeat ? `<span class="recurring-info">(${todo.repeat.type === 'daily' ? '매일' : todo.repeat.type === 'weekly' ? '매주' : '매월'}${todo.repeat.interval > 1 ? ' x' + todo.repeat.interval : ''})</span>` : ''}
                 </div>
             </div>
             ${renderScheduleInfo(todo)}
@@ -159,10 +332,18 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // 아이콘 설정
         const scheduleBtn = todoItem.querySelector('.schedule-btn');
+        const repeatBtn = todoItem.querySelector('.repeat-btn');
         const deleteBtn = todoItem.querySelector('.delete-btn');
         
         icons.setButtonIcon(scheduleBtn, 'calendar', '할 일 편집', 16);
+        icons.setButtonIcon(repeatBtn, 'repeat', '반복 설정', 16);
         icons.setButtonIcon(deleteBtn, 'trash', '삭제', 16);
+        
+        // 반복 아이콘 클릭 이벤트
+        repeatBtn.onclick = (e) => {
+            e.stopPropagation();
+            openRepeatModal(todo.id);
+        };
         
         return todoItem;
     };
@@ -239,6 +420,8 @@ document.addEventListener('DOMContentLoaded', () => {
             
 
             toggleScheduleSetting(todoId, type);
+        } else if (target.classList.contains('repeat-btn') || target.closest('.repeat-btn')) {
+            openRepeatModal(id);
         }
     };
     
@@ -446,7 +629,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const init = () => {
         todoManager.setTodos(storage.getTodos());
         todoManager.setCategories(storage.getCategories());
+        todoManager.setCompletedRepeatTodos(storage.getCompletedRepeatTodos());
         initIcons();
+        createRepeatModal();
 
         // 이벤트 리스너 추가
         saveScheduleBtn.addEventListener('click', saveSchedule);
@@ -605,6 +790,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('click', (e) => {
         if (e.target === categoryModal) categoryModal.style.display = 'none';
         if (e.target === scheduleModal) closeScheduleModal();
+        if (e.target === repeatModal) closeRepeatModal();
     });
 
     init();

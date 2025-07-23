@@ -2,6 +2,7 @@ const todoManager = (() => {
     let todos = [];
     let categories = [];
     let onTodosChangeCallback = null;
+    let completedRepeatTodos = [];
 
     const onTodosChange = (callback) => {
         onTodosChangeCallback = callback;
@@ -29,8 +30,22 @@ const todoManager = (() => {
         return categories;
     };
 
+    const setCompletedRepeatTodos = (newCompleted) => {
+        completedRepeatTodos = newCompleted;
+    };
+
+    const getCompletedRepeatTodos = () => {
+        return completedRepeatTodos;
+    };
+
+    const addCompletedRepeatTodo = (todo, completedAt) => {
+        const completed = { ...todo, completedAt };
+        completedRepeatTodos.push(completed);
+        storage.saveCompletedRepeatTodos(completedRepeatTodos);
+    };
+
     // F-01: 할 일 생성 (변경된 방식)
-    const addTodo = (text, categoryId = 'default') => {
+    const addTodo = (text, categoryId = 'default', repeat = null) => {
         if (!text || !text.trim()) {
             return null;
         }
@@ -43,7 +58,7 @@ const todoManager = (() => {
             category: categoryName, // 카테고리 이름을 저장
             completed: false,
             createdAt: new Date().toISOString(),
-            schedule: { // schedule 객체 추가 및 초기화
+            schedule: {
                 startTime: null,
                 startModal: true,
                 startNotification: true,
@@ -52,8 +67,8 @@ const todoManager = (() => {
                 dueNotification: true,
                 notifiedStart: false,
                 notifiedDue: false
-            }
-            // notificationTime, recurring, soundEnabled, notified 속성 제거
+            },
+            repeat // 반복 옵션 추가
         };
 
         todos.push(newTodo);
@@ -138,9 +153,15 @@ const todoManager = (() => {
     const toggleTodoStatus = (id) => {
         const todo = todos.find(todo => todo.id === id);
         if (todo) {
-            todo.completed = !todo.completed;
-            storage.saveTodos(todos);
-            triggerChange();
+            if (todo.repeat) {
+                // 반복 일정이면 완료 기록에 복사본 저장
+                addCompletedRepeatTodo(todo, new Date().toISOString());
+                // 기존 todo는 그대로 두고 완료 표시하지 않음
+            } else {
+                todo.completed = !todo.completed;
+                storage.saveTodos(todos);
+                triggerChange();
+            }
         }
     };
 
@@ -309,6 +330,9 @@ const todoManager = (() => {
         updateTodoSchedule,
         getTodoSchedule,
         clearTodoSchedule,
-        markNotified
+        markNotified,
+        // 반복 일정 완료 기록 관련
+        setCompletedRepeatTodos,
+        getCompletedRepeatTodos
     };
 })();

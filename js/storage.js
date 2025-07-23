@@ -1,6 +1,7 @@
 const storage = (() => {
     const TODOS_KEY = 'mwohaji-todos';
     const CATEGORIES_KEY = 'mwohaji-categories';
+    const COMPLETED_REPEAT_KEY = 'mwohaji-completed-repeat';
 
     const getTodos = () => {
         try {
@@ -85,10 +86,30 @@ const storage = (() => {
         }
     };
 
+    const getCompletedRepeatTodos = () => {
+        try {
+            const completed = localStorage.getItem(COMPLETED_REPEAT_KEY);
+            return completed ? JSON.parse(completed) : [];
+        } catch (e) {
+            console.error('Failed to parse completed repeat todos from localStorage', e);
+            return [];
+        }
+    };
+
+    const saveCompletedRepeatTodos = (completed) => {
+        try {
+            localStorage.setItem(COMPLETED_REPEAT_KEY, JSON.stringify(completed));
+        } catch (e) {
+            console.error('Failed to save completed repeat todos to localStorage', e);
+        }
+    };
+
     return {
         getTodos,
         saveTodos,
         getCategories,
-        saveCategories
+        saveCategories,
+        getCompletedRepeatTodos,
+        saveCompletedRepeatTodos
     };
 })();
