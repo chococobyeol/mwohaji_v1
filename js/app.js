@@ -106,19 +106,19 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const renderTodos = () => {
-        const todos = todoManager.getTodos();
-        const completedRepeatTodos = todoManager.getCompletedRepeatTodos();
+        const allTodos = todoManager.getTodos();
+        
+        console.log('=== renderTodos 디버그 ===');
+        console.log('모든 할 일:', allTodos);
+        
         todoListContainer.innerHTML = '';
         projectViewBtn.classList.toggle('active', currentView === 'project');
         allViewBtn.classList.toggle('active', currentView === 'all');
         
-        if (todos.length === 0 && completedRepeatTodos.length === 0) {
+        if (allTodos.length === 0) {
             todoListContainer.innerHTML = `<p class="empty-message">첫 할 일을 추가해보세요...</p>`;
             return;
         }
-        
-        // 모든 할 일들을 하나의 배열로 합치기 (완료된 반복 할 일 구분을 위해)
-        const allTodos = [...todos, ...completedRepeatTodos];
         
         if (currentView === 'project') {
             renderProjectView(allTodos);
@@ -486,8 +486,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } else if (target.classList.contains('schedule-btn') || target.closest('.schedule-btn')) {
             // 완료된 할 일인지 확인
-            const todos = todoManager.getTodos();
-            const todo = todos.find(t => t.id === id);
+            const allTodos = todoManager.getTodos();
+            const todo = allTodos.find(t => t.id === id);
             if (todo && todo.completed) {
                 alert('완료된 할 일은 일정을 변경할 수 없습니다.');
                 return;
@@ -773,7 +773,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     exportBtn.addEventListener('click', () => {
-        fileHandler.exportToFile(todoManager.getTodos(), todoManager.getCategories());
+        fileHandler.exportToFile(
+            todoManager.getTodos(), 
+            todoManager.getCategories(),
+            todoManager.getCompletedRepeatTodos()
+        );
     });
     importBtn.addEventListener('click', () => {
         const input = document.createElement('input');
@@ -786,6 +790,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = await fileHandler.importFromFile(file);
                 storage.saveTodos(data.todos);
                 storage.saveCategories(data.categories);
+                if (data.completedRepeatTodos) {
+                    storage.saveCompletedRepeatTodos(data.completedRepeatTodos);
+                }
                 init();
                 alert('데이터를 성공적으로 가져왔습니다.');
             } catch (error) {

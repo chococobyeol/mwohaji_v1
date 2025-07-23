@@ -19,7 +19,8 @@ const todoManager = (() => {
     };
 
     const getTodos = () => {
-        return todos; // 이 한 줄만 남겨주세요.
+        // 일반 할 일과 완료된 반복 할 일을 모두 포함하여 반환
+        return [...todos, ...completedRepeatTodos];
     };
 
     const setCategories = (newCategories) => {

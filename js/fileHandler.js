@@ -1,7 +1,7 @@
 const fileHandler = (() => {
 
     // 데이터를 텍스트로 변환 (내보내기용) - PRD F-06 형식에 맞게 수정
-    const stringifyData = (todos, categories) => {
+    const stringifyData = (todos, categories, completedRepeatTodos = []) => {
         let content = "### Mwohaji Backup Data ###\n\n";
         
         // 카테고리 목록 저장
@@ -9,9 +9,14 @@ const fileHandler = (() => {
         content += categories.map(c => `${c.id}|${c.name}`).join('\n');
         content += "\n\n";
 
-        // 할 일 목록 저장 - PRD 개선된 형식
+        // 일반 할 일 목록 저장 (완료된 반복 할 일 제외)
         content += "#TODOS:\n";
-        content += todos.map(t => {
+        const regularTodos = todos.filter(todo => {
+            // completedRepeatTodos에 있는 항목은 제외
+            return !completedRepeatTodos.some(ct => ct.id === todo.id);
+        });
+        
+        content += regularTodos.map(t => {
             const completedMark = t.completed ? '[x]' : '[ ]';
             let todoLine = `${completedMark} ${t.text} @cat:${t.category}`;
             
@@ -29,9 +34,14 @@ const fileHandler = (() => {
                 }
             }
             
-            // 반복 규칙 저장
+            // 반복 규칙이 있다면 추가
             if (t.repeat) {
                 todoLine += ` @repeat:${JSON.stringify(t.repeat)}`;
+            }
+            
+            // 완료 시간이 있다면 추가
+            if (t.completedAt) {
+                todoLine += ` @completedAt:${t.completedAt}`;
             }
             
             // ID는 숨김 메타데이터로 저장 (파싱 시 필요)
@@ -39,6 +49,44 @@ const fileHandler = (() => {
             
             return todoLine;
         }).join('\n');
+
+        // 완료된 반복 할 일들만 별도 섹션에 저장
+        if (completedRepeatTodos.length > 0) {
+            content += "\n\n#COMPLETED_REPEAT_TODOS:\n";
+            content += completedRepeatTodos.map(t => {
+                const completedMark = '[x]';
+                let todoLine = `${completedMark} ${t.text} @cat:${t.category}`;
+                
+                // 일정 정보 저장
+                if (t.schedule) {
+                    if (t.schedule.startTime) {
+                        todoLine += ` @start:${utils.formatDateTime(new Date(t.schedule.startTime))}`;
+                        todoLine += ` @smodal:${t.schedule.startModal !== false}`;
+                        todoLine += ` @snotify:${t.schedule.startNotification}`;
+                    }
+                    if (t.schedule.dueTime) {
+                        todoLine += ` @due:${utils.formatDateTime(new Date(t.schedule.dueTime))}`;
+                        todoLine += ` @dmodal:${t.schedule.dueModal !== false}`;
+                        todoLine += ` @dnotify:${t.schedule.dueNotification}`;
+                    }
+                }
+                
+                // 반복 규칙 저장
+                if (t.repeat) {
+                    todoLine += ` @repeat:${JSON.stringify(t.repeat)}`;
+                }
+                
+                // 완료 시간 저장
+                if (t.completedAt) {
+                    todoLine += ` @completedAt:${t.completedAt}`;
+                }
+                
+                // ID 저장
+                todoLine += ` @id:${t.id}`;
+                
+                return todoLine;
+            }).join('\n');
+        }
 
         return content;
     };
@@ -48,21 +96,31 @@ const fileHandler = (() => {
         const lines = text.split('\n');
         let isTodosSection = false;
         let isCategoriesSection = false;
+        let isCompletedRepeatTodosSection = false;
 
         const importedData = {
             todos: [],
-            categories: []
+            categories: [],
+            completedRepeatTodos: []
         };
 
         lines.forEach(line => {
             if (line.trim() === '#CATEGORIES:') {
                 isCategoriesSection = true;
                 isTodosSection = false;
+                isCompletedRepeatTodosSection = false;
                 return;
             }
             if (line.trim() === '#TODOS:') {
                 isTodosSection = true;
                 isCategoriesSection = false;
+                isCompletedRepeatTodosSection = false;
+                return;
+            }
+            if (line.trim() === '#COMPLETED_REPEAT_TODOS:') {
+                isCompletedRepeatTodosSection = true;
+                isCategoriesSection = false;
+                isTodosSection = false;
                 return;
             }
             if (line.trim() === '' || line.startsWith('###')) return;
@@ -72,7 +130,7 @@ const fileHandler = (() => {
                 if (id && name) {
                     importedData.categories.push({ id, name });
                 }
-            } else if (isTodosSection) {
+            } else if (isTodosSection || isCompletedRepeatTodosSection) {
                 // PRD 개선된 형식 파싱: [상태] 내용 @cat:카테고리 @start:YYYY-MM-DD HH:mm @due:YYYY-MM-DD HH:mm @smodal:true/false @snotify:true/false @dmodal:true/false @dnotify:true/false @id:숫자
                 const completed = line.startsWith('[x]');
                 const content = line.substring(4); // '[x] ' 또는 '[ ] ' 제거
@@ -85,6 +143,7 @@ const fileHandler = (() => {
                 let repeat = null;
                 let id = Date.now(); // 기본값
                 let schedule = null;
+                let completedAt = null;
                 
                 // @ 파라미터들 파싱
                 parts.slice(1).forEach(part => {
@@ -120,6 +179,8 @@ const fileHandler = (() => {
                         } catch (e) {
                             console.warn('반복 정보 파싱 실패:', part.substring(7));
                         }
+                    } else if (part.startsWith('completedAt:')) {
+                        completedAt = part.substring(12);
                     } else if (part.startsWith('id:')) {
                         id = Number(part.substring(3)) || Date.now();
                     }
@@ -163,10 +224,18 @@ const fileHandler = (() => {
                         todo.schedule = schedule;
                     }
                     
-                    // 반복 기능 (추후 구현)
+                    // 반복 기능
                     if (repeat) todo.repeat = repeat;
                     
-                    importedData.todos.push(todo);
+                    // 완료 시간
+                    if (completedAt) todo.completedAt = completedAt;
+                    
+                    // 완료된 반복 할 일인지 확인하여 적절한 배열에 추가
+                    if (isCompletedRepeatTodosSection) {
+                        importedData.completedRepeatTodos.push(todo);
+                    } else {
+                        importedData.todos.push(todo);
+                    }
                 }
             }
         });
@@ -174,8 +243,8 @@ const fileHandler = (() => {
     };
 
     // 파일 내보내기 실행
-    const exportToFile = (todos, categories) => {
-        const content = stringifyData(todos, categories);
+    const exportToFile = (todos, categories, completedRepeatTodos = []) => {
+        const content = stringifyData(todos, categories, completedRepeatTodos);
         const blob = new Blob([content], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
