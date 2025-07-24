@@ -111,6 +111,29 @@ body {
     background-color: white; /* 순백색 */
 }
 
+/* 카테고리 바(입력창+카테고리 버튼) 고정 */
+.todo-input-container {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+}
+
+/* 할 일 목록만 스크롤 */
+.main {
+  display: flex;
+  flex-direction: column;
+  height: 80vh; /* 전체 높이의 80%로 예시, 필요시 조정 */
+}
+
+.todo-list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  max-height: 100%;
+  min-height: 0;
+}
+
 .todo-input-container {
     margin-bottom: 32px; /* 간격 증가 */
     display: flex;
