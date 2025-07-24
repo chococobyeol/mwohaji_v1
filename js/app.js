@@ -706,12 +706,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 아이콘 초기화
     const initIcons = () => {
-        // 헤더 버튼들
-        icons.setButtonIcon(settingsBtn, 'settings', '카테고리 관리');
-        icons.setButtonIcon(importBtn, 'upload', '가져오기');
-        icons.setButtonIcon(exportBtn, 'download', '내보내기');
-        icons.setButtonIcon(closeModalBtn, 'close', '닫기');
-        icons.setButtonIcon(closeScheduleModalBtn, 'close', '닫기');
+        // 헤더 버튼들 - 크기를 18px로 증가
+        icons.setButtonIcon(settingsBtn, 'settings', '카테고리 관리', 18);
+        icons.setButtonIcon(importBtn, 'upload', '가져오기', 18);
+        icons.setButtonIcon(exportBtn, 'download', '내보내기', 18);
+        icons.setButtonIcon(closeModalBtn, 'close', '닫기', 18);
+        icons.setButtonIcon(closeScheduleModalBtn, 'close', '닫기', 18);
     };
 
     // INITIALIZATION

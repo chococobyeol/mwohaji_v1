@@ -225,19 +225,26 @@ button:hover {
 
 /* 아이콘 버튼 전용 스타일 */
 .icon-btn {
-    padding: 4px;
-    min-width: 24px;
-    min-height: 24px;
+    padding: 6px;
+    min-width: 32px;
+    min-height: 32px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     border-radius: 4px;
+    background: transparent; /* 투명 배경 */
 }
 
 .icon-btn svg {
-    width: 14px;
-    height: 14px;
+    width: 18px;
+    height: 18px;
     display: block;
+}
+
+/* 데이터 관리 버튼들 (내보내기/불러오기) 투명 배경 */
+.data-management .icon-btn {
+    background: transparent !important;
+    border: none !important;
 }
 
 .view-toggle button.active {

@@ -22,16 +22,16 @@ const icons = (() => {
         bellOff: '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="m13.73 21a2 2 0 0 1-3.46 0"/><line x1="4" y1="4" x2="20" y2="20"/>', // 알림 끄기
         repeat: '<path d="M17 2l4 4-4 4"/><path d="M21 6H9a4 4 0 0 0-4 4v2"/><path d="M7 22l-4-4 4-4"/><path d="M3 18h12a4 4 0 0 0 4-4v-2"/>', // 반복 (순환 화살표)
         
-        // 데이터 관리
-        upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,5 17,10"/><line x1="12" y1="5" x2="12" y2="15"/>', // 가져오기 (↑)
-        download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/>', // 내보내기 (↓)
+        // 데이터 관리 - 정사각형 모양으로 변경
+        upload: '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><polyline points="12,8 12,16"/><polyline points="8,12 12,8 16,12"/>', // 가져오기 (정사각형 + ↑)
+        download: '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><polyline points="12,8 12,16"/><polyline points="8,12 12,16 16,12"/>', // 내보내기 (정사각형 + ↓)
         
         // 보기 모드
         grid: '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>', // 전체 보기 (격자)
         calendar: '<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>', // 월간 보기 (달력)
         
-        // 기타
-        settings: '<circle cx="12" cy="12" r="1"/><circle cx="12" cy="6" r="1"/><circle cx="12" cy="18" r="1"/>', // 설정 (3개 점)
+        // 기타 - 카테고리 아이콘 변경 (4개 정사각형 + 검색)
+        settings: '<rect x="2" y="2" width="8" height="8" rx="1"/><rect x="14" y="2" width="8" height="8" rx="1"/><rect x="2" y="14" width="8" height="8" rx="1"/><circle cx="18" cy="18" r="3"/><path d="m22 22-1.5-1.5"/>', // 카테고리 (4개 정사각형 + 검색)
         close: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>', // 닫기 (×)
         
         // 소리 관련
