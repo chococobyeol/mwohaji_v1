@@ -22,9 +22,9 @@ const icons = (() => {
         bellOff: '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="m13.73 21a2 2 0 0 1-3.46 0"/><line x1="4" y1="4" x2="20" y2="20"/>', // 알림 끄기
         repeat: '<path d="M17 2l4 4-4 4"/><path d="M21 6H9a4 4 0 0 0-4 4v2"/><path d="M7 22l-4-4 4-4"/><path d="M3 18h12a4 4 0 0 0 4-4v-2"/>', // 반복 (순환 화살표)
         
-        // 데이터 관리 - 정사각형 모양으로 변경
-        upload: '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><polyline points="12,8 12,16"/><polyline points="8,12 12,8 16,12"/>', // 가져오기 (정사각형 + ↑)
-        download: '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><polyline points="12,8 12,16"/><polyline points="8,12 12,16 16,12"/>', // 내보내기 (정사각형 + ↓)
+        // 데이터 관리 - 원래 화살표 모양으로 되돌리기
+        upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,5 17,10"/><line x1="12" y1="5" x2="12" y2="15"/>', // 가져오기 (↑)
+        download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/>', // 내보내기 (↓)
         
         // 보기 모드
         grid: '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>', // 전체 보기 (격자)

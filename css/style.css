@@ -241,10 +241,20 @@ button:hover {
     display: block;
 }
 
-/* 데이터 관리 버튼들 (내보내기/불러오기) 투명 배경 */
+/* 데이터 관리 버튼들 (내보내기/불러오기) - 정사각형 버튼, 투명 배경 */
 .data-management .icon-btn {
     background: transparent !important;
     border: none !important;
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px;
+    min-height: 32px;
+    padding: 6px;
+    border-radius: 6px; /* 약간 둥근 정사각형 */
+}
+
+.data-management .icon-btn:hover {
+    background: rgba(26, 26, 26, 0.05) !important; /* 호버시에만 아주 연한 배경 */
 }
 
 .view-toggle button.active {
