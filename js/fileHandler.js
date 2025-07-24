@@ -29,9 +29,9 @@ const fileHandler = (() => {
                 }
             }
             
-            // 반복 규칙이 있다면 추가 (현재 미구현이지만 구조 준비)
-            if (t.recurring) {
-                todoLine += ` @rec:${t.recurring}`;
+            // 반복 규칙 저장
+            if (t.repeat) {
+                todoLine += ` @repeat:${JSON.stringify(t.repeat)}`;
             }
             
             // ID는 숨김 메타데이터로 저장 (파싱 시 필요)
@@ -82,7 +82,7 @@ const fileHandler = (() => {
                 const todoText = parts[0]; // 첫 번째 부분은 할 일 텍스트
                 
                 let category = '일반';
-                let recurring = null;
+                let repeat = null;
                 let id = Date.now(); // 기본값
                 let schedule = null;
                 
@@ -114,8 +114,12 @@ const fileHandler = (() => {
                         const enabled = part.substring(8) === 'true';
                         if (!schedule) schedule = {};
                         schedule.dueNotification = enabled;
-                    } else if (part.startsWith('rec:')) {
-                        recurring = part.substring(4);
+                    } else if (part.startsWith('repeat:')) {
+                        try {
+                            repeat = JSON.parse(part.substring(7));
+                        } catch (e) {
+                            console.warn('반복 정보 파싱 실패:', part.substring(7));
+                        }
                     } else if (part.startsWith('id:')) {
                         id = Number(part.substring(3)) || Date.now();
                     }
@@ -160,7 +164,7 @@ const fileHandler = (() => {
                     }
                     
                     // 반복 기능 (추후 구현)
-                    if (recurring) todo.recurring = recurring;
+                    if (repeat) todo.repeat = repeat;
                     
                     importedData.todos.push(todo);
                 }

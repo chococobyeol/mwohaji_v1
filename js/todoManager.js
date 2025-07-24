@@ -39,7 +39,12 @@ const todoManager = (() => {
     };
 
     const addCompletedRepeatTodo = (todo, completedAt) => {
-        const completed = { ...todo, completedAt };
+        const completed = { 
+            ...todo, 
+            id: Date.now() + Math.random(), // 고유한 ID 생성
+            completed: true,  // 완료 상태로 설정
+            completedAt 
+        };
         completedRepeatTodos.push(completed);
         storage.saveCompletedRepeatTodos(completedRepeatTodos);
     };
@@ -156,9 +161,18 @@ const todoManager = (() => {
             if (todo.repeat) {
                 // 반복 일정이면 완료 기록에 복사본 저장
                 addCompletedRepeatTodo(todo, new Date().toISOString());
-                // 기존 todo는 그대로 두고 완료 표시하지 않음
+                // 원본은 그대로 두고 완료 표시하지 않음 (반복이므로)
+                console.log(`[toggleTodoStatus] 반복 할 일 완료: ${todo.text} (완료 시간: ${new Date().toISOString()})`);
+                triggerChange(); // UI 업데이트를 위해 호출
             } else {
                 todo.completed = !todo.completed;
+                if (todo.completed) {
+                    // 완료할 때 시간 저장
+                    todo.completedAt = new Date().toISOString();
+                } else {
+                    // 미완료로 되돌릴 때 시간 제거
+                    delete todo.completedAt;
+                }
                 storage.saveTodos(todos);
                 triggerChange();
             }
@@ -169,6 +183,13 @@ const todoManager = (() => {
     const deleteTodo = (id) => {
         todos = todos.filter(todo => todo.id !== id);
         storage.saveTodos(todos);
+        triggerChange();
+    };
+
+    // 완료된 반복 할 일 삭제
+    const deleteCompletedRepeatTodo = (id) => {
+        completedRepeatTodos = completedRepeatTodos.filter(todo => todo.id !== id);
+        storage.saveCompletedRepeatTodos(completedRepeatTodos);
         triggerChange();
     };
 
@@ -333,6 +354,7 @@ const todoManager = (() => {
         markNotified,
         // 반복 일정 완료 기록 관련
         setCompletedRepeatTodos,
-        getCompletedRepeatTodos
+        getCompletedRepeatTodos,
+        deleteCompletedRepeatTodo
     };
 })();

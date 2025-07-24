@@ -107,15 +107,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const renderTodos = () => {
         const todos = todoManager.getTodos();
+        const completedRepeatTodos = todoManager.getCompletedRepeatTodos();
         todoListContainer.innerHTML = '';
         projectViewBtn.classList.toggle('active', currentView === 'project');
         allViewBtn.classList.toggle('active', currentView === 'all');
-        if (todos.length === 0) {
+        
+        if (todos.length === 0 && completedRepeatTodos.length === 0) {
             todoListContainer.innerHTML = `<p class="empty-message">첫 할 일을 추가해보세요...</p>`;
             return;
         }
-        if (currentView === 'project') renderProjectView(todos);
-        else renderAllView(todos);
+        
+        // 모든 할 일들을 하나의 배열로 합치기 (완료된 반복 할 일 구분을 위해)
+        const allTodos = [...todos, ...completedRepeatTodos];
+        
+        if (currentView === 'project') {
+            renderProjectView(allTodos);
+        } else {
+            renderAllView(allTodos);
+        }
     };
 
     const renderCategorySelector = () => {
@@ -353,8 +362,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (todo.completed) todoItem.classList.add('completed');
         todoItem.innerHTML = `
             <input type="checkbox" ${todo.completed ? 'checked' : ''}>
-            <button class="schedule-btn icon-btn" title="할 일 편집"></button>
-            <button class="repeat-btn icon-btn" title="반복 설정"></button>
+            <button class="schedule-btn icon-btn" title="할 일 편집" ${todo.completed ? 'disabled' : ''}></button>
+            <button class="repeat-btn icon-btn" title="반복 설정" ${todo.completed ? 'disabled' : ''}></button>
             <div class="todo-content">
                 <div class="todo-main-line">
                     <span class="todo-text">${security.escapeHtml(todo.text)}</span>
@@ -362,6 +371,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="todo-meta-line">
                     <span class="category-tag">${security.escapeHtml(todo.category)}</span>
                     ${todo.repeat ? `<span class="recurring-info">(${getDetailedRepeatInfo(todo.repeat)})</span>` : ''}
+                    ${todo.completedAt ? `<span class="completed-time-tag">완료: ${new Date(todo.completedAt).toLocaleString('ko-KR')}</span>` : ''}
                 </div>
             </div>
             ${renderScheduleInfo(todo)}
@@ -377,14 +387,28 @@ document.addEventListener('DOMContentLoaded', () => {
         icons.setButtonIcon(repeatBtn, 'repeat', '반복 설정', 16);
         icons.setButtonIcon(deleteBtn, 'trash', '삭제', 16);
         
+        // 완료된 할 일이면 버튼 비활성화
+        if (todo.completed) {
+            scheduleBtn.style.opacity = '0.3';
+            scheduleBtn.style.cursor = 'not-allowed';
+            repeatBtn.style.opacity = '0.3';
+            repeatBtn.style.cursor = 'not-allowed';
+        }
+        
         // 반복 아이콘 클릭 이벤트
         repeatBtn.onclick = (e) => {
             e.stopPropagation();
+            if (todo.completed) {
+                alert('완료된 할 일은 반복 설정을 변경할 수 없습니다.');
+                return;
+            }
             openRepeatModal(todo.id);
         };
         
         return todoItem;
     };
+
+
 
     const renderProjectView = (todos) => {
         const groupedTodos = todos.reduce((acc, todo) => {
@@ -409,7 +433,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const sortedTodos = [...todos].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         sortedTodos.forEach(todo => todoListContainer.appendChild(createTodoElement(todo)));
     };
-    
+
+
+
     // EVENT HANDLERS
     const handleAddTodo = () => {
         const text = todoInput.value;
@@ -433,14 +459,39 @@ document.addEventListener('DOMContentLoaded', () => {
         const id = Number(todoItem.dataset.id);
         
         if (target.type === 'checkbox') {
-            todoManager.toggleTodoStatus(id);
-            renderTodos();
+            // 완료된 반복 할 일인지 확인
+            const completedRepeatTodos = todoManager.getCompletedRepeatTodos();
+            const isCompletedRepeat = completedRepeatTodos.some(todo => todo.id === id);
+            
+            if (isCompletedRepeat) {
+                // 완료된 반복 할 일이면 체크 해제 불가 (삭제만 가능)
+                return;
+            } else {
+                // 일반 할 일이면 토글 가능
+                todoManager.toggleTodoStatus(id);
+                renderTodos();
+            }
         } else if (target.classList.contains('delete-btn') || target.closest('.delete-btn')) {
             if (confirm('정말로 이 할 일을 삭제하시겠습니까?')) {
-                todoManager.deleteTodo(id);
+                // 완료된 반복 할 일인지 확인
+                const completedRepeatTodos = todoManager.getCompletedRepeatTodos();
+                const isCompletedRepeat = completedRepeatTodos.some(todo => todo.id === id);
+                
+                if (isCompletedRepeat) {
+                    todoManager.deleteCompletedRepeatTodo(id);
+                } else {
+                    todoManager.deleteTodo(id);
+                }
                 renderTodos();
             }
         } else if (target.classList.contains('schedule-btn') || target.closest('.schedule-btn')) {
+            // 완료된 할 일인지 확인
+            const todos = todoManager.getTodos();
+            const todo = todos.find(t => t.id === id);
+            if (todo && todo.completed) {
+                alert('완료된 할 일은 일정을 변경할 수 없습니다.');
+                return;
+            }
             openScheduleModal(id);
         } else if (target.classList.contains('schedule-icon-clickable') || target.closest('.schedule-icon-clickable')) {
             event.preventDefault(); // 기본 동작 방지
