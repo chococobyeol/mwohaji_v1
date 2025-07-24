@@ -103,6 +103,8 @@ body {
     background-color: rgba(26, 26, 26, 0.05); /* 연한 검은 배경 */
 }
 
+
+
 /* 심플 블랙&화이트 메인 */
 .main {
     padding: 24px;
@@ -241,20 +243,29 @@ button:hover {
     display: block;
 }
 
-/* 데이터 관리 버튼들 (내보내기/불러오기) - 정사각형 버튼, 투명 배경 */
+/* 데이터 관리 버튼들 (내보내기/불러오기) - 카테고리 관리 버튼과 동일한 호버 효과 */
+.data-management button,
 .data-management .icon-btn {
-    background: transparent !important;
-    border: none !important;
-    width: 32px !important;
-    height: 32px !important;
-    min-width: 32px;
-    min-height: 32px;
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    min-height: 36px;
     padding: 6px;
-    border-radius: 6px; /* 약간 둥근 정사각형 */
+    border-radius: 6px;
+    box-sizing: border-box;
+    background: transparent; /* 일반 button 규칙 덮어쓰기 */
+    border: none;
+    color: #6b7280; /* 회색 아이콘 */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
+.data-management button:hover,
 .data-management .icon-btn:hover {
-    background: rgba(26, 26, 26, 0.05) !important; /* 호버시에만 아주 연한 배경 */
+    color: #1a1a1a; /* 호버 시 검은색 */
+    background-color: rgba(26, 26, 26, 0.05); /* 연한 검은 배경 */
+    opacity: 1; /* button:hover의 opacity 덮어쓰기 */
 }
 
 .view-toggle button.active {
