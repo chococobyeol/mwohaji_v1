@@ -48,6 +48,24 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectedCategoryId = 'default';
     let currentEditingTodoId = null;
 
+    // 설정 사이드바 관련
+    const globalSettingsBtn = document.getElementById('global-settings-btn');
+    const settingsSidebar = document.getElementById('settings-sidebar');
+    const closeSettingsSidebar = document.getElementById('close-settings-sidebar');
+    const settingsSidebarOverlay = document.querySelector('.settings-sidebar-overlay');
+
+    function openSettingsSidebar() {
+        settingsSidebar.style.display = 'flex';
+        setTimeout(() => settingsSidebar.classList.add('open'), 10);
+        settingsSidebarOverlay.classList.add('open');
+        settingsSidebarOverlay.style.display = 'block';
+    }
+    function closeSettingsSidebarFn() {
+        settingsSidebar.classList.remove('open');
+        settingsSidebarOverlay.classList.remove('open');
+        setTimeout(() => { settingsSidebar.style.display = 'none'; settingsSidebarOverlay.style.display = 'none'; }, 300);
+    }
+
     // RENDER FUNCTIONS
     const render = () => {
         renderTodos();
@@ -712,6 +730,8 @@ document.addEventListener('DOMContentLoaded', () => {
         icons.setButtonIcon(exportBtn, 'download', '내보내기', 18);
         icons.setButtonIcon(closeModalBtn, 'close', '닫기', 18);
         icons.setButtonIcon(closeScheduleModalBtn, 'close', '닫기', 18);
+        icons.setButtonIcon(globalSettingsBtn, 'settings-gear', '설정', 18);
+        icons.setButtonIcon(closeSettingsSidebar, 'close', '닫기', 18);
     };
 
     // INITIALIZATION
@@ -809,6 +829,9 @@ document.addEventListener('DOMContentLoaded', () => {
         currentView = 'all';
         renderTodos();
     });
+    globalSettingsBtn.addEventListener('click', openSettingsSidebar);
+    closeSettingsSidebar.addEventListener('click', closeSettingsSidebarFn);
+    settingsSidebarOverlay.addEventListener('click', closeSettingsSidebarFn);
 
     // 일정 설정 모달 이벤트 리스너들
     closeScheduleModalBtn.addEventListener('click', closeScheduleModal);
@@ -887,6 +910,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target === categoryModal) categoryModal.style.display = 'none';
         if (e.target === scheduleModal) closeScheduleModal();
         if (e.target === repeatModal) closeRepeatModal();
+        if (e.target === settingsSidebar) closeSettingsSidebarFn();
+        if (e.target === settingsSidebarOverlay) closeSettingsSidebarFn();
     });
 
     init();

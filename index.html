@@ -8,6 +8,8 @@
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+    <button id="global-settings-btn" class="global-settings-btn" title="설정">
+    </button>
     <div id="app">
         <header class="header">
             <div class="header-left">
@@ -123,6 +125,19 @@
                     <button id="cancel-schedule-btn" class="secondary-btn">취소</button>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- 설정 사이드바 오버레이 -->
+    <div class="settings-sidebar-overlay" style="display:none;"></div>
+    <!-- 설정 사이드바 -->
+    <div id="settings-sidebar" class="settings-sidebar" style="display:none;">
+        <div class="settings-sidebar-content">
+            <button id="close-settings-sidebar" class="icon-btn" title="닫기" style="float:right;margin:8px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            <h2 style="margin-top:40px;">설정</h2>
+            <!-- 설정 내용은 추후 추가 -->
         </div>
     </div>
 

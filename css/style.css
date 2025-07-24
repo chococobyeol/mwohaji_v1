@@ -1330,4 +1330,70 @@ button:hover {
     }
 }
 
+/* 오른쪽 상단 글로벌 설정 버튼 */
+.global-settings-btn {
+  position: fixed;
+  top: 20px;
+  right: 32px;
+  z-index: 2000;
+  background: #fff;
+  border: none;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: box-shadow 0.2s, background 0.2s;
+}
+.global-settings-btn:hover {
+  background: #f3f4f6;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+}
+.global-settings-btn svg {
+  display: block;
+  color: #6b7280;
+}
+
+/* 설정 사이드바 오버레이 */
+.settings-sidebar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 360px;
+  height: 100vh;
+  background: #fff;
+  box-shadow: -2px 0 16px rgba(0,0,0,0.08);
+  z-index: 2001;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.3s cubic-bezier(.4,0,.2,1);
+}
+.settings-sidebar.open {
+  transform: translateX(0);
+}
+.settings-sidebar-content {
+  padding: 32px 24px 24px 24px;
+  flex: 1 1 auto;
+  overflow-y: auto;
+}
+
+/* 오버레이(배경 흐림 효과) */
+.settings-sidebar-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0,0,0,0.18);
+  z-index: 2000;
+  display: none;
+}
+.settings-sidebar-overlay.open {
+  display: block;
+}
+
 
