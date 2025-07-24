@@ -47,12 +47,14 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentView = 'project';
     let selectedCategoryId = 'default';
     let currentEditingTodoId = null;
+    let settings = { showCompleted: true }; // 설정 상태
 
     // 설정 사이드바 관련
     const globalSettingsBtn = document.getElementById('global-settings-btn');
     const settingsSidebar = document.getElementById('settings-sidebar');
     const closeSettingsSidebar = document.getElementById('close-settings-sidebar');
     const settingsSidebarOverlay = document.querySelector('.settings-sidebar-overlay');
+    const showCompletedToggle = document.getElementById('show-completed-toggle');
 
     function openSettingsSidebar() {
         settingsSidebar.style.display = 'flex';
@@ -124,17 +126,26 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const renderTodos = () => {
-        const allTodos = todoManager.getTodos();
+        let allTodos = todoManager.getTodos();
+        
+        // 설정에 따라 완료된 할 일 필터링
+        if (!settings.showCompleted) {
+            allTodos = allTodos.filter(todo => !todo.completed);
+        }
         
         console.log('=== renderTodos 디버그 ===');
         console.log('모든 할 일:', allTodos);
+        console.log('설정 - 완료된 할 일 표시:', settings.showCompleted);
         
         todoListContainer.innerHTML = '';
         projectViewBtn.classList.toggle('active', currentView === 'project');
         allViewBtn.classList.toggle('active', currentView === 'all');
         
         if (allTodos.length === 0) {
-            todoListContainer.innerHTML = `<p class="empty-message">첫 할 일을 추가해보세요...</p>`;
+            const message = settings.showCompleted ? 
+                '첫 할 일을 추가해보세요...' : 
+                '완료되지 않은 할 일이 없습니다.';
+            todoListContainer.innerHTML = `<p class="empty-message">${message}</p>`;
             return;
         }
         
@@ -722,6 +733,13 @@ document.addEventListener('DOMContentLoaded', () => {
         render();
     };
 
+    // 설정 토글 이벤트 핸들러
+    const handleShowCompletedToggle = () => {
+        settings.showCompleted = showCompletedToggle.checked;
+        storage.saveSettings(settings);
+        renderTodos(); // 즉시 반영
+    };
+
     // 아이콘 초기화
     const initIcons = () => {
         // 헤더 버튼들 - 크기를 18px로 증가
@@ -732,6 +750,7 @@ document.addEventListener('DOMContentLoaded', () => {
         icons.setButtonIcon(closeScheduleModalBtn, 'close', '닫기', 18);
         icons.setButtonIcon(globalSettingsBtn, 'settings-gear', '설정', 18);
         icons.setButtonIcon(closeSettingsSidebar, 'close', '닫기', 18);
+        icons.setButtonIcon(showCompletedToggle, 'check-circle', '완료된 할 일 표시', 18);
     };
 
     // INITIALIZATION
@@ -739,6 +758,11 @@ document.addEventListener('DOMContentLoaded', () => {
         todoManager.setTodos(storage.getTodos());
         todoManager.setCategories(storage.getCategories());
         todoManager.setCompletedRepeatTodos(storage.getCompletedRepeatTodos());
+        
+        // 설정 로드 및 UI 초기화
+        settings = storage.getSettings();
+        showCompletedToggle.checked = settings.showCompleted;
+        
         initIcons();
         createRepeatModal();
 
@@ -749,6 +773,10 @@ document.addEventListener('DOMContentLoaded', () => {
         scheduleModal.addEventListener('click', (e) => {
             if (e.target === scheduleModal) closeScheduleModal();
         });
+        
+        // 설정 토글 이벤트 리스너
+        showCompletedToggle.addEventListener('change', handleShowCompletedToggle);
+        
         render();
         // 알림 스케줄러 초기화
         notificationScheduler.initScheduler();

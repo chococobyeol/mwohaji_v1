@@ -2,6 +2,7 @@ const storage = (() => {
     const TODOS_KEY = 'mwohaji-todos';
     const CATEGORIES_KEY = 'mwohaji-categories';
     const COMPLETED_REPEAT_KEY = 'mwohaji-completed-repeat';
+    const SETTINGS_KEY = 'mwohaji-settings';
 
     const getTodos = () => {
         try {
@@ -104,12 +105,36 @@ const storage = (() => {
         }
     };
 
+    // 설정 저장/불러오기
+    const getSettings = () => {
+        try {
+            const settings = localStorage.getItem(SETTINGS_KEY);
+            const defaultSettings = {
+                showCompleted: true // 기본값: 완료된 할 일 표시
+            };
+            return settings ? { ...defaultSettings, ...JSON.parse(settings) } : defaultSettings;
+        } catch (e) {
+            console.error('Failed to parse settings from localStorage', e);
+            return { showCompleted: true };
+        }
+    };
+
+    const saveSettings = (settings) => {
+        try {
+            localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+        } catch (e) {
+            console.error('Failed to save settings to localStorage', e);
+        }
+    };
+
     return {
         getTodos,
         saveTodos,
         getCategories,
         saveCategories,
         getCompletedRepeatTodos,
-        saveCompletedRepeatTodos
+        saveCompletedRepeatTodos,
+        getSettings,
+        saveSettings
     };
 })();
