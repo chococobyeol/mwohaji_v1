@@ -1425,6 +1425,31 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const data = await fileHandler.importFromFile(file);
                 console.log('가져온 데이터:', data);
+                
+                // 백업 데이터 검증
+                const validationErrors = utils.validateBackupData(data);
+                if (validationErrors.length > 0) {
+                    throw new Error(`데이터 검증 실패:\n${validationErrors.join('\n')}`);
+                }
+                
+                // 백업 데이터 통계 표시
+                const stats = utils.getBackupStats(data);
+                console.log('백업 데이터 통계:', stats);
+                
+                // 데이터 유효성 검사
+                if (!data.todos || !Array.isArray(data.todos)) {
+                    throw new Error('할 일 데이터가 올바르지 않습니다.');
+                }
+                if (!data.categories || !Array.isArray(data.categories)) {
+                    throw new Error('카테고리 데이터가 올바르지 않습니다.');
+                }
+                
+                // 기본 카테고리가 없는 경우 추가
+                if (!data.categories.find(cat => cat.id === 'default')) {
+                    data.categories.unshift({ id: 'default', name: '일반', createdAt: new Date('2020-01-01').toISOString() });
+                }
+                
+                // 데이터 저장
                 storage.saveTodos(data.todos);
                 
                 // 카테고리 순서 복원
@@ -1457,10 +1482,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 todoManager.setCategories(finalCategories);
                 todoManager.setCompletedRepeatTodos(data.completedRepeatTodos || []);
                 
+                // 알림 스케줄러 재초기화 (데이터 복구 후)
+                if (window.notificationScheduler) {
+                    console.log('[App] 데이터 복구 후 알림 스케줄러 재초기화');
+                    window.notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
+                }
+                
+                // UI 초기화
                 init();
-                alert('데이터를 성공적으로 가져왔습니다.');
+                
+                // 성공 메시지에 통계 정보 포함
+                const successMessage = `데이터를 성공적으로 가져왔습니다.\n\n` +
+                    `📊 복구된 데이터:\n` +
+                    `• 할 일: ${stats.totalTodos}개 (완료: ${stats.completedTodos}개)\n` +
+                    `• 일정 설정: ${stats.todosWithSchedule}개\n` +
+                    `• 반복 설정: ${stats.todosWithRepeat}개\n` +
+                    `• 카테고리: ${stats.totalCategories}개\n` +
+                    `• 완료된 반복 할 일: ${stats.completedRepeatTodos}개`;
+                
+                alert(successMessage);
             } catch (error) {
-                alert(error.message);
+                console.error('데이터 가져오기 실패:', error);
+                alert(`데이터 가져오기에 실패했습니다:\n${error.message}`);
             }
         };
         input.click();

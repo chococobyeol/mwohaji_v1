@@ -148,6 +148,85 @@ const utils = (() => {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     };
 
+    // 백업 데이터 검증 함수들
+    const validateBackupData = (data) => {
+        const errors = [];
+        
+        // 기본 구조 검증
+        if (!data || typeof data !== 'object') {
+            errors.push('데이터가 올바르지 않습니다.');
+            return errors;
+        }
+        
+        // 할 일 데이터 검증
+        if (!Array.isArray(data.todos)) {
+            errors.push('할 일 데이터가 배열이 아닙니다.');
+        } else {
+            data.todos.forEach((todo, index) => {
+                if (!todo.id || !todo.text || !todo.category) {
+                    errors.push(`할 일 ${index + 1}: 필수 필드가 누락되었습니다.`);
+                }
+                if (todo.schedule) {
+                    if (todo.schedule.startTime && isNaN(new Date(todo.schedule.startTime).getTime())) {
+                        errors.push(`할 일 ${index + 1}: 시작 시간이 올바르지 않습니다.`);
+                    }
+                    if (todo.schedule.dueTime && isNaN(new Date(todo.schedule.dueTime).getTime())) {
+                        errors.push(`할 일 ${index + 1}: 마감 시간이 올바르지 않습니다.`);
+                    }
+                }
+            });
+        }
+        
+        // 카테고리 데이터 검증
+        if (!Array.isArray(data.categories)) {
+            errors.push('카테고리 데이터가 배열이 아닙니다.');
+        } else {
+            data.categories.forEach((category, index) => {
+                if (!category.id || !category.name) {
+                    errors.push(`카테고리 ${index + 1}: 필수 필드가 누락되었습니다.`);
+                }
+            });
+        }
+        
+        // 완료된 반복 할 일 데이터 검증
+        if (data.completedRepeatTodos && !Array.isArray(data.completedRepeatTodos)) {
+            errors.push('완료된 반복 할 일 데이터가 배열이 아닙니다.');
+        }
+        
+        return errors;
+    };
+
+    // 백업 데이터 통계 함수
+    const getBackupStats = (data) => {
+        if (!data) return null;
+        
+        const stats = {
+            totalTodos: 0,
+            completedTodos: 0,
+            todosWithSchedule: 0,
+            todosWithRepeat: 0,
+            totalCategories: 0,
+            completedRepeatTodos: 0
+        };
+        
+        if (Array.isArray(data.todos)) {
+            stats.totalTodos = data.todos.length;
+            stats.completedTodos = data.todos.filter(t => t.completed).length;
+            stats.todosWithSchedule = data.todos.filter(t => t.schedule && (t.schedule.startTime || t.schedule.dueTime)).length;
+            stats.todosWithRepeat = data.todos.filter(t => t.repeat).length;
+        }
+        
+        if (Array.isArray(data.categories)) {
+            stats.totalCategories = data.categories.length;
+        }
+        
+        if (Array.isArray(data.completedRepeatTodos)) {
+            stats.completedRepeatTodos = data.completedRepeatTodos.length;
+        }
+        
+        return stats;
+    };
+
     return {
         formatDate,
         formatDateTime,
@@ -164,6 +243,8 @@ const utils = (() => {
         addEventListeners,
         isValidEmail,
         isValidUrl,
-        formatFileSize
+        formatFileSize,
+        validateBackupData,
+        getBackupStats
     };
 })();

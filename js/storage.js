@@ -19,10 +19,14 @@ const storage = (() => {
                         // 'YYYY-MM-DDTHH:mm:00' 형식의 문자열을 로컬 시간으로 파싱
                         todo.schedule.dueTime = new Date(todo.schedule.dueTime);
                     }
-                    // 앱 로드 시 notified 상태를 항상 false로 초기화 (새로고침 시 알림 다시 울리도록)
-                    // 이 부분은 제거되어야 합니다. 알림 상태는 markNotified에서만 변경되어야 합니다.
-                    // todo.schedule.notifiedStart = false;
-                    // todo.schedule.notifiedDue = false;
+                    // 알림 상태는 백업에서 복원된 값을 그대로 사용 (초기화하지 않음)
+                    // notifiedStart와 notifiedDue가 undefined인 경우에만 false로 초기화
+                    if (todo.schedule.notifiedStart === undefined) {
+                        todo.schedule.notifiedStart = false;
+                    }
+                    if (todo.schedule.notifiedDue === undefined) {
+                        todo.schedule.notifiedDue = false;
+                    }
                 }
                 return todo;
             });
@@ -56,6 +60,8 @@ const storage = (() => {
                         const minutes = String(date.getMinutes()).padStart(2, '0');
                         newTodo.schedule.dueTime = `${year}-${month}-${day}T${hours}:${minutes}:00`;
                     }
+                    // 알림 상태도 함께 저장 (notifiedStart, notifiedDue)
+                    // 이 값들이 undefined가 아닌 경우에만 저장
                 }
                 return newTodo;
             });
@@ -112,7 +118,26 @@ const storage = (() => {
     const getCompletedRepeatTodos = () => {
         try {
             const completed = localStorage.getItem(COMPLETED_REPEAT_KEY);
-            return completed ? JSON.parse(completed) : [];
+            const parsedCompleted = completed ? JSON.parse(completed) : [];
+            // 완료된 반복 할 일도 Date 객체 변환 및 알림 상태 처리
+            return parsedCompleted.map(todo => {
+                if (todo.schedule) {
+                    if (todo.schedule.startTime) {
+                        todo.schedule.startTime = new Date(todo.schedule.startTime);
+                    }
+                    if (todo.schedule.dueTime) {
+                        todo.schedule.dueTime = new Date(todo.schedule.dueTime);
+                    }
+                    // 알림 상태는 백업에서 복원된 값을 그대로 사용
+                    if (todo.schedule.notifiedStart === undefined) {
+                        todo.schedule.notifiedStart = false;
+                    }
+                    if (todo.schedule.notifiedDue === undefined) {
+                        todo.schedule.notifiedDue = false;
+                    }
+                }
+                return todo;
+            });
         } catch (e) {
             console.error('Failed to parse completed repeat todos from localStorage', e);
             return [];
@@ -121,7 +146,32 @@ const storage = (() => {
 
     const saveCompletedRepeatTodos = (completed) => {
         try {
-            localStorage.setItem(COMPLETED_REPEAT_KEY, JSON.stringify(completed));
+            // 완료된 반복 할 일도 Date 객체를 문자열로 변환하여 저장
+            const completedToSave = completed.map(todo => {
+                const newTodo = { ...todo };
+                if (newTodo.schedule) {
+                    if (newTodo.schedule.startTime instanceof Date) {
+                        const date = newTodo.schedule.startTime;
+                        const year = date.getFullYear();
+                        const month = String(date.getMonth() + 1).padStart(2, '0');
+                        const day = String(date.getDate()).padStart(2, '0');
+                        const hours = String(date.getHours()).padStart(2, '0');
+                        const minutes = String(date.getMinutes()).padStart(2, '0');
+                        newTodo.schedule.startTime = `${year}-${month}-${day}T${hours}:${minutes}:00`;
+                    }
+                    if (newTodo.schedule.dueTime instanceof Date) {
+                        const date = newTodo.schedule.dueTime;
+                        const year = date.getFullYear();
+                        const month = String(date.getMonth() + 1).padStart(2, '0');
+                        const day = String(date.getDate()).padStart(2, '0');
+                        const hours = String(date.getHours()).padStart(2, '0');
+                        const minutes = String(date.getMinutes()).padStart(2, '0');
+                        newTodo.schedule.dueTime = `${year}-${month}-${day}T${hours}:${minutes}:00`;
+                    }
+                }
+                return newTodo;
+            });
+            localStorage.setItem(COMPLETED_REPEAT_KEY, JSON.stringify(completedToSave));
         } catch (e) {
             console.error('Failed to save completed repeat todos to localStorage', e);
         }

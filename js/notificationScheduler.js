@@ -201,7 +201,7 @@ const notificationScheduler = (() => {
             
             // 사용자가 설정한 날짜부터 시작하여 앞으로 28일 동안 확인
             let startDate = new Date(base);
-            for (let i = 0; i < 28; i++) {
+            for (let i = 0; i < 365; i++) {
                 let candidate = new Date(startDate);
                 candidate.setDate(candidate.getDate() + i);
                 candidate.setHours(baseHours, baseMinutes, 0, 0);
@@ -233,7 +233,7 @@ const notificationScheduler = (() => {
             
             // 사용자가 설정한 월부터 3개월까지 확인
             let startMonth = new Date(base.getFullYear(), base.getMonth(), 1);
-            for (let monthOffset = 0; monthOffset < 3; monthOffset++) {
+            for (let monthOffset = 0; monthOffset < 12; monthOffset++) {
                 let candidateMonth = new Date(startMonth);
                 candidateMonth.setMonth(candidateMonth.getMonth() + monthOffset);
                 

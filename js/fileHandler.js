@@ -4,6 +4,15 @@ const fileHandler = (() => {
     const stringifyData = (todos, categories, completedRepeatTodos = []) => {
         let content = "### Mwohaji Backup Data ###\n\n";
         
+        // 백업 메타데이터 추가
+        content += "#META:\n";
+        content += `version:1.2\n`;
+        content += `created:${new Date().toISOString()}\n`;
+        content += `totalTodos:${todos.length}\n`;
+        content += `totalCategories:${categories.length}\n`;
+        content += `completedRepeatTodos:${completedRepeatTodos.length}\n`;
+        content += "\n";
+        
         // 카테고리 목록 저장 (생성 날짜 포함)
         content += "#CATEGORIES:\n";
         content += categories.map(c => `${c.id}|${c.name}|${c.createdAt || new Date().toISOString()}`).join('\n');
@@ -33,11 +42,15 @@ const fileHandler = (() => {
                     todoLine += ` @start:${utils.formatDateTime(new Date(t.schedule.startTime))}`;
                     todoLine += ` @smodal:${t.schedule.startModal !== false}`;
                     todoLine += ` @snotify:${t.schedule.startNotification}`;
+                    // 알림 상태 저장 추가
+                    todoLine += ` @snotified:${t.schedule.notifiedStart || false}`;
                 }
                 if (t.schedule.dueTime) {
                     todoLine += ` @due:${utils.formatDateTime(new Date(t.schedule.dueTime))}`;
                     todoLine += ` @dmodal:${t.schedule.dueModal !== false}`;
                     todoLine += ` @dnotify:${t.schedule.dueNotification}`;
+                    // 알림 상태 저장 추가
+                    todoLine += ` @dnotified:${t.schedule.notifiedDue || false}`;
                 }
             }
             
@@ -72,11 +85,15 @@ const fileHandler = (() => {
                         todoLine += ` @start:${utils.formatDateTime(new Date(t.schedule.startTime))}`;
                         todoLine += ` @smodal:${t.schedule.startModal !== false}`;
                         todoLine += ` @snotify:${t.schedule.startNotification}`;
+                        // 알림 상태 저장 추가
+                        todoLine += ` @snotified:${t.schedule.notifiedStart || false}`;
                     }
                     if (t.schedule.dueTime) {
                         todoLine += ` @due:${utils.formatDateTime(new Date(t.schedule.dueTime))}`;
                         todoLine += ` @dmodal:${t.schedule.dueModal !== false}`;
                         todoLine += ` @dnotify:${t.schedule.dueNotification}`;
+                        // 알림 상태 저장 추가
+                        todoLine += ` @dnotified:${t.schedule.notifiedDue || false}`;
                     }
                 }
                 
@@ -107,20 +124,31 @@ const fileHandler = (() => {
         let isCategoriesSection = false;
         let isCompletedRepeatTodosSection = false;
         let isCategoryOrderSection = false;
+        let isMetaSection = false;
 
         const importedData = {
             todos: [],
             categories: [],
             completedRepeatTodos: [],
-            categoryOrder: []
+            categoryOrder: [],
+            meta: {}
         };
 
         lines.forEach(line => {
+            if (line.trim() === '#META:') {
+                isMetaSection = true;
+                isCategoriesSection = false;
+                isTodosSection = false;
+                isCompletedRepeatTodosSection = false;
+                isCategoryOrderSection = false;
+                return;
+            }
             if (line.trim() === '#CATEGORIES:') {
                 isCategoriesSection = true;
                 isTodosSection = false;
                 isCompletedRepeatTodosSection = false;
                 isCategoryOrderSection = false;
+                isMetaSection = false;
                 return;
             }
             if (line.trim() === '#TODOS:') {
@@ -128,6 +156,7 @@ const fileHandler = (() => {
                 isCategoriesSection = false;
                 isCompletedRepeatTodosSection = false;
                 isCategoryOrderSection = false;
+                isMetaSection = false;
                 return;
             }
             if (line.trim() === '#COMPLETED_REPEAT_TODOS:') {
@@ -135,6 +164,7 @@ const fileHandler = (() => {
                 isCategoriesSection = false;
                 isTodosSection = false;
                 isCategoryOrderSection = false;
+                isMetaSection = false;
                 return;
             }
             if (line.trim() === '#CATEGORY_ORDER:') {
@@ -142,11 +172,19 @@ const fileHandler = (() => {
                 isCategoriesSection = false;
                 isTodosSection = false;
                 isCompletedRepeatTodosSection = false;
+                isMetaSection = false;
                 return;
             }
             if (line.trim() === '' || line.startsWith('###')) return;
 
-            if (isCategoriesSection) {
+            if (isMetaSection) {
+                const colonIndex = line.indexOf(':');
+                if (colonIndex !== -1) {
+                    const key = line.substring(0, colonIndex).trim();
+                    const value = line.substring(colonIndex + 1).trim();
+                    importedData.meta[key] = value;
+                }
+            } else if (isCategoriesSection) {
                 const parts = line.split('|');
                 if (parts.length >= 2) {
                     const [id, name, createdAt] = parts;
@@ -160,7 +198,7 @@ const fileHandler = (() => {
                 const categoryIds = line.split('|');
                 importedData.categoryOrder = categoryIds.filter(id => id.trim());
             } else if (isTodosSection || isCompletedRepeatTodosSection) {
-                // PRD 개선된 형식 파싱: [상태] 내용 @cat:카테고리 @start:YYYY-MM-DD HH:mm @due:YYYY-MM-DD HH:mm @smodal:true/false @snotify:true/false @dmodal:true/false @dnotify:true/false @id:숫자
+                // PRD 개선된 형식 파싱: [상태] 내용 @cat:카테고리 @start:YYYY-MM-DD HH:mm @due:YYYY-MM-DD HH:mm @smodal:true/false @snotify:true/false @dmodal:true/false @dnotify:true/false @snotified:true/false @dnotified:true/false @id:숫자
                 const completed = line.startsWith('[x]');
                 const content = line.substring(4); // '[x] ' 또는 '[ ] ' 제거
                 
@@ -224,6 +262,10 @@ const fileHandler = (() => {
                         const enabled = value === 'true';
                         if (!schedule) schedule = {};
                         schedule.startNotification = enabled;
+                    } else if (key === 'snotified') {
+                        const notified = value === 'true';
+                        if (!schedule) schedule = {};
+                        schedule.notifiedStart = notified;
                     } else if (key === 'dmodal') {
                         const enabled = value === 'true';
                         if (!schedule) schedule = {};
@@ -232,6 +274,10 @@ const fileHandler = (() => {
                         const enabled = value === 'true';
                         if (!schedule) schedule = {};
                         schedule.dueNotification = enabled;
+                    } else if (key === 'dnotified') {
+                        const notified = value === 'true';
+                        if (!schedule) schedule = {};
+                        schedule.notifiedDue = notified;
                     } else if (key === 'repeat') {
                         try {
                             repeat = JSON.parse(value);
@@ -256,9 +302,13 @@ const fileHandler = (() => {
                     
                     // F-09: 일정 정보 추가
                     if (schedule) {
-                        // 기본값으로 알림 상태 초기화
-                        schedule.notifiedStart = false;
-                        schedule.notifiedDue = false;
+                        // 알림 상태가 파싱되지 않은 경우에만 기본값 설정
+                        if (schedule.notifiedStart === undefined) {
+                            schedule.notifiedStart = false;
+                        }
+                        if (schedule.notifiedDue === undefined) {
+                            schedule.notifiedDue = false;
+                        }
                         
                         // startModal, startNotification 기본값 처리
                         if (schedule.startTime) {

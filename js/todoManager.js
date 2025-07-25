@@ -47,6 +47,13 @@ const todoManager = (() => {
             completedAt
             // 모든 정보 보존 (일정 정보도 포함)
         };
+        
+        // 알림 상태도 함께 복사 (notifiedStart, notifiedDue)
+        if (completed.schedule) {
+            completed.schedule.notifiedStart = todo.schedule?.notifiedStart || false;
+            completed.schedule.notifiedDue = todo.schedule?.notifiedDue || false;
+        }
+        
         completedRepeatTodos.push(completed);
         storage.saveCompletedRepeatTodos(completedRepeatTodos);
     };
