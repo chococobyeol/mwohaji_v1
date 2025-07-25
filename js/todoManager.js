@@ -90,7 +90,11 @@ const todoManager = (() => {
             alert('이미 존재하는 카테고리입니다.');
             return null;
         }
-        const newCategory = { id: `cat-${Date.now()}`, name: name.trim() };
+        const newCategory = { 
+            id: `cat-${Date.now()}`, 
+            name: name.trim(),
+            createdAt: new Date().toISOString()
+        };
         categories.push(newCategory);
         storage.saveCategories(categories);
         return newCategory;

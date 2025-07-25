@@ -4,9 +4,14 @@ const fileHandler = (() => {
     const stringifyData = (todos, categories, completedRepeatTodos = []) => {
         let content = "### Mwohaji Backup Data ###\n\n";
         
-        // 카테고리 목록 저장
+        // 카테고리 목록 저장 (생성 날짜 포함)
         content += "#CATEGORIES:\n";
-        content += categories.map(c => `${c.id}|${c.name}`).join('\n');
+        content += categories.map(c => `${c.id}|${c.name}|${c.createdAt || new Date().toISOString()}`).join('\n');
+        content += "\n\n";
+        
+        // 카테고리 순서 정보 저장
+        content += "#CATEGORY_ORDER:\n";
+        content += categories.map(c => c.id).join('|');
         content += "\n\n";
 
         // 일반 할 일 목록 저장 (완료된 반복 할 일 제외)
@@ -97,11 +102,13 @@ const fileHandler = (() => {
         let isTodosSection = false;
         let isCategoriesSection = false;
         let isCompletedRepeatTodosSection = false;
+        let isCategoryOrderSection = false;
 
         const importedData = {
             todos: [],
             categories: [],
-            completedRepeatTodos: []
+            completedRepeatTodos: [],
+            categoryOrder: []
         };
 
         lines.forEach(line => {
@@ -109,35 +116,67 @@ const fileHandler = (() => {
                 isCategoriesSection = true;
                 isTodosSection = false;
                 isCompletedRepeatTodosSection = false;
+                isCategoryOrderSection = false;
                 return;
             }
             if (line.trim() === '#TODOS:') {
                 isTodosSection = true;
                 isCategoriesSection = false;
                 isCompletedRepeatTodosSection = false;
+                isCategoryOrderSection = false;
                 return;
             }
             if (line.trim() === '#COMPLETED_REPEAT_TODOS:') {
                 isCompletedRepeatTodosSection = true;
                 isCategoriesSection = false;
                 isTodosSection = false;
+                isCategoryOrderSection = false;
+                return;
+            }
+            if (line.trim() === '#CATEGORY_ORDER:') {
+                isCategoryOrderSection = true;
+                isCategoriesSection = false;
+                isTodosSection = false;
+                isCompletedRepeatTodosSection = false;
                 return;
             }
             if (line.trim() === '' || line.startsWith('###')) return;
 
             if (isCategoriesSection) {
-                const [id, name] = line.split('|');
-                if (id && name) {
-                    importedData.categories.push({ id, name });
+                const parts = line.split('|');
+                if (parts.length >= 2) {
+                    const [id, name, createdAt] = parts;
+                    const category = { id, name };
+                    if (createdAt) {
+                        category.createdAt = createdAt;
+                    }
+                    importedData.categories.push(category);
                 }
+            } else if (isCategoryOrderSection) {
+                const categoryIds = line.split('|');
+                importedData.categoryOrder = categoryIds.filter(id => id.trim());
             } else if (isTodosSection || isCompletedRepeatTodosSection) {
                 // PRD 개선된 형식 파싱: [상태] 내용 @cat:카테고리 @start:YYYY-MM-DD HH:mm @due:YYYY-MM-DD HH:mm @smodal:true/false @snotify:true/false @dmodal:true/false @dnotify:true/false @id:숫자
                 const completed = line.startsWith('[x]');
                 const content = line.substring(4); // '[x] ' 또는 '[ ] ' 제거
                 
-                // @ 기호로 분리하여 각 부분 파싱
+                // 파라미터들을 찾기 위해 @ 기호로 분리
                 const parts = content.split(' @');
-                const todoText = parts[0]; // 첫 번째 부분은 할 일 텍스트
+                const todoText = parts[0].trim();
+                const params = [];
+                
+                // 첫 번째 부분 이후의 모든 부분을 파라미터로 처리
+                for (let i = 1; i < parts.length; i++) {
+                    const part = parts[i];
+                    const colonIndex = part.indexOf(':');
+                    if (colonIndex !== -1) {
+                        const key = part.substring(0, colonIndex);
+                        const value = part.substring(colonIndex + 1);
+                        params.push({ key, value });
+                    }
+                }
+                console.log('파싱된 할 일 텍스트:', todoText);
+                console.log('파싱된 파라미터들:', params);
                 
                 let category = '일반';
                 let repeat = null;
@@ -145,44 +184,43 @@ const fileHandler = (() => {
                 let schedule = null;
                 let completedAt = null;
                 
-                // @ 파라미터들 파싱
-                parts.slice(1).forEach(part => {
-                    if (part.startsWith('cat:')) {
-                        category = part.substring(4);
-                    } else if (part.startsWith('start:')) {
-                        const dateStr = part.substring(6);
+                // 파라미터들 파싱
+                params.forEach(param => {
+                    const { key, value } = param;
+                    if (key === 'cat') {
+                        category = value;
+                    } else if (key === 'start') {
                         if (!schedule) schedule = {};
-                        schedule.startTime = new Date(dateStr).toISOString();
-                    } else if (part.startsWith('due:')) {
-                        const dateStr = part.substring(4);
+                        schedule.startTime = new Date(value).toISOString();
+                    } else if (key === 'due') {
                         if (!schedule) schedule = {};
-                        schedule.dueTime = new Date(dateStr).toISOString();
-                    } else if (part.startsWith('smodal:')) {
-                        const enabled = part.substring(7) === 'true';
+                        schedule.dueTime = new Date(value).toISOString();
+                    } else if (key === 'smodal') {
+                        const enabled = value === 'true';
                         if (!schedule) schedule = {};
                         schedule.startModal = enabled;
-                    } else if (part.startsWith('snotify:')) {
-                        const enabled = part.substring(8) === 'true';
+                    } else if (key === 'snotify') {
+                        const enabled = value === 'true';
                         if (!schedule) schedule = {};
                         schedule.startNotification = enabled;
-                    } else if (part.startsWith('dmodal:')) {
-                        const enabled = part.substring(7) === 'true';
+                    } else if (key === 'dmodal') {
+                        const enabled = value === 'true';
                         if (!schedule) schedule = {};
                         schedule.dueModal = enabled;
-                    } else if (part.startsWith('dnotify:')) {
-                        const enabled = part.substring(8) === 'true';
+                    } else if (key === 'dnotify') {
+                        const enabled = value === 'true';
                         if (!schedule) schedule = {};
                         schedule.dueNotification = enabled;
-                    } else if (part.startsWith('repeat:')) {
+                    } else if (key === 'repeat') {
                         try {
-                            repeat = JSON.parse(part.substring(7));
+                            repeat = JSON.parse(value);
                         } catch (e) {
-                            console.warn('반복 정보 파싱 실패:', part.substring(7));
+                            console.warn('반복 정보 파싱 실패:', value);
                         }
-                    } else if (part.startsWith('completedAt:')) {
-                        completedAt = part.substring(12);
-                    } else if (part.startsWith('id:')) {
-                        id = Number(part.substring(3)) || Date.now();
+                    } else if (key === 'completedAt') {
+                        completedAt = value;
+                    } else if (key === 'id') {
+                        id = Number(value) || Date.now();
                     }
                 });
 
@@ -192,7 +230,7 @@ const fileHandler = (() => {
                         text: todoText.trim(),
                         category: category,
                         completed: completed,
-                        createdAt: new Date(id).toISOString()
+                        createdAt: completedAt ? new Date(completedAt).toISOString() : new Date().toISOString()
                     };
                     
                     // F-09: 일정 정보 추가
@@ -239,6 +277,7 @@ const fileHandler = (() => {
                 }
             }
         });
+        console.log('파싱된 데이터:', importedData);
         return importedData;
     };
 

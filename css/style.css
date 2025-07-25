@@ -1635,6 +1635,43 @@ button:hover {
 
 
 
+.order-controls {
+  margin-bottom: 16px;
+  padding: 16px;
+  background-color: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+}
+
+.sort-options {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.sort-options label {
+  font-weight: 500;
+  color: var(--primary-text);
+  font-size: 14px;
+}
+
+.sort-select {
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background-color: white;
+  font-size: 14px;
+  color: var(--primary-text);
+  min-width: 180px;
+}
+
+.sort-select:focus {
+  outline: none;
+  border-color: var(--primary-text);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1);
+}
+
 .order-instruction {
   color: var(--secondary-text);
   font-size: 14px;
@@ -1658,12 +1695,17 @@ button:hover {
 .category-order-item {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   padding: 12px 16px;
   border-bottom: 1px solid #f3f4f6;
   background: white;
-  cursor: grab;
   transition: all 0.2s ease;
   user-select: none;
+  position: relative;
+}
+
+.category-order-item:not(.fixed):hover {
+  background-color: #f8f9fa;
 }
 
 .category-order-item:last-child {
@@ -1674,15 +1716,7 @@ button:hover {
   background-color: #f8f9fa;
 }
 
-.category-order-item.dragging {
-  opacity: 0.7;
-  transform: scale(1.02);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-}
 
-.category-order-item.drag-over {
-  border-top: 2px solid var(--primary-text);
-}
 
 .category-order-item.fixed {
   background-color: #f8f9fa;
@@ -1694,22 +1728,14 @@ button:hover {
   background-color: #f8f9fa;
 }
 
-.category-order-handle {
-  margin-right: 12px;
-  color: #9ca3af;
-  cursor: grab;
-}
 
-.category-order-item.fixed .category-order-handle {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
 
 .category-order-name {
-  flex: 1;
   font-weight: 500;
   color: var(--primary-text);
 }
+
+
 
 .category-order-item.fixed .category-order-name {
   color: var(--secondary-text);
@@ -1727,6 +1753,21 @@ button:hover {
 
 /* 모바일 반응형 */
 @media (max-width: 768px) {
+  .order-controls {
+    padding: 12px;
+  }
+  
+  .sort-options {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  
+  .sort-select {
+    min-width: auto;
+    width: 100%;
+  }
+  
   .category-order-item {
     padding: 10px 12px;
   }

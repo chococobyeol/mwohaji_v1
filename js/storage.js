@@ -70,11 +70,33 @@ const storage = (() => {
     const getCategories = () => {
         try {
             const categories = localStorage.getItem(CATEGORIES_KEY);
-            // 카테고리가 없으면 기본 '일반' 카테고리를 포함하여 반환
-            return categories ? JSON.parse(categories) : [{ id: 'default', name: '일반' }];
+            let parsedCategories = categories ? JSON.parse(categories) : [{ id: 'default', name: '일반' }];
+            
+            // 기존 카테고리들에 createdAt 필드가 없다면 추가
+            parsedCategories = parsedCategories.map(category => {
+                if (!category.createdAt) {
+                    // 기본 '일반' 카테고리는 오래된 날짜로 설정
+                    if (category.name === '일반') {
+                        category.createdAt = new Date('2020-01-01').toISOString();
+                    } else {
+                        // 카테고리 ID에서 타임스탬프 추출하여 실제 생성 시간 추정
+                        const idMatch = category.id.match(/cat-(\d+)/);
+                        if (idMatch) {
+                            const timestamp = parseInt(idMatch[1]);
+                            category.createdAt = new Date(timestamp).toISOString();
+                        } else {
+                            // ID에서 추출할 수 없는 경우 현재 시간으로 설정
+                            category.createdAt = new Date().toISOString();
+                        }
+                    }
+                }
+                return category;
+            });
+            
+            return parsedCategories;
         } catch (e) {
             console.error('Failed to parse categories from localStorage', e);
-            return [{ id: 'default', name: '일반' }];
+            return [{ id: 'default', name: '일반', createdAt: new Date('2020-01-01').toISOString() }];
         }
     };
 

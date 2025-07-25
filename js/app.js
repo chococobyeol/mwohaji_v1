@@ -68,8 +68,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveCategoryOrderBtn = document.getElementById('save-category-order-btn');
     const cancelCategoryOrderBtn = document.getElementById('cancel-category-order-btn');
     const editCategoryOrderBtn = document.getElementById('edit-category-order-btn');
+    const sortSelect = document.getElementById('sort-select');
+    const applySortBtn = document.getElementById('apply-sort-btn');
     let originalCategoryOrder = [];
-    let draggedElement = null;
 
     // App State
     let currentView = 'project';
@@ -517,93 +518,175 @@ document.addEventListener('DOMContentLoaded', () => {
         const categories = todoManager.getCategories();
         categoryOrderList.innerHTML = '';
         
-        categories.forEach(category => {
+        categories.forEach((category, index) => {
             const li = document.createElement('li');
             li.className = 'category-order-item';
             li.dataset.id = category.id;
+            li.dataset.index = index;
+            li.dataset.categoryName = category.name;
             
             if (category.id === 'default') {
                 li.classList.add('fixed');
             }
             
             li.innerHTML = `
-                <span class="category-order-handle">⋮⋮</span>
                 <span class="category-order-name">${category.name}</span>
                 ${category.id === 'default' ? '<span class="category-order-badge">고정</span>' : ''}
             `;
             
             if (category.id !== 'default') {
                 li.draggable = true;
+                li.style.cursor = 'move';
+                li.style.transition = 'transform 0.2s, box-shadow 0.2s';
+                
                 li.addEventListener('dragstart', handleDragStart);
                 li.addEventListener('dragend', handleDragEnd);
-                li.addEventListener('dragover', handleDragOver);
-                li.addEventListener('drop', handleDrop);
-                li.addEventListener('dragenter', handleDragEnter);
-                li.addEventListener('dragleave', handleDragLeave);
             }
             
             categoryOrderList.appendChild(li);
         });
+        
+        // 컨테이너에 드래그 이벤트 리스너 추가
+        categoryOrderList.addEventListener('dragover', handleDragOver);
+        categoryOrderList.addEventListener('drop', handleDrop);
     };
 
-    const handleDragStart = (e) => {
-        draggedElement = e.target;
-        e.target.classList.add('dragging');
+
+
+    // 드래그 앤 드롭 변수
+    let draggedItem = null;
+
+    // 드래그 시작
+    const handleDragStart = function(e) {
+        draggedItem = this;
+        setTimeout(() => this.style.opacity = '0.5', 0);
+        this.style.boxShadow = '0 0 10px rgba(0,0,0,0.3)';
+        
         e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/html', e.target.outerHTML);
+        e.dataTransfer.setData('text/plain', this.dataset.index);
     };
 
-    const handleDragEnd = (e) => {
-        e.target.classList.remove('dragging');
-        draggedElement = null;
+    // 드래그 종료
+    const handleDragEnd = function(e) {
+        this.style.opacity = '1';
+        this.style.boxShadow = 'none';
+        
+        // 모든 카드의 스타일 초기화
+        const items = document.querySelectorAll('.category-order-item');
+        items.forEach(item => {
+            item.style.borderTop = 'none';
+            item.style.borderBottom = 'none';
+        });
     };
 
-    const handleDragOver = (e) => {
+    // 드래그 오버
+    const handleDragOver = function(e) {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
-    };
-
-    const handleDragEnter = (e) => {
-        e.preventDefault();
-        if (e.target.classList.contains('category-order-item') && !e.target.classList.contains('fixed')) {
-            e.target.classList.add('drag-over');
+        
+        // 드래그 오버 중인 요소 찾기
+        const item = e.target.closest('.category-order-item');
+        if (!item || item === draggedItem || item.classList.contains('fixed')) return;
+        
+        // 드래그 방향 결정 (위/아래)
+        const rect = item.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        const isAbove = e.clientY < midY;
+        
+        // 이전 효과 제거
+        const items = document.querySelectorAll('.category-order-item');
+        items.forEach(i => {
+            i.style.borderTop = 'none';
+            i.style.borderBottom = 'none';
+        });
+        
+        // 드랍 위치 표시
+        if (isAbove) {
+            item.style.borderTop = '2px solid var(--primary-text)';
+        } else {
+            item.style.borderBottom = '2px solid var(--primary-text)';
         }
     };
 
-    const handleDragLeave = (e) => {
-        e.target.classList.remove('drag-over');
+    // 드롭
+    const handleDrop = function(e) {
+        e.preventDefault();
+        
+        // 드랍 대상 요소 찾기
+        const item = e.target.closest('.category-order-item');
+        if (!item || item === draggedItem || item.classList.contains('fixed')) return;
+        
+        // 이동할 인덱스 가져오기
+        const fromIndex = parseInt(draggedItem.dataset.index);
+        const toIndex = parseInt(item.dataset.index);
+        
+        // 드래그 방향 결정 (위/아래)
+        const rect = item.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        const isAbove = e.clientY < midY;
+        
+        let newIndex = isAbove ? toIndex : toIndex + 1;
+        // fromIndex가 newIndex보다 작으면 하나 빼기 (요소가 이미 제거되었기 때문)
+        if (fromIndex < newIndex) {
+            newIndex--;
+        }
+        
+        // 배열에서 요소 재정렬
+        const categories = [...todoManager.getCategories()];
+        const movedCategory = categories.splice(fromIndex, 1)[0];
+        categories.splice(newIndex, 0, movedCategory);
+        
+        // '일반' 카테고리를 항상 맨 위로
+        const defaultIndex = categories.findIndex(c => c.id === 'default');
+        if (defaultIndex > 0) {
+            const [defaultCategory] = categories.splice(defaultIndex, 1);
+            categories.unshift(defaultCategory);
+        }
+        
+        todoManager.setCategories(categories);
+        renderCategoryOrderList();
     };
 
-    const handleDrop = (e) => {
-        e.preventDefault();
-        e.target.classList.remove('drag-over');
-        
-        if (!draggedElement || e.target.classList.contains('fixed')) return;
-        
-        const draggedId = draggedElement.dataset.id;
-        const targetId = e.target.dataset.id;
-        
-        if (draggedId === targetId || draggedId === 'default' || targetId === 'default') return;
-        
-        // 순서 변경
+    const applySort = () => {
+        const sortType = sortSelect.value;
         const categories = todoManager.getCategories();
-        const draggedIndex = categories.findIndex(c => c.id === draggedId);
-        const targetIndex = categories.findIndex(c => c.id === targetId);
         
-        if (draggedIndex !== -1 && targetIndex !== -1) {
-            const [draggedCategory] = categories.splice(draggedIndex, 1);
-            categories.splice(targetIndex, 0, draggedCategory);
-            
-            // '일반' 카테고리를 항상 맨 위로
-            const defaultIndex = categories.findIndex(c => c.id === 'default');
-            if (defaultIndex > 0) {
-                const [defaultCategory] = categories.splice(defaultIndex, 1);
-                categories.unshift(defaultCategory);
-            }
-            
-            todoManager.setCategories(categories);
-            renderCategoryOrderList();
+        if (sortType === 'custom') {
+            // 사용자 정의 순서는 현재 드래그 앤 드롭 순서 유지
+            return;
         }
+        
+        // '일반' 카테고리를 제외한 나머지 카테고리들만 정렬
+        const generalCategory = categories.find(cat => cat.name === '일반');
+        const otherCategories = categories.filter(cat => cat.name !== '일반');
+        
+        let sortedCategories;
+        
+        switch (sortType) {
+            case 'name':
+                // 이름순 정렬 (가나다순)
+                sortedCategories = otherCategories.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+                break;
+            case 'created':
+                // 생성 날짜순 (최신순)
+                sortedCategories = otherCategories.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                break;
+            case 'created-asc':
+                // 생성 날짜순 (오래된순)
+                sortedCategories = otherCategories.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+                break;
+            default:
+                return;
+        }
+        
+        // '일반' 카테고리를 맨 앞에 추가
+        const finalOrder = generalCategory ? [generalCategory, ...sortedCategories] : sortedCategories;
+        
+        // 카테고리 순서 업데이트
+        todoManager.setCategories(finalOrder);
+        
+        // UI 업데이트
+        renderCategoryOrderList();
     };
 
     const saveCategoryOrder = () => {
@@ -1100,11 +1183,39 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!file || !confirm('데이터를 가져오면 현재 모든 데이터가 덮어쓰여집니다. 계속하시겠습니까?')) return;
             try {
                 const data = await fileHandler.importFromFile(file);
+                console.log('가져온 데이터:', data);
                 storage.saveTodos(data.todos);
-                storage.saveCategories(data.categories);
+                
+                // 카테고리 순서 복원
+                let finalCategories = data.categories;
+                if (data.categoryOrder && data.categoryOrder.length > 0) {
+                    // 백업된 순서대로 카테고리 재정렬
+                    const orderedCategories = [];
+                    data.categoryOrder.forEach(categoryId => {
+                        const category = data.categories.find(c => c.id === categoryId);
+                        if (category) {
+                            orderedCategories.push(category);
+                        }
+                    });
+                    // 순서에 없는 카테고리들도 추가
+                    data.categories.forEach(category => {
+                        if (!data.categoryOrder.includes(category.id)) {
+                            orderedCategories.push(category);
+                        }
+                    });
+                    finalCategories = orderedCategories;
+                }
+                storage.saveCategories(finalCategories);
+                
                 if (data.completedRepeatTodos) {
                     storage.saveCompletedRepeatTodos(data.completedRepeatTodos);
                 }
+                
+                // todoManager에 데이터 설정
+                todoManager.setTodos(data.todos);
+                todoManager.setCategories(finalCategories);
+                todoManager.setCompletedRepeatTodos(data.completedRepeatTodos || []);
+                
                 init();
                 alert('데이터를 성공적으로 가져왔습니다.');
             } catch (error) {
@@ -1146,6 +1257,7 @@ document.addEventListener('DOMContentLoaded', () => {
     closeCategoryOrderModalBtn.addEventListener('click', closeCategoryOrderModal);
     cancelCategoryOrderBtn.addEventListener('click', cancelCategoryOrder);
     saveCategoryOrderBtn.addEventListener('click', saveCategoryOrder);
+    applySortBtn.addEventListener('click', applySort);
     categoryOrderModal.addEventListener('click', (e) => {
         if (e.target === categoryOrderModal) closeCategoryOrderModal();
     });
