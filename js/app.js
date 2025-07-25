@@ -797,8 +797,18 @@ document.addEventListener('DOMContentLoaded', () => {
         // 마크다운을 HTML로 변환 (보안 처리 포함)
         let renderedText = todo.text;
         try {
+            // marked.js 옵션 설정 - 줄바꿈을 <br>로 변환
+            marked.setOptions({
+                breaks: true,  // 줄바꿈을 <br> 태그로 변환
+                gfm: true      // GitHub Flavored Markdown 지원
+            });
+            
+            // 줄바꿈을 <br>로 변환 (marked.js가 제대로 처리하지 않을 경우를 대비)
+            let textWithBreaks = todo.text.replace(/\n/g, '<br>');
+            
             // marked.js를 사용하여 마크다운을 HTML로 변환
-            const rawHtml = marked.parse(todo.text);
+            const rawHtml = marked.parse(textWithBreaks);
+            console.log('마크다운 변환 결과:', rawHtml); // 디버깅용
             // security.js의 sanitizeHtml을 사용하여 안전하게 처리
             renderedText = security.sanitizeHtml(rawHtml);
         } catch (e) {
@@ -1218,7 +1228,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // textarea 키보드 이벤트 핸들러
     const handleTodoInputKeydown = (e) => {
-        if (e.key === 'Enter' && e.ctrlKey) {
+        if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             handleAddTodo();
         }
