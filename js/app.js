@@ -117,11 +117,15 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // 반복 알림 모듈 import (전역)
         const getNextRepeatTime = window.notificationScheduler && window.notificationScheduler.getNextRepeatTime;
+        
         // 시작 시간 표시
         if (todo.schedule.startTime) {
             let displayTime;
             if (todo.repeat && getNextRepeatTime) {
+                // 현재 시간을 강제로 동기화한 후 다음 알림 시간 계산
+                console.log(`[App] renderScheduleInfo - 시작 시간 계산 전 현재 시간: ${new Date()}`);
                 const next = getNextRepeatTime(todo, 'start');
+                console.log(`[App] renderScheduleInfo - 시작 시간 계산 결과: ${next}`);
                 displayTime = next ? utils.formatDateTime(next) : utils.formatDateTime(new Date(todo.schedule.startTime));
             } else {
                 displayTime = utils.formatDateTime(new Date(todo.schedule.startTime));
@@ -138,7 +142,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (todo.schedule.dueTime) {
             let displayTime;
             if (todo.repeat && getNextRepeatTime) {
+                // 현재 시간을 강제로 동기화한 후 다음 알림 시간 계산
+                console.log(`[App] renderScheduleInfo - 마감 시간 계산 전 현재 시간: ${new Date()}`);
                 const next = getNextRepeatTime(todo, 'due');
+                console.log(`[App] renderScheduleInfo - 마감 시간 계산 결과: ${next}`);
                 displayTime = next ? utils.formatDateTime(next) : utils.formatDateTime(new Date(todo.schedule.dueTime));
             } else {
                 displayTime = utils.formatDateTime(new Date(todo.schedule.dueTime));
@@ -376,7 +383,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // 반복 설정 변경 시 알림 스케줄러 재초기화
             if (window.notificationScheduler) {
-                window.notificationScheduler.initScheduler();
+                window.notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
             }
         }
         closeRepeatModal();
@@ -1238,6 +1245,44 @@ document.addEventListener('DOMContentLoaded', () => {
         // 설정 토글 이벤트 리스너
         showCompletedToggle.addEventListener('change', handleShowCompletedToggle);
         
+        // 시스템 시간 변경 감지를 위한 이벤트 리스너 추가
+        window.addEventListener('focus', () => {
+            console.log('[App] 페이지 포커스 감지 - 알림 재스케줄링');
+            notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
+        });
+        
+        // 페이지 가시성 변경 감지 (탭 전환 등)
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                console.log('[App] 페이지 가시성 변경 감지 - 알림 재스케줄링');
+                // 강제로 시간 동기화
+                const currentTime = new Date();
+                console.log(`[App] 가시성 변경 시 현재 시간: ${currentTime}`);
+                notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
+            }
+        });
+        
+        // 수동 시간 동기화 버튼 추가
+        const syncTimeBtn = document.createElement('button');
+        syncTimeBtn.textContent = '시간 동기화';
+        syncTimeBtn.style.position = 'fixed';
+        syncTimeBtn.style.top = '10px';
+        syncTimeBtn.style.right = '10px';
+        syncTimeBtn.style.zIndex = '9999';
+        syncTimeBtn.style.padding = '10px';
+        syncTimeBtn.style.backgroundColor = '#007bff';
+        syncTimeBtn.style.color = 'white';
+        syncTimeBtn.style.border = 'none';
+        syncTimeBtn.style.borderRadius = '5px';
+        syncTimeBtn.style.cursor = 'pointer';
+        syncTimeBtn.onclick = () => {
+            console.log('[App] 수동 시간 동기화 실행');
+            const currentTime = new Date();
+            console.log(`[App] 수동 동기화 시 현재 시간: ${currentTime}`);
+            notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
+        };
+        document.body.appendChild(syncTimeBtn);
+        
         render();
         // 알림 스케줄러 초기화
         notificationScheduler.initScheduler();
@@ -1474,4 +1519,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     init();
+    
+    // 전역으로 renderTodos 함수 노출 (notificationScheduler에서 UI 업데이트를 위해)
+    window.app = {
+        renderTodos: renderTodos
+    };
 });

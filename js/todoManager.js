@@ -44,7 +44,8 @@ const todoManager = (() => {
             ...todo, 
             id: Date.now() + Math.random(), // 고유한 ID 생성
             completed: true,  // 완료 상태로 설정
-            completedAt 
+            completedAt
+            // 모든 정보 보존 (일정 정보도 포함)
         };
         completedRepeatTodos.push(completed);
         storage.saveCompletedRepeatTodos(completedRepeatTodos);

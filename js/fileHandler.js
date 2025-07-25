@@ -57,7 +57,7 @@ const fileHandler = (() => {
             return todoLine;
         }).join('\n');
 
-        // 완료된 반복 할 일들만 별도 섹션에 저장
+        // 완료된 반복 할 일들만 별도 섹션에 저장 (모든 정보 보존)
         if (completedRepeatTodos.length > 0) {
             content += "\n\n#COMPLETED_REPEAT_TODOS:\n";
             content += completedRepeatTodos.map(t => {
@@ -66,7 +66,7 @@ const fileHandler = (() => {
                 const encodedText = JSON.stringify(t.text);
                 let todoLine = `${completedMark} ${encodedText} @cat:${t.category}`;
                 
-                // 일정 정보 저장
+                // 일정 정보 저장 (참고용으로 보존)
                 if (t.schedule) {
                     if (t.schedule.startTime) {
                         todoLine += ` @start:${utils.formatDateTime(new Date(t.schedule.startTime))}`;
@@ -209,9 +209,11 @@ const fileHandler = (() => {
                     if (key === 'cat') {
                         category = value;
                     } else if (key === 'start') {
+                        // 모든 할 일에 대해 일정 정보 파싱 (완료된 반복 할 일도 포함)
                         if (!schedule) schedule = {};
                         schedule.startTime = new Date(value).toISOString();
                     } else if (key === 'due') {
+                        // 모든 할 일에 대해 일정 정보 파싱 (완료된 반복 할 일도 포함)
                         if (!schedule) schedule = {};
                         schedule.dueTime = new Date(value).toISOString();
                     } else if (key === 'smodal') {
