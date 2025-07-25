@@ -806,6 +806,23 @@ document.addEventListener('DOMContentLoaded', () => {
             // 줄바꿈을 <br>로 변환 (marked.js가 제대로 처리하지 않을 경우를 대비)
             let textWithBreaks = todo.text.replace(/\n/g, '<br>');
             
+            // 이미지 사이즈 지정을 위한 커스텀 처리
+            // ![alt](url){width=300,height=200} 또는 ![alt](url){width=300 height=200} 형식 지원
+            textWithBreaks = textWithBreaks.replace(
+                /!\[([^\]]*)\]\(([^)]+)\)\{([^}]+)\}/g,
+                (match, alt, src, style) => {
+                    console.log('이미지 사이즈 처리:', { match, alt, src, style }); // 디버깅
+                    const widthMatch = style.match(/width=(\d+)/);
+                    const heightMatch = style.match(/height=(\d+)/);
+                    const width = widthMatch ? widthMatch[1] : 'auto';
+                    const height = heightMatch ? heightMatch[1] : 'auto';
+                    // HTML img 태그로 직접 변환
+                    const result = `<img src="${src}" alt="${alt}" style="width:${width}px;height:${height}px;">`;
+                    console.log('변환 결과:', result); // 디버깅
+                    return result;
+                }
+            );
+            
             // marked.js를 사용하여 마크다운을 HTML로 변환
             const rawHtml = marked.parse(textWithBreaks);
             console.log('마크다운 변환 결과:', rawHtml); // 디버깅용

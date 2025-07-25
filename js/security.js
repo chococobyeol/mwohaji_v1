@@ -48,9 +48,9 @@ const security = (() => {
         // 허용된 태그들 (마크다운 지원을 위해 확장)
         const allowedTags = [
             'b', 'i', 'em', 'strong', 'span', 'br', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-            'ul', 'ol', 'li', 'blockquote', 'code', 'pre', 'a', 'hr', 'del', 'ins', 'mark'
+            'ul', 'ol', 'li', 'blockquote', 'code', 'pre', 'a', 'hr', 'del', 'ins', 'mark', 'img'
         ];
-        const allowedAttributes = ['class', 'href', 'title'];
+        const allowedAttributes = ['class', 'href', 'title', 'src', 'alt', 'style'];
         
         // 모든 스크립트 제거
         let sanitized = stripScripts(html);
@@ -70,6 +70,15 @@ const security = (() => {
                 return `href="${escapeHtml(url)}"`;
             } else {
                 return 'href="#"';
+            }
+        });
+        
+        // src 속성의 URL 검증 (이미지용)
+        sanitized = sanitized.replace(/src=["']([^"']*)["']/gi, (match, url) => {
+            if (isValidUrl(url)) {
+                return `src="${escapeHtml(url)}"`;
+            } else {
+                return 'src=""';
             }
         });
         
