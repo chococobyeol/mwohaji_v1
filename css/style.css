@@ -523,6 +523,16 @@ button:hover {
         padding: 8px; /* 모바일에서 패딩 더 줄이기 */
     }
     
+    /* 모바일에서 카테고리 관리 최적화 */
+    .category-input-container {
+        padding: 12px 0;
+        margin-bottom: 12px;
+    }
+    
+    .category-manage-list {
+        max-height: 250px;
+    }
+    
     .modal-content {
         width: 96%; /* 모바일에서 더 넓게 */
         max-height: calc(100vh - 16px); /* 모바일에서 최대한 공간 활용 */
@@ -731,7 +741,12 @@ button:hover {
 .category-manage-list {
     list-style: none;
     padding: 0;
-    margin: 0 0 20px 0;
+    margin: 0;
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    background: white;
 }
 
 .category-manage-list li {
@@ -741,6 +756,10 @@ button:hover {
     padding: 16px 12px; /* 패딩 증가 */
     border-bottom: 1px solid #f3f4f6; /* 더 연한 구분선 */
     transition: background-color 0.2s ease;
+}
+
+.category-manage-list li:last-child {
+    border-bottom: none;
 }
 
 .category-manage-list li:hover {
@@ -755,6 +774,13 @@ button:hover {
 .category-input-container {
     display: flex;
     gap: 12px; /* 간격 증가 */
+    position: sticky;
+    top: 0;
+    background: white;
+    padding: 16px 0;
+    border-bottom: 1px solid #e5e7eb;
+    margin-bottom: 16px;
+    z-index: 10;
 }
 
 .category-input-container input {
