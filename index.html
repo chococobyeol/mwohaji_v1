@@ -107,6 +107,26 @@
         </div>
     </div>
 
+    <!-- 카테고리 편집 모달 -->
+    <div id="category-edit-modal" class="modal-wrapper" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>카테고리 편집</h2>
+                <button id="close-category-edit-modal-btn" class="icon-btn"></button>
+            </div>
+            <div class="modal-body">
+                <div class="edit-row">
+                    <label for="edit-category-name">카테고리 이름:</label>
+                    <input type="text" id="edit-category-name" class="edit-input-field" placeholder="새 카테고리 이름을 입력하세요">
+                </div>
+                <div class="modal-actions">
+                    <button id="save-category-edit-btn" class="primary-btn">저장</button>
+                    <button id="cancel-category-edit-btn" class="secondary-btn">취소</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 일정 설정 모달 -->
     <div id="schedule-modal" class="modal-wrapper" style="display: none;">
         <div class="modal-content">

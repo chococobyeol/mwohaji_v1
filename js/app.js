@@ -53,6 +53,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const cancelCategoryDeleteBtn = document.getElementById('cancel-category-delete-btn');
     let categoryToDelete = null;
 
+    // 카테고리 편집 모달 관련 DOM Elements
+    const categoryEditModal = document.getElementById('category-edit-modal');
+    const closeCategoryEditModalBtn = document.getElementById('close-category-edit-modal-btn');
+    const editCategoryName = document.getElementById('edit-category-name');
+    const saveCategoryEditBtn = document.getElementById('save-category-edit-btn');
+    const cancelCategoryEditBtn = document.getElementById('cancel-category-edit-btn');
+    let categoryToEdit = null;
+
     // App State
     let currentView = 'project';
     let selectedCategoryId = 'default';
@@ -430,6 +438,53 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         closeCategoryDeleteModal();
+        render();
+    };
+
+    // 카테고리 편집 모달 관련 함수들
+    const openCategoryEditModal = (categoryId) => {
+        const category = todoManager.getCategories().find(c => c.id === categoryId);
+        if (!category) return;
+
+        categoryToEdit = category;
+        editCategoryName.value = category.name;
+        editCategoryName.focus();
+        editCategoryName.select(); // 텍스트 전체 선택
+        
+        categoryEditModal.style.display = 'flex';
+    };
+
+    const closeCategoryEditModal = () => {
+        categoryEditModal.style.display = 'none';
+        categoryToEdit = null;
+        editCategoryName.value = '';
+    };
+
+    const saveCategoryEdit = () => {
+        if (!categoryToEdit) return;
+
+        const newName = editCategoryName.value.trim();
+        if (!newName) {
+            alert('카테고리 이름을 입력해주세요.');
+            return;
+        }
+
+        if (newName === categoryToEdit.name) {
+            closeCategoryEditModal();
+            return;
+        }
+
+        // 중복 이름 체크
+        const existingCategory = todoManager.getCategories().find(c => 
+            c.id !== categoryToEdit.id && c.name.toLowerCase() === newName.toLowerCase()
+        );
+        if (existingCategory) {
+            alert('이미 존재하는 카테고리 이름입니다.');
+            return;
+        }
+
+        todoManager.updateCategory(categoryToEdit.id, newName);
+        closeCategoryEditModal();
         render();
     };
 
@@ -833,6 +888,7 @@ document.addEventListener('DOMContentLoaded', () => {
         icons.setButtonIcon(closeModalBtn, 'close', '닫기', 18);
         icons.setButtonIcon(closeScheduleModalBtn, 'close', '닫기', 18);
         icons.setButtonIcon(closeCategoryDeleteModalBtn, 'close', '닫기', 18);
+        icons.setButtonIcon(closeCategoryEditModalBtn, 'close', '닫기', 18);
         icons.setButtonIcon(globalSettingsBtn, 'settings-gear', '설정', 18);
         icons.setButtonIcon(closeSettingsSidebar, 'close', '닫기', 18);
         icons.setButtonIcon(showCompletedToggle, 'check-circle', '완료된 할 일 표시', 18);
@@ -892,14 +948,7 @@ document.addEventListener('DOMContentLoaded', () => {
             openCategoryDeleteModal(id);
         } else if (editBtn) {
             const id = editBtn.dataset.id;
-            const categoryName = todoManager.getCategories().find(c => c.id === id)?.name;
-            if (categoryName) {
-                const newName = prompt('새 카테고리 이름을 입력하세요:', categoryName);
-                if (newName && newName.trim() && newName.trim() !== categoryName) {
-                    todoManager.updateCategory(id, newName.trim());
-                    render();
-                }
-            }
+            openCategoryEditModal(id);
         }
     });
     exportBtn.addEventListener('click', () => {
@@ -949,6 +998,32 @@ document.addEventListener('DOMContentLoaded', () => {
     confirmCategoryDeleteBtn.addEventListener('click', confirmCategoryDelete);
     categoryDeleteModal.addEventListener('click', (e) => {
         if (e.target === categoryDeleteModal) closeCategoryDeleteModal();
+    });
+
+    // 카테고리 편집 모달 이벤트 리스너
+    closeCategoryEditModalBtn.addEventListener('click', closeCategoryEditModal);
+    cancelCategoryEditBtn.addEventListener('click', closeCategoryEditModal);
+    saveCategoryEditBtn.addEventListener('click', saveCategoryEdit);
+    categoryEditModal.addEventListener('click', (e) => {
+        if (e.target === categoryEditModal) closeCategoryEditModal();
+    });
+    
+    // Enter 키로 저장
+    editCategoryName.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            saveCategoryEdit();
+        }
+    });
+    
+    // 카테고리 추가 입력창에서 Enter 키로 추가
+    newCategoryInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            const name = newCategoryInput.value.trim();
+            if (name && todoManager.addCategory(name)) {
+                newCategoryInput.value = '';
+                render();
+            }
+        }
     });
 
     // 일정 설정 모달 이벤트 리스너들
