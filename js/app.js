@@ -1262,26 +1262,32 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         
-        // 수동 시간 동기화 버튼 추가
-        const syncTimeBtn = document.createElement('button');
-        syncTimeBtn.textContent = '시간 동기화';
-        syncTimeBtn.style.position = 'fixed';
-        syncTimeBtn.style.top = '10px';
-        syncTimeBtn.style.right = '10px';
-        syncTimeBtn.style.zIndex = '9999';
-        syncTimeBtn.style.padding = '10px';
-        syncTimeBtn.style.backgroundColor = '#007bff';
-        syncTimeBtn.style.color = 'white';
-        syncTimeBtn.style.border = 'none';
-        syncTimeBtn.style.borderRadius = '5px';
-        syncTimeBtn.style.cursor = 'pointer';
-        syncTimeBtn.onclick = () => {
+        // 설정 사이드바에 시간 동기화 버튼 추가
+        const settingsSidebar = document.getElementById('settings-sidebar');
+        const settingsContent = settingsSidebar.querySelector('.settings-sidebar-content');
+        
+        // 시간 동기화 섹션 추가
+        const timeSyncSection = document.createElement('div');
+        timeSyncSection.className = 'setting-item';
+        timeSyncSection.innerHTML = `
+            <div class="setting-row">
+                <label class="setting-label">알람 시간 동기화</label>
+                <button id="sync-time-btn" class="secondary-btn" style="padding: 8px 16px; font-size: 14px;">동기화</button>
+            </div>
+            <p class="setting-description">PC 시간이 변경되었을 때 알람 시간을 현재 시간에 맞춰 재계산합니다.</p>
+        `;
+        
+        // 완료된 할 일 표시 설정 다음에 추가
+        const showCompletedSection = settingsContent.querySelector('.setting-item');
+        showCompletedSection.parentNode.insertBefore(timeSyncSection, showCompletedSection.nextSibling);
+        
+        // 시간 동기화 버튼 이벤트 리스너
+        document.getElementById('sync-time-btn').addEventListener('click', () => {
             console.log('[App] 수동 시간 동기화 실행');
             const currentTime = new Date();
             console.log(`[App] 수동 동기화 시 현재 시간: ${currentTime}`);
             notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
-        };
-        document.body.appendChild(syncTimeBtn);
+        });
         
         render();
         // 알림 스케줄러 초기화
