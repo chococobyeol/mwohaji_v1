@@ -3,12 +3,16 @@
     /* 배경색 */
     --main-bg: #FAFBFC;
     --card-bg: #F1F3F5;
+    --surface-color: #ffffff;
+    --background-color: #ffffff;
 
     /* 텍스트색 */
     --primary-text: #343A40;
     --secondary-text: #6C757D;
 
     /* 액센트 색상 */
+    --accent-color: #4263EB;
+    --accent-hover: #364fc7;
     --accent-blue: #4263EB;
     --accent-green: #51CF66;
     --accent-yellow: #FFD43B;
@@ -121,7 +125,6 @@ body {
   top: 0;
   z-index: 10;
   background: #fff;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.02);
 }
 
 /* 할 일 목록만 스크롤 */
@@ -138,6 +141,7 @@ body {
   min-height: 0;
 }
 
+/* 입력 필드 스타일 */
 .todo-input-container {
     margin-bottom: 32px; /* 간격 증가 */
     display: flex;
@@ -149,31 +153,33 @@ body {
 
 .input-row {
     display: flex;
-    gap: 12px; /* 간격 증가 */
-    align-items: center;
+    gap: 12px;
+    align-items: flex-start;
 }
 
 #todo-input {
-    flex-grow: 1;
-    padding: 16px 20px;
-    border: 2px solid #d1d5db; /* 회색 테두리 */
-    border-radius: 6px; /* 덜 둥근 모서리 */
-    font-size: 16px;
-    color: #1a1a1a; /* 검은색 텍스트 */
-    box-sizing: border-box;
-    transition: all 0.2s ease;
-    background-color: white; /* 흰색 배경 */
+    flex: 1;
+    padding: 12px 16px;
+    border: 2px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 14px;
+    background: var(--background-color);
+    color: var(--primary-text);
+    resize: vertical;
+    min-height: 60px;
+    max-height: 200px;
+    font-family: inherit;
+    line-height: 1.5;
 }
 
 #todo-input:focus {
     outline: none;
-    border-color: #374151; /* 포커스 시 진한 회색 테두리 */
-    background-color: white;
-    box-shadow: 0 0 0 3px rgba(55, 65, 81, 0.1); /* 회색 포커스 링 */
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
 }
 
 #todo-input::placeholder {
-    color: #9ca3af; /* 회색 플레이스홀더 */
+    color: var(--secondary-text);
 }
 
 #add-todo-btn {
@@ -895,21 +901,30 @@ button:hover {
     color: #1a1a1a; /* 검은색 텍스트 */
 }
 
+/* 모달 입력 필드 스타일 */
 .edit-input-field {
-    flex: 1;
-    padding: 12px 16px; /* 패딩 증가 */
-    border: 2px solid #d1d5db; /* 회색 테두리 */
+    width: 100%;
+    padding: 12px 16px;
+    border: 2px solid var(--border-color);
     border-radius: 6px;
     font-size: 14px;
+    background: var(--background-color);
+    color: var(--primary-text);
     font-family: inherit;
-    color: #1a1a1a; /* 검은색 텍스트 */
-    transition: all 0.2s ease;
+    line-height: 1.5;
+    resize: vertical;
+    min-height: 60px;
+    max-height: 200px;
 }
 
 .edit-input-field:focus {
     outline: none;
-    border-color: #374151; /* 포커스 시 진한 회색 */
-    box-shadow: 0 0 0 3px rgba(55, 65, 81, 0.1);
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.edit-input-field::placeholder {
+    color: var(--secondary-text);
 }
 
 .edit-select-field {
@@ -1780,6 +1795,101 @@ button:hover {
     font-size: 13px;
     padding: 10px;
   }
+}
+
+/* 마크다운 스타일 */
+.todo-text {
+    line-height: 1.5;
+}
+
+.todo-text h1, .todo-text h2, .todo-text h3, .todo-text h4, .todo-text h5, .todo-text h6 {
+    margin: 0.5em 0 0.2em 0;
+    font-weight: 600;
+}
+
+.todo-text h1 { font-size: 1.4em; }
+.todo-text h2 { font-size: 1.3em; }
+.todo-text h3 { font-size: 1.2em; }
+.todo-text h4 { font-size: 1.1em; }
+.todo-text h5 { font-size: 1.0em; }
+.todo-text h6 { font-size: 0.9em; }
+
+.todo-text p {
+    margin: 0.3em 0;
+}
+
+.todo-text strong, .todo-text b {
+    font-weight: 600;
+}
+
+.todo-text em, .todo-text i {
+    font-style: italic;
+}
+
+.todo-text code {
+    background-color: rgba(0, 0, 0, 0.1);
+    padding: 0.1em 0.3em;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+}
+
+.todo-text pre {
+    background-color: rgba(0, 0, 0, 0.05);
+    padding: 0.5em;
+    border-radius: 4px;
+    overflow-x: auto;
+    margin: 0.5em 0;
+}
+
+.todo-text pre code {
+    background: none;
+    padding: 0;
+}
+
+.todo-text blockquote {
+    border-left: 3px solid #ddd;
+    margin: 0.5em 0;
+    padding-left: 1em;
+    color: #666;
+}
+
+.todo-text ul, .todo-text ol {
+    margin: 0.3em 0;
+    padding-left: 1.5em;
+}
+
+.todo-text li {
+    margin: 0.1em 0;
+}
+
+.todo-text a {
+    color: #007acc;
+    text-decoration: none;
+}
+
+.todo-text a:hover {
+    text-decoration: underline;
+}
+
+.todo-text hr {
+    border: none;
+    border-top: 1px solid #ddd;
+    margin: 0.5em 0;
+}
+
+/* 완료된 할일의 마크다운 스타일 */
+.todo-item.completed .todo-text {
+    opacity: 0.6;
+}
+
+.todo-item.completed .todo-text h1,
+.todo-item.completed .todo-text h2,
+.todo-item.completed .todo-text h3,
+.todo-item.completed .todo-text h4,
+.todo-item.completed .todo-text h5,
+.todo-item.completed .todo-text h6 {
+    text-decoration: line-through;
 }
 
 

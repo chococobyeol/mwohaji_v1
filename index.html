@@ -6,6 +6,7 @@
     <title>Mwohaji - 뭐하지...</title>
     <link rel="icon" type="image/x-icon" href="favicon.ico">
     <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
     <button id="global-settings-btn" class="global-settings-btn" title="설정">
@@ -27,7 +28,7 @@
         <main class="main">
             <div class="todo-input-container">
                 <div class="input-row">
-                    <input type="text" id="todo-input" placeholder="새로운 할 일을 추가하세요...">
+                    <textarea id="todo-input" placeholder="새로운 할 일을 추가하세요... (마크다운 지원: **굵게**, *기울임*, `코드`, [링크](URL))" rows="3"></textarea>
                     <button id="add-todo-btn">추가</button>
                 </div>
                 <div id="category-selector" class="category-selector">
@@ -174,7 +175,7 @@
                 <div class="todo-edit-section">
                     <div class="edit-row">
                         <label for="edit-todo-text">할 일 내용:</label>
-                        <input type="text" id="edit-todo-text" class="edit-input-field">
+                        <textarea id="edit-todo-text" class="edit-input-field" rows="3" placeholder="할 일 내용을 입력하세요..."></textarea>
                     </div>
                     <div class="edit-row">
                         <label for="edit-todo-category">카테고리:</label>

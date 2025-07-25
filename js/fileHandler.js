@@ -23,7 +23,9 @@ const fileHandler = (() => {
         
         content += regularTodos.map(t => {
             const completedMark = t.completed ? '[x]' : '[ ]';
-            let todoLine = `${completedMark} ${t.text} @cat:${t.category}`;
+            // 텍스트를 JSON.stringify로 인코딩하여 줄바꿈과 특수문자 보존
+            const encodedText = JSON.stringify(t.text);
+            let todoLine = `${completedMark} ${encodedText} @cat:${t.category}`;
             
             // F-09: 일정 정보 저장
             if (t.schedule) {
@@ -60,7 +62,9 @@ const fileHandler = (() => {
             content += "\n\n#COMPLETED_REPEAT_TODOS:\n";
             content += completedRepeatTodos.map(t => {
                 const completedMark = '[x]';
-                let todoLine = `${completedMark} ${t.text} @cat:${t.category}`;
+                // 텍스트를 JSON.stringify로 인코딩하여 줄바꿈과 특수문자 보존
+                const encodedText = JSON.stringify(t.text);
+                let todoLine = `${completedMark} ${encodedText} @cat:${t.category}`;
                 
                 // 일정 정보 저장
                 if (t.schedule) {
@@ -162,8 +166,22 @@ const fileHandler = (() => {
                 
                 // 파라미터들을 찾기 위해 @ 기호로 분리
                 const parts = content.split(' @');
-                const todoText = parts[0].trim();
+                let todoText = '';
                 const params = [];
+                
+                // 첫 번째 부분이 JSON 인코딩된 텍스트인지 확인
+                if (parts[0].startsWith('"') && parts[0].endsWith('"')) {
+                    try {
+                        // JSON 인코딩된 텍스트 파싱
+                        todoText = JSON.parse(parts[0]);
+                    } catch (e) {
+                        console.warn('JSON 파싱 실패, 일반 텍스트로 처리:', parts[0]);
+                        todoText = parts[0].trim();
+                    }
+                } else {
+                    // 기존 형식: 일반 텍스트
+                    todoText = parts[0].trim();
+                }
                 
                 // 첫 번째 부분 이후의 모든 부분을 파라미터로 처리
                 for (let i = 1; i < parts.length; i++) {
@@ -175,6 +193,7 @@ const fileHandler = (() => {
                         params.push({ key, value });
                     }
                 }
+                
                 console.log('파싱된 할 일 텍스트:', todoText);
                 console.log('파싱된 파라미터들:', params);
                 

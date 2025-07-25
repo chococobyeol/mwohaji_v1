@@ -45,9 +45,12 @@ const security = (() => {
     const sanitizeHtml = (html) => {
         if (typeof html !== 'string') return html;
         
-        // 허용된 태그들 (매우 제한적)
-        const allowedTags = ['b', 'i', 'em', 'strong', 'span', 'br'];
-        const allowedAttributes = ['class'];
+        // 허용된 태그들 (마크다운 지원을 위해 확장)
+        const allowedTags = [
+            'b', 'i', 'em', 'strong', 'span', 'br', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+            'ul', 'ol', 'li', 'blockquote', 'code', 'pre', 'a', 'hr', 'del', 'ins', 'mark'
+        ];
+        const allowedAttributes = ['class', 'href', 'title'];
         
         // 모든 스크립트 제거
         let sanitized = stripScripts(html);
@@ -59,6 +62,15 @@ const security = (() => {
                 return match.replace(/\s+(on\w+|javascript:|data:)[^=]*=["'][^"']*["']/gi, '');
             }
             return ''; // 허용되지 않은 태그는 제거
+        });
+        
+        // href 속성의 URL 검증
+        sanitized = sanitized.replace(/href=["']([^"']*)["']/gi, (match, url) => {
+            if (isValidUrl(url)) {
+                return `href="${escapeHtml(url)}"`;
+            } else {
+                return 'href="#"';
+            }
         });
         
         return sanitized;

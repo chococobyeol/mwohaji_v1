@@ -793,13 +793,27 @@ document.addEventListener('DOMContentLoaded', () => {
         todoItem.className = 'todo-item';
         todoItem.dataset.id = todo.id;
         if (todo.completed) todoItem.classList.add('completed');
+        
+        // 마크다운을 HTML로 변환 (보안 처리 포함)
+        let renderedText = todo.text;
+        try {
+            // marked.js를 사용하여 마크다운을 HTML로 변환
+            const rawHtml = marked.parse(todo.text);
+            // security.js의 sanitizeHtml을 사용하여 안전하게 처리
+            renderedText = security.sanitizeHtml(rawHtml);
+        } catch (e) {
+            console.warn('마크다운 변환 실패:', e);
+            // 변환 실패 시 원본 텍스트 사용 (이스케이프 처리)
+            renderedText = security.escapeHtml(todo.text);
+        }
+        
         todoItem.innerHTML = `
             <input type="checkbox" ${todo.completed ? 'checked' : ''}>
             <button class="schedule-btn icon-btn" title="할 일 편집" ${todo.completed ? 'disabled' : ''}></button>
             <button class="repeat-btn icon-btn" title="반복 설정" ${todo.completed ? 'disabled' : ''}></button>
             <div class="todo-content">
                 <div class="todo-main-line">
-                    <span class="todo-text">${security.escapeHtml(todo.text)}</span>
+                    <span class="todo-text">${renderedText}</span>
                 </div>
                 <div class="todo-meta-line">
                     <span class="category-tag">${security.escapeHtml(todo.category)}</span>
@@ -1190,9 +1204,17 @@ document.addEventListener('DOMContentLoaded', () => {
         notificationScheduler.initScheduler();
     };
 
+    // textarea 키보드 이벤트 핸들러
+    const handleTodoInputKeydown = (e) => {
+        if (e.key === 'Enter' && e.ctrlKey) {
+            e.preventDefault();
+            handleAddTodo();
+        }
+    };
+
     // EVENT LISTENERS
     addTodoBtn.addEventListener('click', handleAddTodo);
-    todoInput.addEventListener('keypress', (e) => e.key === 'Enter' && handleAddTodo());
+    todoInput.addEventListener('keydown', handleTodoInputKeydown);
     categorySelector.addEventListener('click', handleCategorySelect);
     todoListContainer.addEventListener('click', handleListClick);
 
