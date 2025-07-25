@@ -373,6 +373,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 todo.repeat = { type, dates };
             }
             storage.saveTodos(todoManager.getTodos());
+            
+            // 반복 설정 변경 시 알림 스케줄러 재초기화
+            if (window.notificationScheduler) {
+                window.notificationScheduler.initScheduler();
+            }
         }
         closeRepeatModal();
         render();

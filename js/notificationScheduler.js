@@ -246,7 +246,8 @@ const notificationScheduler = (() => {
 
     return {
         initScheduler,
-        getNextRepeatTime
+        getNextRepeatTime,
+        rescheduleAllNotifications
     };
 })();
 
