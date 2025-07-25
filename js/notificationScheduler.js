@@ -116,6 +116,13 @@ const notificationScheduler = (() => {
         const now = new Date();
         let base = new Date(todo.schedule[type === 'start' ? 'startTime' : 'dueTime']);
         if (!todo.repeat) { console.log('[RepeatAlarm] repeat 없음, 예약 불가'); return null; }
+        
+        // base가 유효한 Date 객체인지 확인
+        if (!(base instanceof Date) || isNaN(base.getTime())) {
+            console.error('[RepeatAlarm] 잘못된 base 시간:', base);
+            return null;
+        }
+        
         if (todo.repeat.type === 'daily') {
             while (base <= now) base.setDate(base.getDate() + (todo.repeat.interval || 1));
             console.log(`[RepeatAlarm] daily, nextTime: ${base}`);

@@ -1031,8 +1031,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 시작 시간 처리
         if (startTimeEnabled.checked && startDate.value && startTime.value) {
-            // 로컬 날짜/시간 문자열을 ISO 형식 대신 그대로 저장하여 Date 객체가 로컬 타임존으로 파싱하도록 함
-            scheduleData.startTime = `${startDate.value}T${startTime.value}:00`;
+            // 로컬 날짜/시간을 Date 객체로 변환하여 전달
+            scheduleData.startTime = new Date(`${startDate.value}T${startTime.value}:00`);
             scheduleData.startModal = startModalBtn.dataset.enabled === 'true';
             scheduleData.startNotification = startNotificationBtn.dataset.enabled === 'true';
         } else {
@@ -1043,8 +1043,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 마감 시간 처리
         if (dueTimeEnabled.checked && dueDate.value && dueTime.value) {
-            // 로컬 날짜/시간 문자열을 ISO 형식 대신 그대로 저장하여 Date 객체가 로컬 타임존으로 파싱하도록 함
-            scheduleData.dueTime = `${dueDate.value}T${dueTime.value}:00`;
+            // 로컬 날짜/시간을 Date 객체로 변환하여 전달
+            scheduleData.dueTime = new Date(`${dueDate.value}T${dueTime.value}:00`);
             scheduleData.dueModal = dueModalBtn.dataset.enabled === 'true';
             scheduleData.dueNotification = dueNotificationBtn.dataset.enabled === 'true';
         } else {

@@ -241,7 +241,7 @@ const todoManager = (() => {
         const todo = todos.find(todo => todo.id === id);
         if (!todo) return false;
 
-        console.log(`[updateTodoSchedule] Before update - Todo ID: ${id}, Current schedule:`, JSON.parse(JSON.stringify(todo.schedule)));
+        console.log(`[updateTodoSchedule] Before update - Todo ID: ${id}, Current schedule:`, todo.schedule ? JSON.parse(JSON.stringify(todo.schedule)) : 'undefined');
         console.log(`[updateTodoSchedule] Incoming scheduleData:`, scheduleData);
 
         // 기존 schedule 객체가 없으면 초기화
@@ -331,7 +331,7 @@ const todoManager = (() => {
 
         storage.saveTodos(todos);
         triggerChange();
-        console.log(`[updateTodoSchedule] After update - Todo ID: ${id}, Updated schedule:`, JSON.parse(JSON.stringify(todo.schedule)));
+        console.log(`[updateTodoSchedule] After update - Todo ID: ${id}, Updated schedule:`, todo.schedule ? JSON.parse(JSON.stringify(todo.schedule)) : 'undefined');
         return true;
     };
 
