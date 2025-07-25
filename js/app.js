@@ -509,6 +509,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const categories = todoManager.getCategories();
         originalCategoryOrder = [...categories];
         
+        // 현재 카테고리 순서가 어떤 정렬 방식에 해당하는지 확인
+        const currentSortType = detectCurrentSortType(categories);
+        sortSelect.value = currentSortType;
+        
         renderCategoryOrderList();
         categoryOrderModal.style.display = 'flex';
     };
@@ -649,7 +653,49 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         todoManager.setCategories(categories);
+        
+        // 사용자가 직접 순서를 변경했으므로 드롭다운을 "사용자 정의 순서"로 변경
+        sortSelect.value = 'custom';
+        
         renderCategoryOrderList();
+    };
+
+    // 현재 카테고리 순서가 어떤 정렬 방식에 해당하는지 감지하는 함수
+    const detectCurrentSortType = (categories) => {
+        // '일반' 카테고리를 제외한 나머지 카테고리들만 확인
+        const generalCategory = categories.find(cat => cat.name === '일반');
+        const otherCategories = categories.filter(cat => cat.name !== '일반');
+        
+        if (otherCategories.length <= 1) {
+            return 'custom'; // 카테고리가 1개 이하면 사용자 정의 순서
+        }
+        
+        // 이름순 정렬인지 확인
+        const nameSorted = [...otherCategories].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+        const isNameSorted = JSON.stringify(nameSorted) === JSON.stringify(otherCategories);
+        
+        if (isNameSorted) {
+            return 'name';
+        }
+        
+        // 생성 날짜순 (최신순) 정렬인지 확인
+        const createdSorted = [...otherCategories].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        const isCreatedSorted = JSON.stringify(createdSorted) === JSON.stringify(otherCategories);
+        
+        if (isCreatedSorted) {
+            return 'created';
+        }
+        
+        // 생성 날짜순 (오래된순) 정렬인지 확인
+        const createdAscSorted = [...otherCategories].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+        const isCreatedAscSorted = JSON.stringify(createdAscSorted) === JSON.stringify(otherCategories);
+        
+        if (isCreatedAscSorted) {
+            return 'created-asc';
+        }
+        
+        // 어떤 정렬 방식에도 해당하지 않으면 사용자 정의 순서
+        return 'custom';
     };
 
     const applySort = () => {
