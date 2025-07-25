@@ -1,6 +1,7 @@
 const notificationScheduler = (() => {
     let currentPlayingAudio = null; // 현재 재생 중인 알림 소리 Audio 객체
     const scheduledTimeouts = new Map(); // 할 일 ID별 setTimeout ID를 저장
+    const repeatCounts = new Map(); // 할 일 ID별 반복 횟수 추적
 
     // 알림 사운드 재생 함수
     const playNotificationSound = () => {
@@ -123,6 +124,41 @@ const notificationScheduler = (() => {
 
         scheduledTimeouts.set(timeoutKey, timeoutId);
         console.log(`[NotificationScheduler] ${titlePrefix} 예약: '${todo.text}' - ${diff / 1000}초 후`);
+    };
+
+    // 시간 기반 카운트 계산 함수
+    const calculateTimeBasedCount = (todo, type) => {
+        if (!todo.repeat || todo.repeat.type !== 'interval' || !todo.repeat.limit) {
+            return;
+        }
+        
+        const now = new Date(Date.now());
+        const base = new Date(todo.schedule[type === 'start' ? 'startTime' : 'dueTime']);
+        const interval = todo.repeat.interval || 30;
+        const limit = todo.repeat.limit;
+        
+        const countKey = `${todo.id}-${type}`;
+        const timeDiff = now.getTime() - base.getTime();
+        const minutesDiff = Math.floor(timeDiff / (60 * 1000));
+        const expectedCount = Math.floor(minutesDiff / interval) + 1; // +1은 첫 번째 알림
+        const actualCount = Math.min(expectedCount, limit);
+        
+        // 기존 카운트와 비교하여 더 큰 값으로 설정
+        const currentCount = repeatCounts.get(countKey) || 0;
+        if (actualCount > currentCount) {
+            repeatCounts.set(countKey, actualCount);
+            console.log(`[RepeatAlarm] 시간 기반 카운트 업데이트: ${todo.text} (${type}) - ${actualCount}/${limit} (${minutesDiff}분 경과, ${interval}분 간격)`);
+            
+            // 완료 상태 동기화
+            if (actualCount >= limit) {
+                if (type === 'start') {
+                    todo.repeat.startCompleted = true;
+                } else if (type === 'due') {
+                    todo.repeat.dueCompleted = true;
+                }
+                console.log(`[RepeatAlarm] 완료 상태 설정: ${todo.text} (${type}) - ${limit}회 완료`);
+            }
+        }
     };
 
     // 반복 알림의 다음 알림 시각 계산 함수
@@ -252,6 +288,56 @@ const notificationScheduler = (() => {
             return null;
         }
         
+        if (todo.repeat.type === 'interval') {
+            const interval = todo.repeat.interval || 30; // 기본값 30분
+            const limit = todo.repeat.limit; // 사용자 설정 반복 횟수 제한
+            console.log(`[RepeatAlarm] interval 설정된 간격: ${interval}분, 제한: ${limit || '없음'}`);
+            
+            // base 시간의 시/분을 추출 (사용자가 설정한 정확한 시간)
+            const baseHours = base.getHours();
+            const baseMinutes = base.getMinutes();
+            
+            console.log(`[RepeatAlarm] interval 설정된 시간: ${baseHours}시 ${baseMinutes}분`);
+            
+            // 사용자가 설정한 시간을 기준으로 다음 알림 시간 계산
+            let nextTime = new Date(base);
+            nextTime.setHours(baseHours, baseMinutes, 0, 0);
+            
+            console.log(`[RepeatAlarm] interval 초기 계산: base=${base.toLocaleString('ko-KR')}, now=${now.toLocaleString('ko-KR')}, nextTime=${nextTime.toLocaleString('ko-KR')}, interval=${interval}분`);
+            
+            // nextTime이 현재 시간보다 이전이거나 같으면 interval분씩 더해서 미래 시간으로 이동
+            let iteration = 0;
+            let skippedCount = 0;
+            const maxIterations = limit || 10000; // 사용자 설정 제한 또는 기본값 10000회
+            
+            while (nextTime <= now && iteration < maxIterations) {
+                const previousTime = new Date(nextTime);
+                nextTime = new Date(nextTime.getTime() + (interval * 60 * 1000));
+                iteration++;
+                skippedCount++;
+                console.log(`[RepeatAlarm] interval 반복 계산 ${iteration}: ${previousTime.toLocaleString('ko-KR')} 스킵 → ${nextTime.toLocaleString('ko-KR')} (interval=${interval}분)`);
+            }
+            
+            // 시간 기반 카운트 계산은 별도 함수로 분리 (getNextRepeatTime에서는 제거)
+            
+            if (iteration >= maxIterations) {
+                console.error('[RepeatAlarm] interval 반복 제한에 도달');
+                if (limit) {
+                    console.warn(`[RepeatAlarm] 사용자 설정 반복 횟수(${limit}회)에 도달했습니다. 반복이 종료됩니다.`);
+                } else {
+                    console.warn(`[RepeatAlarm] 기본 반복 제한(${maxIterations}회)에 도달했습니다. 반복 설정을 확인해주세요.`);
+                }
+                return null;
+            }
+            
+            if (skippedCount > 0) {
+                console.log(`[RepeatAlarm] interval 스킵된 알림: ${skippedCount}개, 다음 알림: ${nextTime.toLocaleString('ko-KR')}`);
+            }
+            
+            console.log(`[RepeatAlarm] interval 최종: base=${base.toLocaleString('ko-KR')}, now=${now.toLocaleString('ko-KR')}, nextTime=${nextTime.toLocaleString('ko-KR')}`);
+            return nextTime;
+        }
+        
         console.log('[RepeatAlarm] 알 수 없는 repeat type');
         return null;
     }
@@ -261,6 +347,16 @@ const notificationScheduler = (() => {
         if (!todo.repeat) { 
             console.log('[RepeatAlarm] repeat 없음, 예약 스킵'); 
             return; 
+        }
+        
+        // 해당 타입의 반복이 이미 완료되었는지 확인
+        if (type === 'start' && todo.repeat.startCompleted) {
+            console.log('[RepeatAlarm] 시작 알림 반복 완료됨, 예약 스킵');
+            return;
+        }
+        if (type === 'due' && todo.repeat.dueCompleted) {
+            console.log('[RepeatAlarm] 마감 알림 반복 완료됨, 예약 스킵');
+            return;
         }
         
         const timeProperty = type === 'start' ? 'startTime' : 'dueTime';
@@ -328,6 +424,32 @@ const notificationScheduler = (() => {
         const timeoutId = setTimeout(() => {
             console.log(`[RepeatAlarm] 트리거: ${todo.text} (${type}), 예약된 시간: ${nextTime}, 실제 트리거 시간: ${new Date()}`);
             
+            // 반복 횟수 추적 (시간 간격 반복인 경우)
+            if (todo.repeat && todo.repeat.type === 'interval') {
+                const countKey = `${todo.id}-${type}`;
+                const currentCount = repeatCounts.get(countKey) || 0;
+                const newCount = currentCount + 1;
+                repeatCounts.set(countKey, newCount);
+                console.log(`[RepeatAlarm] 반복 횟수 증가: ${todo.text} (${type}) - ${newCount}회`);
+                
+                // 반복 제한에 도달했는지 확인 (해당 타입만)
+                if (todo.repeat.limit && newCount >= todo.repeat.limit) {
+                    console.log(`[RepeatAlarm] 반복 제한에 도달: ${todo.text} (${type}) - ${todo.repeat.limit}회 완료`);
+                    
+                    // 해당 타입의 반복만 비활성화 (반복 설정에서 제거하지 않음)
+                    if (type === 'start') {
+                        todo.repeat.startCompleted = true;
+                    } else if (type === 'due') {
+                        todo.repeat.dueCompleted = true;
+                    }
+                    
+                    // 할 일 데이터 저장
+                    if (window.todoManager) {
+                        window.todoManager.saveTodos();
+                    }
+                }
+            }
+            
             // 알림 표시 및 소리 재생
             if (todo.schedule[modalProperty] !== false) {
                 showNotificationModal(titlePrefix, `'${todo.text}' (반복)`);
@@ -342,18 +464,19 @@ const notificationScheduler = (() => {
                 window.app.renderTodos();
             }
             
-            // 반복 알림에서는 다음 알림을 즉시 예약
-            // 약간의 지연을 두어 현재 알림 처리가 완료된 후 다음 알림을 예약
-            setTimeout(() => {
-                console.log(`[RepeatAlarm] 다음 알림 예약 시작 - 알람 울림 시점 기준`);
-                scheduleRepeatNotification(todo, type);
-                
-                // 다음 알람 예약 후에도 UI 업데이트
-                if (window.app && window.app.renderTodos) {
-                    console.log('[RepeatAlarm] 다음 알람 예약 후 UI 업데이트');
-                    window.app.renderTodos();
-                }
-            }, 100);
+            // 반복 알림에서는 다음 알림을 즉시 예약 (반복이 아직 유효한 경우)
+            if (todo.repeat) {
+                setTimeout(() => {
+                    console.log(`[RepeatAlarm] 다음 알림 예약 시작 - 알람 울림 시점 기준`);
+                    scheduleRepeatNotification(todo, type);
+                    
+                    // 다음 알람 예약 후에도 UI 업데이트
+                    if (window.app && window.app.renderTodos) {
+                        console.log('[RepeatAlarm] 다음 알람 예약 후 UI 업데이트');
+                        window.app.renderTodos();
+                    }
+                }, 100);
+            }
         }, diff);
         
         scheduledTimeouts.set(timeoutKey, timeoutId);
@@ -383,6 +506,10 @@ const notificationScheduler = (() => {
             if (todo.schedule && todo.schedule.startTime) {
                 if (todo.repeat) {
                     // 반복 할 일은 반복 알림만 사용
+                    // 시간 기반 횟수 계산 (새로고침 시 동기화) - 완료되지 않은 경우만
+                    if (todo.repeat.type === 'interval' && !todo.repeat.startCompleted) {
+                        calculateTimeBasedCount(todo, 'start');
+                    }
                     scheduleRepeatNotification(todo, 'start');
                     scheduledCount++;
                 } else {
@@ -395,6 +522,10 @@ const notificationScheduler = (() => {
             if (todo.schedule && todo.schedule.dueTime) {
                 if (todo.repeat) {
                     // 반복 할 일은 반복 알림만 사용
+                    // 시간 기반 횟수 계산 (새로고침 시 동기화) - 완료되지 않은 경우만
+                    if (todo.repeat.type === 'interval' && !todo.repeat.dueCompleted) {
+                        calculateTimeBasedCount(todo, 'due');
+                    }
                     scheduleRepeatNotification(todo, 'due');
                     scheduledCount++;
                 } else {
@@ -418,6 +549,9 @@ const notificationScheduler = (() => {
     const initScheduler = () => {
         console.log('[NotificationScheduler] 스케줄러 초기화 시작');
         
+        // 반복 횟수 로드
+        loadRepeatCounts();
+        
         // todoManager의 todos 변경 이벤트 구독
         todoManager.onTodosChange(rescheduleAllNotifications);
         
@@ -427,9 +561,52 @@ const notificationScheduler = (() => {
         console.log('[NotificationScheduler] 스케줄러 초기화 완료');
     };
 
+    // 반복 횟수 저장
+    const saveRepeatCounts = () => {
+        try {
+            const countsData = {};
+            repeatCounts.forEach((count, key) => {
+                countsData[key] = count;
+            });
+            localStorage.setItem('mwohaji-repeat-counts', JSON.stringify(countsData));
+            console.log('[NotificationScheduler] 반복 횟수 저장 완료');
+        } catch (e) {
+            console.error('[NotificationScheduler] 반복 횟수 저장 실패:', e);
+        }
+    };
+
+    // 반복 횟수 데이터 가져오기 (백업용)
+    const getRepeatCountsData = () => {
+        const countsData = {};
+        repeatCounts.forEach((count, key) => {
+            countsData[key] = count;
+        });
+        return countsData;
+    };
+
+    // 반복 횟수 로드
+    const loadRepeatCounts = () => {
+        try {
+            const countsData = localStorage.getItem('mwohaji-repeat-counts');
+            if (countsData) {
+                const counts = JSON.parse(countsData);
+                repeatCounts.clear();
+                Object.entries(counts).forEach(([key, count]) => {
+                    repeatCounts.set(key, count);
+                });
+                console.log('[NotificationScheduler] 반복 횟수 로드 완료');
+            }
+        } catch (e) {
+            console.error('[NotificationScheduler] 반복 횟수 로드 실패:', e);
+        }
+    };
+
     // 정리 함수 (앱 종료 시 호출)
     const cleanupScheduler = () => {
         console.log('[NotificationScheduler] 스케줄러 정리 시작');
+        
+        // 반복 횟수 저장
+        saveRepeatCounts();
         
         // 모든 타이머 취소
         scheduledTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
@@ -449,7 +626,18 @@ const notificationScheduler = (() => {
         initScheduler,
         cleanupScheduler,
         getNextRepeatTime,
-        rescheduleAllNotifications
+        rescheduleAllNotifications,
+        getRepeatCount: (key) => repeatCounts.get(key) || 0,
+        setRepeatCount: (key, count) => {
+            repeatCounts.set(key, count);
+            console.log(`[NotificationScheduler] 카운트 설정: ${key} = ${count}`);
+        },
+        resetRepeatCount: (key) => {
+            repeatCounts.delete(key);
+            console.log(`[NotificationScheduler] 카운트 리셋: ${key}`);
+        },
+        calculateTimeBasedCount: calculateTimeBasedCount,
+        getRepeatCountsData: getRepeatCountsData
     };
 })();
 

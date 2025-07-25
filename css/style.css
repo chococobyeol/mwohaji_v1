@@ -1236,6 +1236,22 @@ button:hover {
     box-shadow: 0 0 0 3px rgba(55, 65, 81, 0.1);
 }
 
+#repeat-interval-minutes {
+    width: 120px;
+    margin-right: 8px;
+}
+
+#repeat-interval-limit {
+    width: 80px;
+    margin-right: 8px;
+}
+
+.limit-hint {
+    font-size: 12px;
+    color: #6b7280;
+    white-space: nowrap;
+}
+
 /* 반복 아이콘 버튼 스타일 (스케줄 아이콘과 동일하게) */
 .repeat-btn.icon-btn {
     align-self: center;

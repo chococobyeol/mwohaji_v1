@@ -279,6 +279,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <option value="daily">매일</option>
                             <option value="weekly">매주</option>
                             <option value="monthly">매월</option>
+                            <option value="interval">시간 간격</option>
                         </select>
                     </div>
                     <div class="edit-row" id="repeat-daily-row">
@@ -292,6 +293,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="edit-row" id="repeat-monthly-row" style="display:none;">
                         <label>날짜:</label>
                         <div id="repeat-monthdays" class="monthday-grid"></div>
+                    </div>
+                    <div class="edit-row" id="repeat-interval-row" style="display:none;">
+                        <label for="repeat-interval-minutes">간격(분):</label>
+                        <input type="number" id="repeat-interval-minutes" min="1" max="1440" value="30">
+                    </div>
+                    <div class="edit-row" id="repeat-interval-limit-row" style="display:none;">
+                        <label for="repeat-interval-limit">반복 횟수 제한:</label>
+                        <input type="number" id="repeat-interval-limit" min="1" max="10000" placeholder="제한 없음">
+                        <span class="limit-hint">회 (비워두면 10000회)</span>
                     </div>
                 </div>
                 <div class="modal-actions">
@@ -309,6 +319,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const weeklyRow = document.getElementById('repeat-weekly-row');
         const monthlyRow = document.getElementById('repeat-monthly-row');
         const dailyRow = document.getElementById('repeat-daily-row');
+        const intervalRow = document.getElementById('repeat-interval-row');
+        const intervalLimitRow = document.getElementById('repeat-interval-limit-row');
         const weekdaysDiv = document.getElementById('repeat-weekdays');
         const monthdaysDiv = document.getElementById('repeat-monthdays');
         
@@ -343,13 +355,15 @@ document.addEventListener('DOMContentLoaded', () => {
         // 반복 타입 변경 시 UI 표시 전환
         repeatTypeSelect.onchange = () => {
             if(repeatTypeSelect.value==='daily'){
-                dailyRow.style.display='flex'; weeklyRow.style.display='none'; monthlyRow.style.display='none';
+                dailyRow.style.display='flex'; weeklyRow.style.display='none'; monthlyRow.style.display='none'; intervalRow.style.display='none'; intervalLimitRow.style.display='none';
             }else if(repeatTypeSelect.value==='weekly'){
-                dailyRow.style.display='none'; weeklyRow.style.display='flex'; monthlyRow.style.display='none';
+                dailyRow.style.display='none'; weeklyRow.style.display='flex'; monthlyRow.style.display='none'; intervalRow.style.display='none'; intervalLimitRow.style.display='none';
             }else if(repeatTypeSelect.value==='monthly'){
-                dailyRow.style.display='none'; weeklyRow.style.display='none'; monthlyRow.style.display='flex';
+                dailyRow.style.display='none'; weeklyRow.style.display='none'; monthlyRow.style.display='flex'; intervalRow.style.display='none'; intervalLimitRow.style.display='none';
+            }else if(repeatTypeSelect.value==='interval'){
+                dailyRow.style.display='none'; weeklyRow.style.display='none'; monthlyRow.style.display='none'; intervalRow.style.display='flex'; intervalLimitRow.style.display='flex';
             }else{
-                dailyRow.style.display='none'; weeklyRow.style.display='none'; monthlyRow.style.display='none';
+                dailyRow.style.display='none'; weeklyRow.style.display='none'; monthlyRow.style.display='none'; intervalRow.style.display='none'; intervalLimitRow.style.display='none';
             }
         };
         document.getElementById('close-repeat-modal-btn').onclick = closeRepeatModal;
@@ -366,6 +380,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // 초기화
         repeatTypeSelect.value = 'none';
         repeatIntervalInput.value = 1;
+        document.getElementById('repeat-interval-minutes').value = 30;
+        document.getElementById('repeat-interval-limit').value = '';
         document.querySelectorAll('#repeat-weekdays .weekday-btn').forEach(btn=>btn.classList.remove('active'));
         document.querySelectorAll('#repeat-monthdays .monthday-btn').forEach(btn=>btn.classList.remove('active'));
         if (todo && todo.repeat) {
@@ -384,6 +400,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     const btn=document.querySelector(`#repeat-monthdays .monthday-btn[data-value="${d}"]`);
                     if(btn)btn.classList.add('active');
                 });
+            }else if(todo.repeat.type==='interval'){
+                repeatTypeSelect.value='interval';
+                document.getElementById('repeat-interval-minutes').value=todo.repeat.interval||30;
+                document.getElementById('repeat-interval-limit').value=todo.repeat.limit||'';
             }
         }
         repeatTypeSelect.onchange();
@@ -400,6 +420,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (todo) {
             if (type === 'none') {
                 todo.repeat = null;
+                // 반복 설정 제거 시 카운트 리셋
+                if (window.notificationScheduler) {
+                    const startCountKey = `${todo.id}-start`;
+                    const dueCountKey = `${todo.id}-due`;
+                    window.notificationScheduler.resetRepeatCount(startCountKey);
+                    window.notificationScheduler.resetRepeatCount(dueCountKey);
+                    console.log(`[App] 반복 설정 제거 - 카운트 리셋: ${todo.text}`);
+                }
             } else if(type==='daily'){
                 todo.repeat = { type, interval: parseInt(repeatIntervalInput.value,10)||1 };
             } else if(type==='weekly'){
@@ -408,6 +436,23 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if(type==='monthly'){
                 const dates = Array.from(document.querySelectorAll('#repeat-monthdays .monthday-btn.active')).map(btn=>parseInt(btn.dataset.value, 10));
                 todo.repeat = { type, dates };
+            } else if(type==='interval'){
+                const interval = parseInt(document.getElementById('repeat-interval-minutes').value, 10) || 30;
+                const limitInput = document.getElementById('repeat-interval-limit').value;
+                const limit = limitInput ? parseInt(limitInput, 10) : null;
+                todo.repeat = { type, interval, limit };
+                
+                // 반복 설정 변경 시 카운트 리셋 후 시간 기반 계산
+                if (window.notificationScheduler) {
+                    const startCountKey = `${todo.id}-start`;
+                    const dueCountKey = `${todo.id}-due`;
+                    window.notificationScheduler.resetRepeatCount(startCountKey);
+                    window.notificationScheduler.resetRepeatCount(dueCountKey);
+                    // 새로운 설정으로 시간 기반 카운트 계산
+                    window.notificationScheduler.calculateTimeBasedCount(todo, 'start');
+                    window.notificationScheduler.calculateTimeBasedCount(todo, 'due');
+                    console.log(`[App] 반복 설정 변경 - 카운트 리셋 및 재계산: ${todo.text}`);
+                }
             }
             storage.saveTodos(todoManager.getTodos());
             
@@ -796,7 +841,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // 반복 정보를 자세히 표시하는 함수
-    const getDetailedRepeatInfo = (repeat) => {
+    const getDetailedRepeatInfo = (repeat, todo = null) => {
         if (!repeat) return '';
         
         let info = '';
@@ -824,6 +869,50 @@ document.addEventListener('DOMContentLoaded', () => {
                 info = `매월 ${sortedDates.join(', ')}일`;
             } else {
                 info = '매월';
+            }
+        } else if (repeat.type === 'interval') {
+            const interval = repeat.interval || 30;
+            let intervalText = '';
+            if (interval < 60) {
+                intervalText = `${interval}분마다`;
+            } else if (interval === 60) {
+                intervalText = '1시간마다';
+            } else {
+                const hours = Math.floor(interval / 60);
+                const minutes = interval % 60;
+                if (minutes === 0) {
+                    intervalText = `${hours}시간마다`;
+                } else {
+                    intervalText = `${hours}시간 ${minutes}분마다`;
+                }
+            }
+            
+            if (repeat.limit) {
+                // 남은 횟수 계산 (todo가 있는 경우에만)
+                if (todo) {
+                    // 시작 알림과 마감 알림 각각 확인
+                    const startCountKey = `${todo.id}-start`;
+                    const dueCountKey = `${todo.id}-due`;
+                    const startCount = window.notificationScheduler ? (window.notificationScheduler.getRepeatCount(startCountKey) || 0) : 0;
+                    const dueCount = window.notificationScheduler ? (window.notificationScheduler.getRepeatCount(dueCountKey) || 0) : 0;
+                    
+                    const startCompleted = repeat.startCompleted || startCount >= repeat.limit;
+                    const dueCompleted = repeat.dueCompleted || dueCount >= repeat.limit;
+                    
+                    if (startCompleted && dueCompleted) {
+                        // 둘 다 완료
+                        info = `${intervalText} 완료`;
+                    } else {
+                        // 각각 표시: "시작횟수/제한, 마감횟수/제한"
+                        const startDisplay = startCompleted ? '완료' : `${startCount}/${repeat.limit}`;
+                        const dueDisplay = dueCompleted ? '완료' : `${dueCount}/${repeat.limit}`;
+                        info = `${intervalText} ${startDisplay}, ${dueDisplay}`;
+                    }
+                } else {
+                    info = `${intervalText} 0/${repeat.limit}`;
+                }
+            } else {
+                info = intervalText;
             }
         }
         
@@ -886,7 +975,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
                 <div class="todo-meta-line">
                     <span class="category-tag">${security.escapeHtml(todo.category)}</span>
-                    ${todo.repeat ? `<span class="recurring-info">(${getDetailedRepeatInfo(todo.repeat)})</span>` : ''}
+                    ${todo.repeat ? `<span class="recurring-info">(${getDetailedRepeatInfo(todo.repeat, todo)})</span>` : ''}
                     ${todo.completedAt ? `<span class="completed-time-tag">완료: ${new Date(todo.completedAt).toLocaleString('ko-KR')}</span>` : ''}
                 </div>
             </div>
@@ -1513,6 +1602,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 todoManager.setTodos(data.todos);
                 todoManager.setCategories(finalCategories);
                 todoManager.setCompletedRepeatTodos(data.completedRepeatTodos || []);
+                
+                // 반복 횟수 복원 및 완료 상태 동기화
+                if (data.repeatCounts && window.notificationScheduler) {
+                    console.log('[App] 반복 횟수 복원:', data.repeatCounts);
+                    Object.entries(data.repeatCounts).forEach(([key, count]) => {
+                        // repeatCounts Map에 직접 설정
+                        window.notificationScheduler.setRepeatCount(key, count);
+                    });
+                    
+                    // 완료 상태 동기화 (복원된 횟수와 반복 설정의 완료 상태 일치시키기)
+                    data.todos.forEach(todo => {
+                        if (todo.repeat && todo.repeat.type === 'interval' && todo.repeat.limit) {
+                            const startCountKey = `${todo.id}-start`;
+                            const dueCountKey = `${todo.id}-due`;
+                            const startCount = data.repeatCounts[startCountKey] || 0;
+                            const dueCount = data.repeatCounts[dueCountKey] || 0;
+                            
+                            // 완료 상태 업데이트
+                            if (startCount >= todo.repeat.limit) {
+                                todo.repeat.startCompleted = true;
+                            }
+                            if (dueCount >= todo.repeat.limit) {
+                                todo.repeat.dueCompleted = true;
+                            }
+                            
+                            console.log(`[App] 완료 상태 동기화: ${todo.text} - 시작:${startCount}/${todo.repeat.limit}(${todo.repeat.startCompleted ? '완료' : '진행'}), 마감:${dueCount}/${todo.repeat.limit}(${todo.repeat.dueCompleted ? '완료' : '진행'})`);
+                        }
+                    });
+                }
                 
                 // 알림 스케줄러 재초기화 (데이터 복구 후)
                 if (window.notificationScheduler) {

@@ -1,7 +1,7 @@
 const fileHandler = (() => {
 
     // 데이터를 텍스트로 변환 (내보내기용) - PRD F-06 형식에 맞게 수정
-    const stringifyData = (todos, categories, completedRepeatTodos = []) => {
+    const stringifyData = (todos, categories, completedRepeatTodos = [], repeatCounts = {}) => {
         let content = "### Mwohaji Backup Data ###\n\n";
         
         // 백업 메타데이터 추가
@@ -11,6 +11,7 @@ const fileHandler = (() => {
         content += `totalTodos:${todos.length}\n`;
         content += `totalCategories:${categories.length}\n`;
         content += `completedRepeatTodos:${completedRepeatTodos.length}\n`;
+        content += `repeatCounts:${Object.keys(repeatCounts).length}\n`;
         content += "\n";
         
         // 카테고리 목록 저장 (생성 날짜 포함)
@@ -114,6 +115,14 @@ const fileHandler = (() => {
             }).join('\n');
         }
 
+        // 반복 횟수 정보 저장
+        if (Object.keys(repeatCounts).length > 0) {
+            content += "\n\n#REPEAT_COUNTS:\n";
+            content += Object.entries(repeatCounts).map(([key, count]) => {
+                return `${key}:${count}`;
+            }).join('\n');
+        }
+
         return content;
     };
 
@@ -124,6 +133,7 @@ const fileHandler = (() => {
         let isCategoriesSection = false;
         let isCompletedRepeatTodosSection = false;
         let isCategoryOrderSection = false;
+        let isRepeatCountsSection = false;
         let isMetaSection = false;
 
         const importedData = {
@@ -131,6 +141,7 @@ const fileHandler = (() => {
             categories: [],
             completedRepeatTodos: [],
             categoryOrder: [],
+            repeatCounts: {},
             meta: {}
         };
 
@@ -172,6 +183,16 @@ const fileHandler = (() => {
                 isCategoriesSection = false;
                 isTodosSection = false;
                 isCompletedRepeatTodosSection = false;
+                isRepeatCountsSection = false;
+                isMetaSection = false;
+                return;
+            }
+            if (line.trim() === '#REPEAT_COUNTS:') {
+                isRepeatCountsSection = true;
+                isCategoriesSection = false;
+                isTodosSection = false;
+                isCompletedRepeatTodosSection = false;
+                isCategoryOrderSection = false;
                 isMetaSection = false;
                 return;
             }
@@ -197,6 +218,15 @@ const fileHandler = (() => {
             } else if (isCategoryOrderSection) {
                 const categoryIds = line.split('|');
                 importedData.categoryOrder = categoryIds.filter(id => id.trim());
+            } else if (isRepeatCountsSection) {
+                const colonIndex = line.indexOf(':');
+                if (colonIndex !== -1) {
+                    const key = line.substring(0, colonIndex).trim();
+                    const count = parseInt(line.substring(colonIndex + 1).trim(), 10);
+                    if (!isNaN(count)) {
+                        importedData.repeatCounts[key] = count;
+                    }
+                }
             } else if (isTodosSection || isCompletedRepeatTodosSection) {
                 // PRD 개선된 형식 파싱: [상태] 내용 @cat:카테고리 @start:YYYY-MM-DD HH:mm @due:YYYY-MM-DD HH:mm @smodal:true/false @snotify:true/false @dmodal:true/false @dnotify:true/false @snotified:true/false @dnotified:true/false @id:숫자
                 const completed = line.startsWith('[x]');
@@ -354,7 +384,9 @@ const fileHandler = (() => {
 
     // 파일 내보내기 실행
     const exportToFile = (todos, categories, completedRepeatTodos = []) => {
-        const content = stringifyData(todos, categories, completedRepeatTodos);
+        // 반복 횟수 데이터 가져오기
+        const repeatCounts = window.notificationScheduler ? window.notificationScheduler.getRepeatCountsData() : {};
+        const content = stringifyData(todos, categories, completedRepeatTodos, repeatCounts);
         const blob = new Blob([content], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
