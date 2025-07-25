@@ -858,22 +858,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     const renderProjectView = (todos) => {
+        const categories = todoManager.getCategories();
         const groupedTodos = todos.reduce((acc, todo) => {
             const category = todo.category || '일반';
             if (!acc[category]) acc[category] = [];
             acc[category].push(todo);
             return acc;
         }, {});
-        for (const category in groupedTodos) {
-            const groupContainer = document.createElement('div');
-            groupContainer.className = 'project-group';
-            const categoryTitle = document.createElement('h3');
-            categoryTitle.className = 'project-title';
-            categoryTitle.textContent = category;
-            groupContainer.appendChild(categoryTitle);
-            groupedTodos[category].forEach(todo => groupContainer.appendChild(createTodoElement(todo)));
-            todoListContainer.appendChild(groupContainer);
-        }
+        
+        // 카테고리 순서에 따라 정렬
+        categories.forEach(cat => {
+            const categoryName = cat.name;
+            if (groupedTodos[categoryName]) {
+                const groupContainer = document.createElement('div');
+                groupContainer.className = 'project-group';
+                const categoryTitle = document.createElement('h3');
+                categoryTitle.className = 'project-title';
+                categoryTitle.textContent = categoryName;
+                groupContainer.appendChild(categoryTitle);
+                
+                // 각 카테고리 내에서 할일들을 생성 날짜순으로 정렬
+                const sortedTodos = groupedTodos[categoryName].sort((a, b) => 
+                    new Date(b.createdAt) - new Date(a.createdAt)
+                );
+                
+                sortedTodos.forEach(todo => groupContainer.appendChild(createTodoElement(todo)));
+                todoListContainer.appendChild(groupContainer);
+            }
+        });
     };
 
     const renderAllView = (todos) => {
