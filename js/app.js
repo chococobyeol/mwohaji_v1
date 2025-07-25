@@ -890,6 +890,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (repeat.limit) {
                 // 남은 횟수 계산 (todo가 있는 경우에만)
                 if (todo) {
+                    // 실제 설정된 알림만 확인
+                    const hasStartTime = todo.schedule && todo.schedule.startTime;
+                    const hasDueTime = todo.schedule && todo.schedule.dueTime;
+                    
                     // 시작 알림과 마감 알림 각각 확인
                     const startCountKey = `${todo.id}-start`;
                     const dueCountKey = `${todo.id}-due`;
@@ -899,14 +903,35 @@ document.addEventListener('DOMContentLoaded', () => {
                     const startCompleted = repeat.startCompleted || startCount >= repeat.limit;
                     const dueCompleted = repeat.dueCompleted || dueCount >= repeat.limit;
                     
-                    if (startCompleted && dueCompleted) {
-                        // 둘 다 완료
-                        info = `${intervalText} 완료`;
+                    // 설정된 알림이 하나만 있는 경우
+                    if (hasStartTime && !hasDueTime) {
+                        // 시작 알림만 있는 경우
+                        if (startCompleted) {
+                            info = `${intervalText} 완료`;
+                        } else {
+                            info = `${intervalText} ${startCount}/${repeat.limit}`;
+                        }
+                    } else if (!hasStartTime && hasDueTime) {
+                        // 마감 알림만 있는 경우
+                        if (dueCompleted) {
+                            info = `${intervalText} 완료`;
+                        } else {
+                            info = `${intervalText} ${dueCount}/${repeat.limit}`;
+                        }
+                    } else if (hasStartTime && hasDueTime) {
+                        // 둘 다 있는 경우
+                        if (startCompleted && dueCompleted) {
+                            // 둘 다 완료
+                            info = `${intervalText} 완료`;
+                        } else {
+                            // 각각 표시: "시작횟수/제한, 마감횟수/제한"
+                            const startDisplay = startCompleted ? '완료' : `${startCount}/${repeat.limit}`;
+                            const dueDisplay = dueCompleted ? '완료' : `${dueCount}/${repeat.limit}`;
+                            info = `${intervalText} ${startDisplay}, ${dueDisplay}`;
+                        }
                     } else {
-                        // 각각 표시: "시작횟수/제한, 마감횟수/제한"
-                        const startDisplay = startCompleted ? '완료' : `${startCount}/${repeat.limit}`;
-                        const dueDisplay = dueCompleted ? '완료' : `${dueCount}/${repeat.limit}`;
-                        info = `${intervalText} ${startDisplay}, ${dueDisplay}`;
+                        // 알림이 없는 경우
+                        info = intervalText;
                     }
                 } else {
                     info = `${intervalText} 0/${repeat.limit}`;
