@@ -135,6 +135,44 @@ const todoManager = (() => {
         triggerChange();
     };
 
+    const deleteCategoryAndMoveTodos = (id, targetCategoryName) => {
+        if (id === 'default') {
+            alert('기본 카테고리는 삭제할 수 없습니다.');
+            return;
+        }
+        const categoryToDelete = categories.find(c => c.id === id);
+        if (!categoryToDelete) return;
+
+        categories = categories.filter(c => c.id !== id);
+        storage.saveCategories(categories);
+
+        // 해당 카테고리의 할 일을 지정된 카테고리로 변경
+        todos.forEach(todo => {
+            if (todo.category === categoryToDelete.name) {
+                todo.category = targetCategoryName;
+            }
+        });
+        storage.saveTodos(todos);
+        triggerChange();
+    };
+
+    const deleteCategoryAndTodos = (id) => {
+        if (id === 'default') {
+            alert('기본 카테고리는 삭제할 수 없습니다.');
+            return;
+        }
+        const categoryToDelete = categories.find(c => c.id === id);
+        if (!categoryToDelete) return;
+
+        categories = categories.filter(c => c.id !== id);
+        storage.saveCategories(categories);
+
+        // 해당 카테고리의 할 일을 모두 삭제
+        todos = todos.filter(todo => todo.category !== categoryToDelete.name);
+        storage.saveTodos(todos);
+        triggerChange();
+    };
+
     // markAsNotified, updateTodoNotificationTime 함수 완전 삭제
 
     const updateTodoText = (id, newText) => {
@@ -344,6 +382,8 @@ const todoManager = (() => {
         addCategory,
         updateCategory,
         deleteCategory,
+        deleteCategoryAndMoveTodos,
+        deleteCategoryAndTodos,
         updateTodoText,
         updateTodoCategory,
         toggleTodoStatus,

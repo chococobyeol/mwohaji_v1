@@ -43,6 +43,16 @@ document.addEventListener('DOMContentLoaded', () => {
     let cancelRepeatBtn = null;
     let currentRepeatTodoId = null;
 
+    // 카테고리 삭제 모달 관련 DOM Elements
+    const categoryDeleteModal = document.getElementById('category-delete-modal');
+    const closeCategoryDeleteModalBtn = document.getElementById('close-category-delete-modal-btn');
+    const categoryDeleteMessage = document.getElementById('category-delete-message');
+    const otherCategorySelect = document.getElementById('other-category-select');
+    const targetCategorySelect = document.getElementById('target-category-select');
+    const confirmCategoryDeleteBtn = document.getElementById('confirm-category-delete-btn');
+    const cancelCategoryDeleteBtn = document.getElementById('cancel-category-delete-btn');
+    let categoryToDelete = null;
+
     // App State
     let currentView = 'project';
     let selectedCategoryId = 'default';
@@ -346,6 +356,80 @@ document.addEventListener('DOMContentLoaded', () => {
             storage.saveTodos(todoManager.getTodos());
         }
         closeRepeatModal();
+        render();
+    };
+
+    // 카테고리 삭제 모달 관련 함수들
+    const openCategoryDeleteModal = (categoryId) => {
+        const category = todoManager.getCategories().find(c => c.id === categoryId);
+        if (!category) return;
+
+        categoryToDelete = category;
+        
+        // 해당 카테고리의 할 일 개수 계산
+        const todosInCategory = todoManager.getTodos().filter(todo => todo.category === category.name);
+        const todoCount = todosInCategory.length;
+        
+        // 메시지 설정
+        categoryDeleteMessage.textContent = `'${category.name}' 카테고리를 삭제하시겠습니까? (${todoCount}개의 할 일이 포함되어 있습니다)`;
+        
+        // 다른 카테고리 선택 옵션 설정
+        const otherCategories = todoManager.getCategories().filter(c => c.id !== categoryId && c.id !== 'default');
+        targetCategorySelect.innerHTML = '';
+        otherCategories.forEach(cat => {
+            const option = document.createElement('option');
+            option.value = cat.name;
+            option.textContent = cat.name;
+            targetCategorySelect.appendChild(option);
+        });
+        
+        // 라디오 버튼 이벤트 리스너
+        document.querySelectorAll('input[name="delete-option"]').forEach(radio => {
+            radio.addEventListener('change', handleDeleteOptionChange);
+        });
+        
+        categoryDeleteModal.style.display = 'flex';
+    };
+
+    const closeCategoryDeleteModal = () => {
+        categoryDeleteModal.style.display = 'none';
+        categoryToDelete = null;
+        otherCategorySelect.style.display = 'none';
+        // 라디오 버튼 초기화
+        document.querySelector('input[value="move-to-default"]').checked = true;
+    };
+
+    const handleDeleteOptionChange = (e) => {
+        if (e.target.value === 'move-to-other') {
+            otherCategorySelect.style.display = 'block';
+        } else {
+            otherCategorySelect.style.display = 'none';
+        }
+    };
+
+    const confirmCategoryDelete = () => {
+        if (!categoryToDelete) return;
+
+        const selectedOption = document.querySelector('input[name="delete-option"]:checked').value;
+        
+        switch (selectedOption) {
+            case 'move-to-default':
+                todoManager.deleteCategory(categoryToDelete.id);
+                break;
+            case 'move-to-other':
+                const targetCategory = targetCategorySelect.value;
+                if (targetCategory) {
+                    todoManager.deleteCategoryAndMoveTodos(categoryToDelete.id, targetCategory);
+                } else {
+                    todoManager.deleteCategory(categoryToDelete.id);
+                }
+                break;
+            case 'delete-all':
+                todoManager.deleteCategoryAndTodos(categoryToDelete.id);
+                break;
+        }
+        
+        closeCategoryDeleteModal();
         render();
     };
 
@@ -748,6 +832,7 @@ document.addEventListener('DOMContentLoaded', () => {
         icons.setButtonIcon(exportBtn, 'download', '내보내기', 18);
         icons.setButtonIcon(closeModalBtn, 'close', '닫기', 18);
         icons.setButtonIcon(closeScheduleModalBtn, 'close', '닫기', 18);
+        icons.setButtonIcon(closeCategoryDeleteModalBtn, 'close', '닫기', 18);
         icons.setButtonIcon(globalSettingsBtn, 'settings-gear', '설정', 18);
         icons.setButtonIcon(closeSettingsSidebar, 'close', '닫기', 18);
         icons.setButtonIcon(showCompletedToggle, 'check-circle', '완료된 할 일 표시', 18);
@@ -804,10 +889,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (deleteBtn) {
             const id = deleteBtn.dataset.id;
-            if (confirm('카테고리를 삭제하면 해당 카테고리의 할 일은 "일반"으로 변경됩니다. 계속하시겠습니까?')) {
-                todoManager.deleteCategory(id);
-                render();
-            }
+            openCategoryDeleteModal(id);
         } else if (editBtn) {
             const id = editBtn.dataset.id;
             const categoryName = todoManager.getCategories().find(c => c.id === id)?.name;
@@ -860,6 +942,14 @@ document.addEventListener('DOMContentLoaded', () => {
     globalSettingsBtn.addEventListener('click', openSettingsSidebar);
     closeSettingsSidebar.addEventListener('click', closeSettingsSidebarFn);
     settingsSidebarOverlay.addEventListener('click', closeSettingsSidebarFn);
+
+    // 카테고리 삭제 모달 이벤트 리스너
+    closeCategoryDeleteModalBtn.addEventListener('click', closeCategoryDeleteModal);
+    cancelCategoryDeleteBtn.addEventListener('click', closeCategoryDeleteModal);
+    confirmCategoryDeleteBtn.addEventListener('click', confirmCategoryDelete);
+    categoryDeleteModal.addEventListener('click', (e) => {
+        if (e.target === categoryDeleteModal) closeCategoryDeleteModal();
+    });
 
     // 일정 설정 모달 이벤트 리스너들
     closeScheduleModalBtn.addEventListener('click', closeScheduleModal);

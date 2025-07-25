@@ -12,7 +12,11 @@
     --accent-blue: #4263EB;
     --accent-green: #51CF66;
     --accent-yellow: #FFD43B;
-    --accent-red: #FF6B6B;
+    --accent-red: #ef9f9f;
+
+    /* 액센트 배경색 */
+    --accent-background-red: #fae1e1;
+    --accent-background-blue: #e3eafa;
 
     /* 보더/구분선 */
     --border-color: #E9ECEF;
@@ -684,9 +688,9 @@ button:hover {
 }
 
 .delete-btn:hover {
-    color: #d97373; /* 부드러운 코랄-그레이 */
+    color: var(--accent-red); /* 부드러운 코랄-그레이 */
     opacity: 1;
-    background-color: rgba(217, 115, 115, 0.08); /* 아주 연한 코랄 배경 */
+    background-color: rgba(239, 159, 159, 0.08); /* 아주 연한 코랄 배경 */
 }
 
 /* 블랙&화이트&그레이 모달 */
@@ -1125,13 +1129,13 @@ button:hover {
 
 .schedule-info.start-time {
     color: #6b7280; /* 다른 UI와 동일한 회색 텍스트 */
-    background-color: #e3eafa; /* 연한 파란 배경 */
+    background-color: var(--accent-background-blue); /* 연한 파란 배경 */
     border: 1px solid #d1d5db; /* 다른 UI와 동일한 중성 회색 테두리 */
 }
 
 .schedule-info.due-time {
     color: #6b7280; /* 다른 UI와 동일한 회색 텍스트 */
-    background-color: #fae1e1; /* 연한 빨간 배경 */
+    background-color: var(--accent-background-red); /* 연한 빨간 배경 */
     border: 1px solid #d1d5db; /* 다른 UI와 동일한 중성 회색 테두리 */
 }
 
@@ -1495,6 +1499,132 @@ button:hover {
 
 .toggle-input:checked + .toggle-label:before {
   transform: translateX(20px);
+}
+
+/* 카테고리 삭제 모달 스타일 */
+.delete-message {
+  color: var(--primary-text);
+  font-weight: 600;
+  margin-bottom: 20px;
+  padding: 12px;
+  background-color: var(--accent-background-red);
+  border: 1px solid var(--accent-red);
+  border-radius: 6px;
+}
+
+.delete-options h3 {
+  font-size: 16px;
+  color: #1a1a1a;
+  margin-bottom: 16px;
+  font-weight: 600;
+}
+
+.option-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.option-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-color: white;
+}
+
+.option-item:hover {
+  background-color: #f8f9fa;
+  border-color: #d1d5db;
+}
+
+.option-item input[type="radio"] {
+  margin: 0;
+  margin-top: 2px;
+  accent-color: #1a1a1a;
+}
+
+.option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.option-text strong {
+  color: #1a1a1a;
+  font-weight: 600;
+}
+
+.option-text small {
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.other-category-select {
+  margin-left: 24px;
+  margin-top: 8px;
+  padding: 12px;
+  background-color: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+}
+
+.other-category-select select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 2px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  background-color: white;
+  color: #1a1a1a;
+  transition: all 0.2s ease;
+}
+
+.other-category-select select:focus {
+  outline: none;
+  border-color: #374151;
+  box-shadow: 0 0 0 3px rgba(55, 65, 81, 0.1);
+}
+
+.danger-btn {
+  background-color: var(--accent-red);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.danger-btn:hover {
+  background-color: #dc2626;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+/* 모바일 반응형 */
+@media (max-width: 768px) {
+  .option-item {
+    padding: 10px;
+  }
+  
+  .option-text small {
+    font-size: 11px;
+  }
+  
+  .other-category-select {
+    margin-left: 20px;
+    padding: 10px;
+  }
 }
 
 

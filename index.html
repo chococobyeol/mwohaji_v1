@@ -59,6 +59,54 @@
         </div>
     </div>
 
+    <!-- 카테고리 삭제 확인 모달 -->
+    <div id="category-delete-modal" class="modal-wrapper" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>카테고리 삭제</h2>
+                <button id="close-category-delete-modal-btn" class="icon-btn"></button>
+            </div>
+            <div class="modal-body">
+                <p id="category-delete-message" class="delete-message"></p>
+                <div class="delete-options">
+                    <h3>해당 카테고리의 할 일을 어떻게 처리하시겠습니까?</h3>
+                    <div class="option-group">
+                        <label class="option-item">
+                            <input type="radio" name="delete-option" value="move-to-default" checked>
+                            <span class="option-text">
+                                <strong>일반 카테고리로 이동</strong>
+                                <small>모든 할 일을 '일반' 카테고리로 변경합니다.</small>
+                            </span>
+                        </label>
+                        <label class="option-item">
+                            <input type="radio" name="delete-option" value="move-to-other">
+                            <span class="option-text">
+                                <strong>다른 카테고리로 이동</strong>
+                                <small>선택한 카테고리로 모든 할 일을 이동합니다.</small>
+                            </span>
+                        </label>
+                        <div id="other-category-select" class="other-category-select" style="display: none;">
+                            <select id="target-category-select">
+                                <!-- 다른 카테고리 옵션들이 동적으로 추가됩니다 -->
+                            </select>
+                        </div>
+                        <label class="option-item">
+                            <input type="radio" name="delete-option" value="delete-all">
+                            <span class="option-text">
+                                <strong>모든 할 일 삭제</strong>
+                                <small>해당 카테고리의 모든 할 일을 함께 삭제합니다.</small>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button id="confirm-category-delete-btn" class="danger-btn">삭제</button>
+                    <button id="cancel-category-delete-btn" class="secondary-btn">취소</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 일정 설정 모달 -->
     <div id="schedule-modal" class="modal-wrapper" style="display: none;">
         <div class="modal-content">
