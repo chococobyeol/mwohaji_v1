@@ -1160,10 +1160,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveSchedule = () => {
         if (currentEditingTodoId === null) return;
 
+        console.log('=== saveSchedule 시작 ===');
+        console.log('현재 편집 중인 할 일 ID:', currentEditingTodoId);
+
         // 텍스트와 카테고리 변경사항 저장
         const newText = editTodoText.value.trim();
         const selectedCategoryId = editTodoCategory.value;
         const selectedCategory = todoManager.getCategories().find(c => c.id === selectedCategoryId);
+        
+        console.log('텍스트:', newText);
+        console.log('선택된 카테고리:', selectedCategory?.name);
         
         if (newText) {
             todoManager.updateTodoText(currentEditingTodoId, newText);
@@ -1176,27 +1182,51 @@ document.addEventListener('DOMContentLoaded', () => {
         const scheduleData = {};
 
         // 시작 시간 처리
+        console.log('=== 시작 시간 처리 ===');
+        console.log('startTimeEnabled.checked:', startTimeEnabled.checked);
+        console.log('startDate.value:', startDate.value);
+        console.log('startTime.value:', startTime.value);
+        
         if (startTimeEnabled.checked && startDate.value && startTime.value) {
             // 로컬 날짜/시간을 Date 객체로 변환하여 전달
             scheduleData.startTime = new Date(`${startDate.value}T${startTime.value}:00`);
             scheduleData.startModal = startModalBtn.dataset.enabled === 'true';
             scheduleData.startNotification = startNotificationBtn.dataset.enabled === 'true';
+            console.log('시작 시간 설정됨:', scheduleData.startTime);
         } else {
             scheduleData.startTime = null;
             scheduleData.startModal = true;
             scheduleData.startNotification = true;
+            console.log('시작 시간 설정 안됨 (null)');
         }
 
         // 마감 시간 처리
+        console.log('=== 마감 시간 처리 ===');
+        console.log('dueTimeEnabled.checked:', dueTimeEnabled.checked);
+        console.log('dueDate.value:', dueDate.value);
+        console.log('dueTime.value:', dueTime.value);
+        
         if (dueTimeEnabled.checked && dueDate.value && dueTime.value) {
             // 로컬 날짜/시간을 Date 객체로 변환하여 전달
             scheduleData.dueTime = new Date(`${dueDate.value}T${dueTime.value}:00`);
             scheduleData.dueModal = dueModalBtn.dataset.enabled === 'true';
             scheduleData.dueNotification = dueNotificationBtn.dataset.enabled === 'true';
+            console.log('마감 시간 설정됨:', scheduleData.dueTime);
         } else {
             scheduleData.dueTime = null;
             scheduleData.dueModal = true;
             scheduleData.dueNotification = true;
+            console.log('마감 시간 설정 안됨 (null)');
+        }
+
+        console.log('최종 scheduleData:', scheduleData);
+
+        // 시간 검증: 마감시간이 시작시간보다 빠르지 않도록 확인
+        if (scheduleData.startTime && scheduleData.dueTime) {
+            if (scheduleData.dueTime <= scheduleData.startTime) {
+                alert('마감시간은 시작시간보다 늦어야 합니다.');
+                return; // 저장 중단
+            }
         }
 
         todoManager.updateTodoSchedule(currentEditingTodoId, scheduleData);
@@ -1213,6 +1243,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // 일정 변경 후 즉시 UI 업데이트
         console.log('[App] 일정 변경 후 즉시 UI 업데이트');
         renderTodos();
+        
+        console.log('=== saveSchedule 완료 ===');
     };
 
     // 일정 설정 토글 함수
@@ -1571,6 +1603,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 체크박스 변경 시 입력 필드 활성화/비활성화
     startTimeEnabled.addEventListener('change', (e) => {
+        console.log('=== 시작 시간 체크박스 변경 ===');
+        console.log('체크박스 상태:', e.target.checked);
+        
         if (e.target.checked) {
             startTimeInputs.classList.add('enabled');
             // 현재 날짜/시간으로 기본값 설정
@@ -1584,12 +1619,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
             startDate.value = `${year}-${month}-${day}`;
             startTime.value = `${hours}:${minutes}`;
+            console.log('시작 시간 필드 활성화 및 기본값 설정');
+            console.log('설정된 날짜:', startDate.value);
+            console.log('설정된 시간:', startTime.value);
         } else {
             startTimeInputs.classList.remove('enabled');
+            console.log('시작 시간 필드 비활성화');
         }
     });
 
     dueTimeEnabled.addEventListener('change', (e) => {
+        console.log('=== 마감 시간 체크박스 변경 ===');
+        console.log('체크박스 상태:', e.target.checked);
+        
         if (e.target.checked) {
             dueTimeInputs.classList.add('enabled');
             // 현재 날짜/시간으로 기본값 설정
@@ -1605,8 +1647,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             dueDate.value = `${year}-${month}-${day}`;
             dueTime.value = `${hours}:${minutes}`;
+            console.log('마감 시간 필드 활성화 및 기본값 설정');
+            console.log('설정된 날짜:', dueDate.value);
+            console.log('설정된 시간:', dueTime.value);
         } else {
             dueTimeInputs.classList.remove('enabled');
+            console.log('마감 시간 필드 비활성화');
         }
     });
 

@@ -278,8 +278,8 @@ const todoManager = (() => {
 
         // 새로운 일정 데이터로 업데이트 (개별 속성 처리)
         // startTime 처리
-        let newStartTimeDate = null;
         if (scheduleData.hasOwnProperty('startTime')) {
+            let newStartTimeDate = null;
             if (scheduleData.startTime !== null) {
                 newStartTimeDate = new Date(scheduleData.startTime);
                 // Check if parsing was successful
@@ -298,9 +298,28 @@ const todoManager = (() => {
                     }
                 }
             }
-            if ((oldStartTime instanceof Date ? oldStartTime.getTime() : null) !== (newStartTimeDate ? newStartTimeDate.getTime() : null)) {
+            
+            // 기존 값과 새 값 비교 (문자열/Date/null 처리 포함)
+            let oldStartTimeValue = null;
+            if (oldStartTime instanceof Date) {
+                oldStartTimeValue = oldStartTime.getTime();
+            } else if (typeof oldStartTime === 'string') {
+                const parsedOldStartTime = new Date(oldStartTime);
+                if (!isNaN(parsedOldStartTime.getTime())) {
+                    oldStartTimeValue = parsedOldStartTime.getTime();
+                }
+            }
+            
+            const newStartTimeValue = newStartTimeDate instanceof Date ? newStartTimeDate.getTime() : null;
+            
+            console.log(`[updateTodoSchedule] startTime 비교: old=${oldStartTimeValue}, new=${newStartTimeValue}`);
+            console.log(`[updateTodoSchedule] startTime 원본: old="${oldStartTime}", new="${scheduleData.startTime}"`);
+            
+            // null 값도 명시적으로 처리
+            if (oldStartTimeValue !== newStartTimeValue) {
                 todo.schedule.startTime = newStartTimeDate;
                 todo.schedule.notifiedStart = false;
+                console.log(`[updateTodoSchedule] startTime 변경: ${oldStartTimeValue} -> ${newStartTimeValue}`);
                 console.log(`[updateTodoSchedule] notifiedStart reset to false for todo ${id} (startTime changed)`);
             }
         }
@@ -316,8 +335,8 @@ const todoManager = (() => {
         }
 
         // dueTime 처리
-        let newDueTimeDate = null;
         if (scheduleData.hasOwnProperty('dueTime')) {
+            let newDueTimeDate = null;
             if (scheduleData.dueTime !== null) {
                 newDueTimeDate = new Date(scheduleData.dueTime);
                 // Check if parsing was successful
@@ -336,9 +355,28 @@ const todoManager = (() => {
                     }
                 }
             }
-            if ((oldDueTime instanceof Date ? oldDueTime.getTime() : null) !== (newDueTimeDate ? newDueTimeDate.getTime() : null)) {
+            
+            // 기존 값과 새 값 비교 (문자열/Date/null 처리 포함)
+            let oldDueTimeValue = null;
+            if (oldDueTime instanceof Date) {
+                oldDueTimeValue = oldDueTime.getTime();
+            } else if (typeof oldDueTime === 'string') {
+                const parsedOldDueTime = new Date(oldDueTime);
+                if (!isNaN(parsedOldDueTime.getTime())) {
+                    oldDueTimeValue = parsedOldDueTime.getTime();
+                }
+            }
+            
+            const newDueTimeValue = newDueTimeDate instanceof Date ? newDueTimeDate.getTime() : null;
+            
+            console.log(`[updateTodoSchedule] dueTime 비교: old=${oldDueTimeValue}, new=${newDueTimeValue}`);
+            console.log(`[updateTodoSchedule] dueTime 원본: old="${oldDueTime}", new="${scheduleData.dueTime}"`);
+            
+            // null 값도 명시적으로 처리
+            if (oldDueTimeValue !== newDueTimeValue) {
                 todo.schedule.dueTime = newDueTimeDate;
                 todo.schedule.notifiedDue = false;
+                console.log(`[updateTodoSchedule] dueTime 변경: ${oldDueTimeValue} -> ${newDueTimeValue}`);
                 console.log(`[updateTodoSchedule] notifiedDue reset to false for todo ${id} (dueTime changed)`);
             }
         }
