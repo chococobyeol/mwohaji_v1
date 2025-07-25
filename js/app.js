@@ -61,6 +61,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const cancelCategoryEditBtn = document.getElementById('cancel-category-edit-btn');
     let categoryToEdit = null;
 
+    // 카테고리 순서 편집 모달 관련 DOM Elements
+    const categoryOrderModal = document.getElementById('category-order-modal');
+    const closeCategoryOrderModalBtn = document.getElementById('close-category-order-modal-btn');
+    const categoryOrderList = document.getElementById('category-order-list');
+    const saveCategoryOrderBtn = document.getElementById('save-category-order-btn');
+    const cancelCategoryOrderBtn = document.getElementById('cancel-category-order-btn');
+    const editCategoryOrderBtn = document.getElementById('edit-category-order-btn');
+    let originalCategoryOrder = [];
+    let draggedElement = null;
+
     // App State
     let currentView = 'project';
     let selectedCategoryId = 'default';
@@ -488,6 +498,127 @@ document.addEventListener('DOMContentLoaded', () => {
         render();
     };
 
+    // 카테고리 순서 편집 관련 함수들
+    const openCategoryOrderModal = () => {
+        const categories = todoManager.getCategories();
+        originalCategoryOrder = [...categories];
+        
+        renderCategoryOrderList();
+        categoryOrderModal.style.display = 'flex';
+    };
+
+    const closeCategoryOrderModal = () => {
+        categoryOrderModal.style.display = 'none';
+        originalCategoryOrder = [];
+        draggedElement = null;
+    };
+
+    const renderCategoryOrderList = () => {
+        const categories = todoManager.getCategories();
+        categoryOrderList.innerHTML = '';
+        
+        categories.forEach(category => {
+            const li = document.createElement('li');
+            li.className = 'category-order-item';
+            li.dataset.id = category.id;
+            
+            if (category.id === 'default') {
+                li.classList.add('fixed');
+            }
+            
+            li.innerHTML = `
+                <span class="category-order-handle">⋮⋮</span>
+                <span class="category-order-name">${category.name}</span>
+                ${category.id === 'default' ? '<span class="category-order-badge">고정</span>' : ''}
+            `;
+            
+            if (category.id !== 'default') {
+                li.draggable = true;
+                li.addEventListener('dragstart', handleDragStart);
+                li.addEventListener('dragend', handleDragEnd);
+                li.addEventListener('dragover', handleDragOver);
+                li.addEventListener('drop', handleDrop);
+                li.addEventListener('dragenter', handleDragEnter);
+                li.addEventListener('dragleave', handleDragLeave);
+            }
+            
+            categoryOrderList.appendChild(li);
+        });
+    };
+
+    const handleDragStart = (e) => {
+        draggedElement = e.target;
+        e.target.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/html', e.target.outerHTML);
+    };
+
+    const handleDragEnd = (e) => {
+        e.target.classList.remove('dragging');
+        draggedElement = null;
+    };
+
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    };
+
+    const handleDragEnter = (e) => {
+        e.preventDefault();
+        if (e.target.classList.contains('category-order-item') && !e.target.classList.contains('fixed')) {
+            e.target.classList.add('drag-over');
+        }
+    };
+
+    const handleDragLeave = (e) => {
+        e.target.classList.remove('drag-over');
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        e.target.classList.remove('drag-over');
+        
+        if (!draggedElement || e.target.classList.contains('fixed')) return;
+        
+        const draggedId = draggedElement.dataset.id;
+        const targetId = e.target.dataset.id;
+        
+        if (draggedId === targetId || draggedId === 'default' || targetId === 'default') return;
+        
+        // 순서 변경
+        const categories = todoManager.getCategories();
+        const draggedIndex = categories.findIndex(c => c.id === draggedId);
+        const targetIndex = categories.findIndex(c => c.id === targetId);
+        
+        if (draggedIndex !== -1 && targetIndex !== -1) {
+            const [draggedCategory] = categories.splice(draggedIndex, 1);
+            categories.splice(targetIndex, 0, draggedCategory);
+            
+            // '일반' 카테고리를 항상 맨 위로
+            const defaultIndex = categories.findIndex(c => c.id === 'default');
+            if (defaultIndex > 0) {
+                const [defaultCategory] = categories.splice(defaultIndex, 1);
+                categories.unshift(defaultCategory);
+            }
+            
+            todoManager.setCategories(categories);
+            renderCategoryOrderList();
+        }
+    };
+
+    const saveCategoryOrder = () => {
+        const categories = todoManager.getCategories();
+        storage.saveCategories(categories);
+        closeCategoryOrderModal();
+        render();
+    };
+
+    const cancelCategoryOrder = () => {
+        // 원래 순서로 복원
+        todoManager.setCategories(originalCategoryOrder);
+        closeCategoryOrderModal();
+    };
+
     // 반복 정보를 자세히 표시하는 함수
     const getDetailedRepeatInfo = (repeat) => {
         if (!repeat) return '';
@@ -889,6 +1020,8 @@ document.addEventListener('DOMContentLoaded', () => {
         icons.setButtonIcon(closeScheduleModalBtn, 'close', '닫기', 18);
         icons.setButtonIcon(closeCategoryDeleteModalBtn, 'close', '닫기', 18);
         icons.setButtonIcon(closeCategoryEditModalBtn, 'close', '닫기', 18);
+        icons.setButtonIcon(editCategoryOrderBtn, 'order-list', '순서 편집', 18);
+        icons.setButtonIcon(closeCategoryOrderModalBtn, 'close', '닫기', 18);
         icons.setButtonIcon(globalSettingsBtn, 'settings-gear', '설정', 18);
         icons.setButtonIcon(closeSettingsSidebar, 'close', '닫기', 18);
         icons.setButtonIcon(showCompletedToggle, 'check-circle', '완료된 할 일 표시', 18);
@@ -1006,6 +1139,15 @@ document.addEventListener('DOMContentLoaded', () => {
     saveCategoryEditBtn.addEventListener('click', saveCategoryEdit);
     categoryEditModal.addEventListener('click', (e) => {
         if (e.target === categoryEditModal) closeCategoryEditModal();
+    });
+
+    // 카테고리 순서 편집 모달 이벤트 리스너
+    editCategoryOrderBtn.addEventListener('click', openCategoryOrderModal);
+    closeCategoryOrderModalBtn.addEventListener('click', closeCategoryOrderModal);
+    cancelCategoryOrderBtn.addEventListener('click', cancelCategoryOrder);
+    saveCategoryOrderBtn.addEventListener('click', saveCategoryOrder);
+    categoryOrderModal.addEventListener('click', (e) => {
+        if (e.target === categoryOrderModal) closeCategoryOrderModal();
     });
     
     // Enter 키로 저장
