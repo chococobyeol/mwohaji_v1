@@ -202,6 +202,7 @@ const notificationScheduler = (() => {
             if (todo.schedule[notificationProperty]) {
                 playNotificationSound();
             }
+            // 반복 알림에서는 notified 상태를 업데이트하지 않음 (반복이므로)
             // 다음 알림만 예약
             scheduleRepeatNotification(todo, type);
         }, diff);
@@ -215,12 +216,22 @@ const notificationScheduler = (() => {
         todos.forEach(todo => {
             if (todo.completed) return;
             if (todo.schedule && todo.schedule.startTime) {
-                scheduleNotification(todo, 'start');
-                if (todo.repeat) scheduleRepeatNotification(todo, 'start');
+                if (todo.repeat) {
+                    // 반복 할 일은 반복 알림만 사용
+                    scheduleRepeatNotification(todo, 'start');
+                } else {
+                    // 일반 할 일은 일반 알림 사용
+                    scheduleNotification(todo, 'start');
+                }
             }
             if (todo.schedule && todo.schedule.dueTime) {
-                scheduleNotification(todo, 'due');
-                if (todo.repeat) scheduleRepeatNotification(todo, 'due');
+                if (todo.repeat) {
+                    // 반복 할 일은 반복 알림만 사용
+                    scheduleRepeatNotification(todo, 'due');
+                } else {
+                    // 일반 할 일은 일반 알림 사용
+                    scheduleNotification(todo, 'due');
+                }
             }
         });
     };

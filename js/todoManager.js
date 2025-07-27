@@ -205,7 +205,13 @@ const todoManager = (() => {
                 // 반복 일정이면 완료 기록에 복사본 저장
                 addCompletedRepeatTodo(todo, new Date().toISOString());
                 // 원본은 그대로 두고 완료 표시하지 않음 (반복이므로)
+                // 반복 할 일 완료 시 notified 상태를 리셋하여 다음 반복에서 알림이 울리도록 함
+                if (todo.schedule) {
+                    todo.schedule.notifiedStart = false;
+                    todo.schedule.notifiedDue = false;
+                }
                 console.log(`[toggleTodoStatus] 반복 할 일 완료: ${todo.text} (완료 시간: ${new Date().toISOString()})`);
+                storage.saveTodos(todos);
                 triggerChange(); // UI 업데이트를 위해 호출
             } else {
                 todo.completed = !todo.completed;
