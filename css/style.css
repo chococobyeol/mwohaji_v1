@@ -1513,6 +1513,33 @@ button:hover {
   font-size: 14px;
 }
 
+.setting-control {
+  margin-bottom: 8px;
+}
+
+.setting-control .sort-select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 2px solid #d1d5db;
+  border-radius: 6px;
+  background-color: white;
+  font-size: 14px;
+  color: #1a1a1a;
+  font-family: inherit;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.setting-control .sort-select:focus {
+  outline: none;
+  border-color: #374151;
+  box-shadow: 0 0 0 3px rgba(55, 65, 81, 0.1);
+}
+
+.setting-control .sort-select:hover {
+  border-color: #9ca3af;
+}
+
 .setting-description {
   color: #6b7280;
   font-size: 12px;
@@ -1689,6 +1716,24 @@ button:hover {
   .other-category-select {
     margin-left: 20px;
     padding: 10px;
+  }
+  
+  .setting-control .sort-select {
+    padding: 12px 14px;
+    font-size: 16px; /* iOS에서 줌 방지 */
+  }
+  
+  .setting-item {
+    padding: 12px;
+    margin-bottom: 16px;
+  }
+  
+  .setting-label {
+    font-size: 13px;
+  }
+  
+  .setting-description {
+    font-size: 11px;
   }
 }
 

@@ -77,7 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentView = 'project';
     let selectedCategoryId = 'default';
     let currentEditingTodoId = null;
-    let settings = { showCompleted: true }; // 설정 상태
+    let settings = { showCompleted: true, todoSortOrder: 'created-desc' }; // 설정 상태
 
     // 설정 사이드바 관련
     const globalSettingsBtn = document.getElementById('global-settings-btn');
@@ -91,6 +91,12 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => settingsSidebar.classList.add('open'), 10);
         settingsSidebarOverlay.classList.add('open');
         settingsSidebarOverlay.style.display = 'block';
+        
+        // 설정 사이드바가 열릴 때 정렬 선택기 값 업데이트
+        const todoSortSelect = document.getElementById('todo-sort-select');
+        if (todoSortSelect) {
+            todoSortSelect.value = settings.todoSortOrder || 'created-desc';
+        }
     }
     function closeSettingsSidebarFn() {
         settingsSidebar.classList.remove('open');
@@ -1059,6 +1065,60 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
+    // 할일 정렬 함수
+    const sortTodos = (todos) => {
+        const sortOrder = settings.todoSortOrder || 'created-desc';
+        
+        switch (sortOrder) {
+            case 'created-desc':
+                return [...todos].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            case 'created-asc':
+                return [...todos].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+            case 'text-asc':
+                return [...todos].sort((a, b) => a.text.localeCompare(b.text, 'ko'));
+            case 'text-desc':
+                return [...todos].sort((a, b) => b.text.localeCompare(a.text, 'ko'));
+            case 'category-asc':
+                return [...todos].sort((a, b) => a.category.localeCompare(b.category, 'ko'));
+            case 'category-desc':
+                return [...todos].sort((a, b) => b.category.localeCompare(a.category, 'ko'));
+            case 'completed-asc':
+                return [...todos].sort((a, b) => {
+                    if (a.completed === b.completed) {
+                        return new Date(b.createdAt) - new Date(a.createdAt);
+                    }
+                    return a.completed ? 1 : -1;
+                });
+            case 'completed-desc':
+                return [...todos].sort((a, b) => {
+                    if (a.completed === b.completed) {
+                        return new Date(b.createdAt) - new Date(a.createdAt);
+                    }
+                    return a.completed ? -1 : 1;
+                });
+            case 'schedule-asc':
+                return [...todos].sort((a, b) => {
+                    const aTime = a.schedule?.startTime || a.schedule?.dueTime || new Date(9999, 11, 31);
+                    const bTime = b.schedule?.startTime || b.schedule?.dueTime || new Date(9999, 11, 31);
+                    if (aTime.getTime() === bTime.getTime()) {
+                        return new Date(b.createdAt) - new Date(a.createdAt);
+                    }
+                    return new Date(aTime) - new Date(bTime);
+                });
+            case 'schedule-desc':
+                return [...todos].sort((a, b) => {
+                    const aTime = a.schedule?.startTime || a.schedule?.dueTime || new Date(9999, 11, 31);
+                    const bTime = b.schedule?.startTime || b.schedule?.dueTime || new Date(9999, 11, 31);
+                    if (aTime.getTime() === bTime.getTime()) {
+                        return new Date(b.createdAt) - new Date(a.createdAt);
+                    }
+                    return new Date(bTime) - new Date(aTime);
+                });
+            default:
+                return [...todos].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        }
+    };
+
     const renderProjectView = (todos) => {
         const categories = todoManager.getCategories();
         const groupedTodos = todos.reduce((acc, todo) => {
@@ -1079,10 +1139,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 categoryTitle.textContent = categoryName;
                 groupContainer.appendChild(categoryTitle);
                 
-                // 각 카테고리 내에서 할일들을 생성 날짜순으로 정렬
-                const sortedTodos = groupedTodos[categoryName].sort((a, b) => 
-                    new Date(b.createdAt) - new Date(a.createdAt)
-                );
+                // 각 카테고리 내에서 할일들을 설정된 정렬 순서로 정렬
+                const sortedTodos = sortTodos(groupedTodos[categoryName]);
                 
                 sortedTodos.forEach(todo => groupContainer.appendChild(createTodoElement(todo)));
                 todoListContainer.appendChild(groupContainer);
@@ -1091,7 +1149,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const renderAllView = (todos) => {
-        const sortedTodos = [...todos].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        const sortedTodos = sortTodos(todos);
         sortedTodos.forEach(todo => todoListContainer.appendChild(createTodoElement(todo)));
     };
 
@@ -1426,6 +1484,16 @@ document.addEventListener('DOMContentLoaded', () => {
         renderTodos(); // 즉시 반영
     };
 
+    // 할일 정렬 변경 이벤트 핸들러
+    const handleTodoSortChange = () => {
+        const sortSelect = document.getElementById('todo-sort-select');
+        if (sortSelect) {
+            settings.todoSortOrder = sortSelect.value;
+            storage.saveSettings(settings);
+            renderTodos(); // 즉시 반영
+        }
+    };
+
     // 아이콘 초기화
     const initIcons = () => {
         // 헤더 버튼들 - 크기를 18px로 증가
@@ -1470,6 +1538,8 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // 설정 토글 이벤트 리스너
         showCompletedToggle.addEventListener('change', handleShowCompletedToggle);
+        
+        // 할일 정렬 변경 이벤트 리스너 (동적으로 추가된 요소이므로 나중에 추가)
         
         // 시스템 시간 변경 감지를 위한 이벤트 리스너 추가
         window.addEventListener('focus', () => {
@@ -1531,6 +1601,40 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log(`[App] 수동 동기화 시 현재 시간: ${now.toLocaleString('ko-KR')} (${now.toISOString()}) [Timestamp: ${Date.now()}]`);
             notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
         });
+        
+        // 할일 정렬 섹션 추가
+        const todoSortSection = document.createElement('div');
+        todoSortSection.className = 'setting-item';
+        todoSortSection.innerHTML = `
+            <div class="setting-row">
+                <label class="setting-label">할일 정렬 순서</label>
+            </div>
+            <div class="setting-control">
+                <select id="todo-sort-select" class="sort-select">
+                    <option value="created-desc">생성일 최신순</option>
+                    <option value="created-asc">생성일 오래된순</option>
+                    <option value="text-asc">할일명 가나다순</option>
+                    <option value="text-desc">할일명 역순</option>
+                    <option value="category-asc">카테고리 가나다순</option>
+                    <option value="category-desc">카테고리 역순</option>
+                    <option value="completed-asc">미완료 우선</option>
+                    <option value="completed-desc">완료 우선</option>
+                    <option value="schedule-asc">일정 빠른순</option>
+                    <option value="schedule-desc">일정 늦은순</option>
+                </select>
+            </div>
+            <p class="setting-description">할일 목록의 정렬 순서를 설정합니다. 카테고리별 보기와 전체 보기 모두에 적용됩니다.</p>
+        `;
+        
+        // 시간 동기화 섹션 다음에 추가
+        timeSyncSection.parentNode.insertBefore(todoSortSection, timeSyncSection.nextSibling);
+        
+        // 할일 정렬 선택 초기화
+        const todoSortSelect = document.getElementById('todo-sort-select');
+        if (todoSortSelect) {
+            todoSortSelect.value = settings.todoSortOrder || 'created-desc';
+            todoSortSelect.addEventListener('change', handleTodoSortChange);
+        }
         
         // 알림 스케줄러를 먼저 초기화 (반복 횟수 로드 및 계산)
         notificationScheduler.initScheduler();
@@ -1644,6 +1748,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     storage.saveCompletedRepeatTodos(data.completedRepeatTodos);
                 }
                 
+                // 설정 복원
+                if (data.settings) {
+                    settings = { ...settings, ...data.settings };
+                    storage.saveSettings(settings);
+                }
+                
                 // todoManager에 데이터 설정
                 todoManager.setTodos(data.todos);
                 todoManager.setCategories(finalCategories);
@@ -1694,7 +1804,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     `• 일정 설정: ${stats.todosWithSchedule}개\n` +
                     `• 반복 설정: ${stats.todosWithRepeat}개\n` +
                     `• 카테고리: ${stats.totalCategories}개\n` +
-                    `• 완료된 반복 할 일: ${stats.completedRepeatTodos}개`;
+                    `• 완료된 반복 할 일: ${stats.completedRepeatTodos}개\n` +
+                    `• 설정: ${data.settings ? '복원됨' : '기본값 사용'}`;
                 
                 alert(successMessage);
             } catch (error) {

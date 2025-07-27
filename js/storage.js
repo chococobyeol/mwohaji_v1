@@ -182,12 +182,13 @@ const storage = (() => {
         try {
             const settings = localStorage.getItem(SETTINGS_KEY);
             const defaultSettings = {
-                showCompleted: true // 기본값: 완료된 할 일 표시
+                showCompleted: true, // 기본값: 완료된 할 일 표시
+                todoSortOrder: 'created-desc' // 기본값: 생성일 최신순
             };
             return settings ? { ...defaultSettings, ...JSON.parse(settings) } : defaultSettings;
         } catch (e) {
             console.error('Failed to parse settings from localStorage', e);
-            return { showCompleted: true };
+            return { showCompleted: true, todoSortOrder: 'created-desc' };
         }
     };
 

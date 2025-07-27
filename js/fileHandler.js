@@ -6,7 +6,7 @@ const fileHandler = (() => {
         
         // 백업 메타데이터 추가
         content += "#META:\n";
-        content += `version:1.2\n`;
+        content += `version:1.3\n`;
         content += `created:${new Date().toISOString()}\n`;
         content += `totalTodos:${todos.length}\n`;
         content += `totalCategories:${categories.length}\n`;
@@ -115,6 +115,12 @@ const fileHandler = (() => {
             }).join('\n');
         }
 
+        // 설정 정보 저장
+        content += "\n\n#SETTINGS:\n";
+        const currentSettings = storage.getSettings();
+        content += `showCompleted:${currentSettings.showCompleted}\n`;
+        content += `todoSortOrder:${currentSettings.todoSortOrder || 'created-desc'}\n`;
+
         // 반복 횟수 정보 저장
         if (Object.keys(repeatCounts).length > 0) {
             content += "\n\n#REPEAT_COUNTS:\n";
@@ -134,6 +140,7 @@ const fileHandler = (() => {
         let isCompletedRepeatTodosSection = false;
         let isCategoryOrderSection = false;
         let isRepeatCountsSection = false;
+        let isSettingsSection = false;
         let isMetaSection = false;
 
         const importedData = {
@@ -142,6 +149,7 @@ const fileHandler = (() => {
             completedRepeatTodos: [],
             categoryOrder: [],
             repeatCounts: {},
+            settings: {},
             meta: {}
         };
 
@@ -193,6 +201,17 @@ const fileHandler = (() => {
                 isTodosSection = false;
                 isCompletedRepeatTodosSection = false;
                 isCategoryOrderSection = false;
+                isSettingsSection = false;
+                isMetaSection = false;
+                return;
+            }
+            if (line.trim() === '#SETTINGS:') {
+                isSettingsSection = true;
+                isCategoriesSection = false;
+                isTodosSection = false;
+                isCompletedRepeatTodosSection = false;
+                isCategoryOrderSection = false;
+                isRepeatCountsSection = false;
                 isMetaSection = false;
                 return;
             }
@@ -225,6 +244,17 @@ const fileHandler = (() => {
                     const count = parseInt(line.substring(colonIndex + 1).trim(), 10);
                     if (!isNaN(count)) {
                         importedData.repeatCounts[key] = count;
+                    }
+                }
+            } else if (isSettingsSection) {
+                const colonIndex = line.indexOf(':');
+                if (colonIndex !== -1) {
+                    const key = line.substring(0, colonIndex).trim();
+                    const value = line.substring(colonIndex + 1).trim();
+                    if (key === 'showCompleted') {
+                        importedData.settings.showCompleted = value === 'true';
+                    } else if (key === 'todoSortOrder') {
+                        importedData.settings.todoSortOrder = value;
                     }
                 }
             } else if (isTodosSection || isCompletedRepeatTodosSection) {
