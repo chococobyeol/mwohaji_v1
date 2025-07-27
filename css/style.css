@@ -1547,6 +1547,51 @@ button:hover {
   line-height: 1.4;
 }
 
+/* 초기화 버튼 스타일 */
+.reset-btn {
+  width: 100%;
+  padding: 8px 16px;
+  border: 1px solid;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 6px;
+}
+
+.reset-btn:last-child {
+  margin-bottom: 0;
+}
+
+.reset-btn.danger {
+  background: #fef2f2;
+  color: #dc2626;
+  border-color: #fecaca;
+}
+
+.reset-btn.danger:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #b91c1c;
+}
+
+.reset-btn.secondary {
+  background: white;
+  color: #6b7280;
+  border: 1px solid #d1d5db;
+}
+
+.reset-btn.secondary:hover {
+  background: #f8f9fa;
+  border-color: #9ca3af;
+  color: #1a1a1a;
+}
+
+.reset-btn:active {
+  transform: translateY(0);
+}
+
 /* 토글 스위치 */
 .toggle-switch {
   position: relative;
@@ -1686,9 +1731,9 @@ button:hover {
 }
 
 .danger-btn {
-  background-color: var(--accent-red);
-  color: white;
-  border: none;
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
   padding: 12px 24px;
   border-radius: 6px;
   cursor: pointer;
@@ -1698,9 +1743,9 @@ button:hover {
 }
 
 .danger-btn:hover {
-  background-color: #dc2626;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #b91c1c;
 }
 
 /* 모바일 반응형 */
@@ -1734,6 +1779,11 @@ button:hover {
   
   .setting-description {
     font-size: 11px;
+  }
+  
+  .reset-btn {
+    padding: 10px 16px;
+    font-size: 15px; /* iOS에서 줌 방지 */
   }
 }
 

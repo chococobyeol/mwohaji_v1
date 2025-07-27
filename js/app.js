@@ -1494,6 +1494,60 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // 전체 데이터 초기화 핸들러
+    const handleResetAllData = () => {
+        const confirmMessage = `⚠️ 정말로 모든 데이터를 초기화하시겠습니까?\n\n` +
+            `이 작업은 다음을 모두 삭제합니다:\n` +
+            `• 모든 할일 목록\n` +
+            `• 모든 카테고리\n` +
+            `• 모든 설정\n` +
+            `• 모든 알림 설정\n` +
+            `• 반복 설정 및 기록\n\n` +
+            `이 작업은 되돌릴 수 없습니다.`;
+        
+        if (confirm(confirmMessage)) {
+            // 모든 데이터 초기화
+            todoManager.clearAllData();
+            storage.clearAllData();
+            notificationScheduler.clearAllNotifications();
+            
+            // 설정 초기화
+            settings = { showCompleted: true, todoSortOrder: 'created-desc' };
+            storage.saveSettings(settings);
+            
+            // UI 새로고침
+            render();
+            
+            alert('모든 데이터가 초기화되었습니다.');
+        }
+    };
+
+    // 설정만 초기화 핸들러
+    const handleResetSettings = () => {
+        const confirmMessage = `설정만 초기화하시겠습니까?\n\n` +
+            `다음 설정이 기본값으로 초기화됩니다:\n` +
+            `• 완료된 할일 표시 여부\n` +
+            `• 할일 정렬 순서\n\n` +
+            `할일 데이터는 그대로 유지됩니다.`;
+        
+        if (confirm(confirmMessage)) {
+            // 설정만 초기화
+            settings = { showCompleted: true, todoSortOrder: 'created-desc' };
+            storage.saveSettings(settings);
+            
+            // UI 업데이트
+            const showCompletedToggle = document.getElementById('show-completed-toggle');
+            const todoSortSelect = document.getElementById('todo-sort-select');
+            
+            if (showCompletedToggle) showCompletedToggle.checked = true;
+            if (todoSortSelect) todoSortSelect.value = 'created-desc';
+            
+            renderTodos();
+            
+            alert('설정이 기본값으로 초기화되었습니다.');
+        }
+    };
+
     // 아이콘 초기화
     const initIcons = () => {
         // 헤더 버튼들 - 크기를 18px로 증가
@@ -1575,24 +1629,27 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         
-        // 설정 사이드바에 시간 동기화 버튼 추가
+        // 설정 사이드바에 시간 동기화 버튼 추가 (중복 방지)
         const settingsSidebar = document.getElementById('settings-sidebar');
         const settingsContent = settingsSidebar.querySelector('.settings-sidebar-content');
         
-        // 시간 동기화 섹션 추가
-        const timeSyncSection = document.createElement('div');
-        timeSyncSection.className = 'setting-item';
-        timeSyncSection.innerHTML = `
-            <div class="setting-row">
-                <label class="setting-label">알람 시간 동기화</label>
-                <button id="sync-time-btn" class="secondary-btn" style="padding: 8px 16px; font-size: 14px;">동기화</button>
-            </div>
-            <p class="setting-description">PC 시간이 변경되었을 때 알람 시간을 현재 시간에 맞춰 재계산합니다.</p>
-        `;
-        
-        // 완료된 할 일 표시 설정 다음에 추가
-        const showCompletedSection = settingsContent.querySelector('.setting-item');
-        showCompletedSection.parentNode.insertBefore(timeSyncSection, showCompletedSection.nextSibling);
+        // 기존 동기화 섹션이 있는지 확인
+        let timeSyncSection = document.getElementById('sync-time-btn')?.closest('.setting-item');
+        if (!timeSyncSection) {
+            timeSyncSection = document.createElement('div');
+            timeSyncSection.className = 'setting-item';
+            timeSyncSection.innerHTML = `
+                <div class="setting-row">
+                    <label class="setting-label">알람 시간 동기화</label>
+                    <button id="sync-time-btn" class="secondary-btn" style="padding: 8px 16px; font-size: 14px;">동기화</button>
+                </div>
+                <p class="setting-description">PC 시간이 변경되었을 때 알람 시간을 현재 시간에 맞춰 재계산합니다.</p>
+            `;
+            
+            // 완료된 할 일 표시 설정 다음에 추가
+            const showCompletedSection = settingsContent.querySelector('.setting-item');
+            showCompletedSection.parentNode.insertBefore(timeSyncSection, showCompletedSection.nextSibling);
+        }
         
         // 시간 동기화 버튼 이벤트 리스너
         document.getElementById('sync-time-btn').addEventListener('click', () => {
@@ -1602,38 +1659,76 @@ document.addEventListener('DOMContentLoaded', () => {
             notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
         });
         
-        // 할일 정렬 섹션 추가
-        const todoSortSection = document.createElement('div');
-        todoSortSection.className = 'setting-item';
-        todoSortSection.innerHTML = `
-            <div class="setting-row">
-                <label class="setting-label">할일 정렬 순서</label>
-            </div>
-            <div class="setting-control">
-                <select id="todo-sort-select" class="sort-select">
-                    <option value="created-desc">생성일 최신순</option>
-                    <option value="created-asc">생성일 오래된순</option>
-                    <option value="text-asc">할일명 가나다순</option>
-                    <option value="text-desc">할일명 역순</option>
-                    <option value="category-asc">카테고리 가나다순</option>
-                    <option value="category-desc">카테고리 역순</option>
-                    <option value="completed-asc">미완료 우선</option>
-                    <option value="completed-desc">완료 우선</option>
-                    <option value="schedule-asc">일정 빠른순</option>
-                    <option value="schedule-desc">일정 늦은순</option>
-                </select>
-            </div>
-            <p class="setting-description">할일 목록의 정렬 순서를 설정합니다. 카테고리별 보기와 전체 보기 모두에 적용됩니다.</p>
-        `;
+        // 할일 정렬 섹션 추가 (중복 방지)
+        let todoSortSection = document.getElementById('todo-sort-select')?.closest('.setting-item');
+        if (!todoSortSection) {
+            todoSortSection = document.createElement('div');
+            todoSortSection.className = 'setting-item';
+            todoSortSection.innerHTML = `
+                <div class="setting-row">
+                    <label class="setting-label">할일 정렬 순서</label>
+                </div>
+                <div class="setting-control">
+                    <select id="todo-sort-select" class="sort-select">
+                        <option value="created-desc">생성일 최신순</option>
+                        <option value="created-asc">생성일 오래된순</option>
+                        <option value="text-asc">할일명 가나다순</option>
+                        <option value="text-desc">할일명 역순</option>
+                        <option value="category-asc">카테고리 가나다순</option>
+                        <option value="category-desc">카테고리 역순</option>
+                        <option value="completed-asc">미완료 우선</option>
+                        <option value="completed-desc">완료 우선</option>
+                        <option value="schedule-asc">일정 빠른순</option>
+                        <option value="schedule-desc">일정 늦은순</option>
+                    </select>
+                </div>
+                <p class="setting-description">할일 목록의 정렬 순서를 설정합니다. 카테고리별 보기와 전체 보기 모두에 적용됩니다.</p>
+            `;
+            
+            // 시간 동기화 섹션 다음에 추가
+            timeSyncSection.parentNode.insertBefore(todoSortSection, timeSyncSection.nextSibling);
+        }
         
-        // 시간 동기화 섹션 다음에 추가
-        timeSyncSection.parentNode.insertBefore(todoSortSection, timeSyncSection.nextSibling);
-        
-        // 할일 정렬 선택 초기화
+        // 데이터 초기화 섹션 추가 (중복 방지)
+        let dataResetSection = document.getElementById('reset-all-data-btn')?.closest('.setting-item');
+        if (!dataResetSection) {
+            dataResetSection = document.createElement('div');
+            dataResetSection.className = 'setting-item';
+            dataResetSection.innerHTML = `
+                <div class="setting-row">
+                    <div>
+                        <div class="setting-label">데이터 초기화</div>
+                        <p class="setting-description">모든 데이터를 초기화합니다 (복구 불가)</p>
+                    </div>
+                </div>
+                <div class="setting-control">
+                    <button id="reset-all-data-btn" class="reset-btn danger">데이터 초기화</button>
+                    <button id="reset-settings-btn" class="reset-btn secondary">설정 초기화</button>
+                </div>
+            `;
+            todoSortSection.parentNode.insertBefore(dataResetSection, todoSortSection.nextSibling);
+        }
+
+        // 할일 정렬 선택 초기화 (중복 방지)
         const todoSortSelect = document.getElementById('todo-sort-select');
         if (todoSortSelect) {
             todoSortSelect.value = settings.todoSortOrder || 'created-desc';
+            // 이벤트 리스너 중복 방지
+            todoSortSelect.removeEventListener('change', handleTodoSortChange);
             todoSortSelect.addEventListener('change', handleTodoSortChange);
+        }
+
+        // 데이터 초기화 버튼 이벤트 리스너 (중복 방지)
+        const resetAllDataBtn = document.getElementById('reset-all-data-btn');
+        const resetSettingsBtn = document.getElementById('reset-settings-btn');
+        
+        if (resetAllDataBtn) {
+            resetAllDataBtn.removeEventListener('click', handleResetAllData);
+            resetAllDataBtn.addEventListener('click', handleResetAllData);
+        }
+        if (resetSettingsBtn) {
+            resetSettingsBtn.removeEventListener('click', handleResetSettings);
+            resetSettingsBtn.addEventListener('click', handleResetSettings);
         }
         
         // 알림 스케줄러를 먼저 초기화 (반복 횟수 로드 및 계산)

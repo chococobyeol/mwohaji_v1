@@ -634,9 +634,38 @@ const notificationScheduler = (() => {
         console.log('[NotificationScheduler] 스케줄러 정리 완료');
     };
 
+    // 모든 알림 초기화
+    const clearAllNotifications = () => {
+        console.log('[NotificationScheduler] 모든 알림 초기화 시작');
+        
+        // 모든 타이머 취소
+        scheduledTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
+        scheduledTimeouts.clear();
+        
+        // 반복 횟수 초기화
+        repeatCounts.clear();
+        
+        // 현재 재생 중인 오디오 정리
+        if (currentPlayingAudio) {
+            currentPlayingAudio.pause();
+            currentPlayingAudio.currentTime = 0;
+            currentPlayingAudio = null;
+        }
+        
+        // localStorage에서 반복 횟수 데이터 삭제
+        try {
+            localStorage.removeItem('mwohaji-repeat-counts');
+        } catch (e) {
+            console.error('[NotificationScheduler] 반복 횟수 데이터 삭제 실패:', e);
+        }
+        
+        console.log('[NotificationScheduler] 모든 알림 초기화 완료');
+    };
+
     return {
         initScheduler,
         cleanupScheduler,
+        clearAllNotifications,
         getNextRepeatTime,
         rescheduleAllNotifications,
         getRepeatCount: (key) => repeatCounts.get(key) || 0,

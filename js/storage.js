@@ -200,6 +200,20 @@ const storage = (() => {
         }
     };
 
+    // 모든 데이터 초기화
+    const clearAllData = () => {
+        try {
+            localStorage.removeItem(TODOS_KEY);
+            localStorage.removeItem(CATEGORIES_KEY);
+            localStorage.removeItem(COMPLETED_REPEAT_KEY);
+            localStorage.removeItem(REPEAT_COUNTS_KEY);
+            localStorage.removeItem(SETTINGS_KEY);
+            console.log('All localStorage data cleared successfully');
+        } catch (e) {
+            console.error('Failed to clear localStorage data', e);
+        }
+    };
+
     return {
         getTodos,
         saveTodos,
@@ -208,6 +222,7 @@ const storage = (() => {
         getCompletedRepeatTodos,
         saveCompletedRepeatTodos,
         getSettings,
-        saveSettings
+        saveSettings,
+        clearAllData
     };
 })();
