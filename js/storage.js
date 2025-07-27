@@ -3,6 +3,7 @@ const storage = (() => {
     const CATEGORIES_KEY = 'mwohaji-categories';
     const COMPLETED_REPEAT_KEY = 'mwohaji-completed-repeat';
     const SETTINGS_KEY = 'mwohaji-settings';
+    const REPEAT_COUNTS_KEY = 'mwohaji-repeat-counts';
 
     const getTodos = () => {
         try {

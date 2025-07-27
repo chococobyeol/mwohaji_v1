@@ -1679,6 +1679,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const now = new Date(Date.now());
                 console.log(`[App] 가시성 변경 시 현재 시간: ${now.toLocaleString('ko-KR')} (${now.toISOString()}) [Timestamp: ${Date.now()}]`);
                 notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
+            } else {
+                console.log('[App] 페이지가 숨겨짐 - 알림은 백그라운드에서 계속 작동');
             }
         });
         
@@ -1984,7 +1986,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 // 알림 스케줄러 재초기화 (데이터 복구 후)
                 if (window.notificationScheduler) {
                     console.log('[App] 데이터 복구 후 알림 스케줄러 재초기화');
-                    window.notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
+                    // 약간의 지연 후 재스케줄링 (데이터 로드 완료 보장)
+                    setTimeout(() => {
+                        window.notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
+                        console.log('[App] 알림 스케줄러 재초기화 완료');
+                    }, 100);
                 }
                 
                 // UI 초기화
