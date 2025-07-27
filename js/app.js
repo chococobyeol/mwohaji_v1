@@ -77,7 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentView = 'project';
     let selectedCategoryId = 'default';
     let currentEditingTodoId = null;
-    let settings = { showCompleted: true, todoSortOrder: 'created-desc' }; // 설정 상태
+    let settings = { showCompleted: true, todoSortOrder: 'created-desc', collapsedCategories: {} }; // 설정 상태
 
     // 설정 사이드바 관련
     const globalSettingsBtn = document.getElementById('global-settings-btn');
@@ -1134,15 +1134,49 @@ document.addEventListener('DOMContentLoaded', () => {
             if (groupedTodos[categoryName]) {
                 const groupContainer = document.createElement('div');
                 groupContainer.className = 'project-group';
+                
+                // 카테고리 헤더 (기존 스타일 유지)
+                const categoryHeader = document.createElement('div');
+                categoryHeader.className = 'category-header';
+                
                 const categoryTitle = document.createElement('h3');
                 categoryTitle.className = 'project-title';
                 categoryTitle.textContent = categoryName;
-                groupContainer.appendChild(categoryTitle);
+                
+                // 접기/펼치기 버튼 추가
+                const toggleBtn = document.createElement('button');
+                toggleBtn.className = 'category-toggle-btn';
+                toggleBtn.innerHTML = `
+                    <svg class="toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="6,9 12,15 18,9"></polyline>
+                    </svg>
+                `;
+                toggleBtn.title = '접기/펼치기';
+                
+                // 카테고리 접기 상태 확인
+                const isCollapsed = settings.collapsedCategories && settings.collapsedCategories[categoryName];
+                if (isCollapsed) {
+                    groupContainer.classList.add('collapsed');
+                    toggleBtn.classList.add('collapsed');
+                }
+                
+                // 버튼 클릭 이벤트
+                toggleBtn.addEventListener('click', () => handleCategoryToggle(categoryName));
+                
+                categoryHeader.appendChild(categoryTitle);
+                categoryHeader.appendChild(toggleBtn);
+                groupContainer.appendChild(categoryHeader);
+                
+                // 할일 목록 컨테이너
+                const todosContainer = document.createElement('div');
+                todosContainer.className = 'category-todos';
                 
                 // 각 카테고리 내에서 할일들을 설정된 정렬 순서로 정렬
                 const sortedTodos = sortTodos(groupedTodos[categoryName]);
                 
-                sortedTodos.forEach(todo => groupContainer.appendChild(createTodoElement(todo)));
+                sortedTodos.forEach(todo => todosContainer.appendChild(createTodoElement(todo)));
+                groupContainer.appendChild(todosContainer);
+                
                 todoListContainer.appendChild(groupContainer);
             }
         });
@@ -1522,17 +1556,29 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // 카테고리 접기/펼치기 핸들러
+    const handleCategoryToggle = (categoryName) => {
+        if (!settings.collapsedCategories) {
+            settings.collapsedCategories = {};
+        }
+        
+        settings.collapsedCategories[categoryName] = !settings.collapsedCategories[categoryName];
+        storage.saveSettings(settings);
+        renderTodos(); // 즉시 반영
+    };
+
     // 설정만 초기화 핸들러
     const handleResetSettings = () => {
         const confirmMessage = `설정만 초기화하시겠습니까?\n\n` +
             `다음 설정이 기본값으로 초기화됩니다:\n` +
             `• 완료된 할일 표시 여부\n` +
-            `• 할일 정렬 순서\n\n` +
+            `• 할일 정렬 순서\n` +
+            `• 카테고리 접기 상태\n\n` +
             `할일 데이터는 그대로 유지됩니다.`;
         
         if (confirm(confirmMessage)) {
             // 설정만 초기화
-            settings = { showCompleted: true, todoSortOrder: 'created-desc' };
+            settings = { showCompleted: true, todoSortOrder: 'created-desc', collapsedCategories: {} };
             storage.saveSettings(settings);
             
             // UI 업데이트
