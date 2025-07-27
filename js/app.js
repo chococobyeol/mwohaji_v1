@@ -897,8 +897,27 @@ document.addEventListener('DOMContentLoaded', () => {
                     // 시작 알림과 마감 알림 각각 확인
                     const startCountKey = `${todo.id}-start`;
                     const dueCountKey = `${todo.id}-due`;
-                    const startCount = window.notificationScheduler ? (window.notificationScheduler.getRepeatCount(startCountKey) || 0) : 0;
-                    const dueCount = window.notificationScheduler ? (window.notificationScheduler.getRepeatCount(dueCountKey) || 0) : 0;
+                    
+                    // notificationScheduler가 초기화되지 않은 경우를 대비한 안전장치
+                    let startCount = 0;
+                    let dueCount = 0;
+                    
+                    if (window.notificationScheduler && window.notificationScheduler.getRepeatCount) {
+                        startCount = window.notificationScheduler.getRepeatCount(startCountKey) || 0;
+                        dueCount = window.notificationScheduler.getRepeatCount(dueCountKey) || 0;
+                    } else {
+                        // notificationScheduler가 아직 초기화되지 않은 경우, localStorage에서 직접 로드
+                        try {
+                            const countsData = localStorage.getItem('mwohaji-repeat-counts');
+                            if (countsData) {
+                                const counts = JSON.parse(countsData);
+                                startCount = counts[startCountKey] || 0;
+                                dueCount = counts[dueCountKey] || 0;
+                            }
+                        } catch (e) {
+                            console.warn('[App] localStorage에서 반복 횟수 로드 실패:', e);
+                        }
+                    }
                     
                     const startCompleted = repeat.startCompleted || startCount >= repeat.limit;
                     const dueCompleted = repeat.dueCompleted || dueCount >= repeat.limit;
@@ -1513,9 +1532,11 @@ document.addEventListener('DOMContentLoaded', () => {
             notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
         });
         
-        render();
-        // 알림 스케줄러 초기화
+        // 알림 스케줄러를 먼저 초기화 (반복 횟수 로드 및 계산)
         notificationScheduler.initScheduler();
+        
+        // 그 다음에 UI 렌더링 (반복 횟수가 준비된 후)
+        render();
     };
 
     // textarea 키보드 이벤트 핸들러

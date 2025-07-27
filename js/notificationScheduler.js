@@ -140,16 +140,26 @@ const notificationScheduler = (() => {
         const countKey = `${todo.id}-${type}`;
         const timeDiff = now.getTime() - base.getTime();
         const minutesDiff = Math.floor(timeDiff / (60 * 1000));
+        
+        // 음수 시간 차이는 아직 시작하지 않은 경우
+        if (minutesDiff < 0) {
+            console.log(`[RepeatAlarm] 아직 시작하지 않은 알림: ${todo.text} (${type}) - ${minutesDiff}분 남음`);
+            return;
+        }
+        
         const expectedCount = Math.floor(minutesDiff / interval) + 1; // +1은 첫 번째 알림
         const actualCount = Math.min(expectedCount, limit);
         
         // 기존 카운트와 비교하여 더 큰 값으로 설정
         const currentCount = repeatCounts.get(countKey) || 0;
-        if (actualCount > currentCount) {
+        
+        // 실제로 알림이 발생했을 때만 카운트를 증가시킴
+        // 현재 시간이 base 시간보다 이후이고, 아직 완료되지 않은 경우에만
+        if (actualCount > currentCount && actualCount > 0) {
             repeatCounts.set(countKey, actualCount);
             console.log(`[RepeatAlarm] 시간 기반 카운트 업데이트: ${todo.text} (${type}) - ${actualCount}/${limit} (${minutesDiff}분 경과, ${interval}분 간격)`);
             
-            // 완료 상태 동기화
+            // 완료 상태 동기화 (실제로 limit에 도달했을 때만)
             if (actualCount >= limit) {
                 if (type === 'start') {
                     todo.repeat.startCompleted = true;
@@ -506,8 +516,8 @@ const notificationScheduler = (() => {
             if (todo.schedule && todo.schedule.startTime) {
                 if (todo.repeat) {
                     // 반복 할 일은 반복 알림만 사용
-                    // 시간 기반 횟수 계산 (새로고침 시 동기화) - 완료되지 않은 경우만
-                    if (todo.repeat.type === 'interval' && !todo.repeat.startCompleted) {
+                    // 시간 기반 횟수 계산 (새로고침 시 동기화)
+                    if (todo.repeat.type === 'interval') {
                         calculateTimeBasedCount(todo, 'start');
                     }
                     scheduleRepeatNotification(todo, 'start');
@@ -522,8 +532,8 @@ const notificationScheduler = (() => {
             if (todo.schedule && todo.schedule.dueTime) {
                 if (todo.repeat) {
                     // 반복 할 일은 반복 알림만 사용
-                    // 시간 기반 횟수 계산 (새로고침 시 동기화) - 완료되지 않은 경우만
-                    if (todo.repeat.type === 'interval' && !todo.repeat.dueCompleted) {
+                    // 시간 기반 횟수 계산 (새로고침 시 동기화)
+                    if (todo.repeat.type === 'interval') {
                         calculateTimeBasedCount(todo, 'due');
                     }
                     scheduleRepeatNotification(todo, 'due');
@@ -594,7 +604,9 @@ const notificationScheduler = (() => {
                 Object.entries(counts).forEach(([key, count]) => {
                     repeatCounts.set(key, count);
                 });
-                console.log('[NotificationScheduler] 반복 횟수 로드 완료');
+                console.log('[NotificationScheduler] 반복 횟수 로드 완료:', counts);
+            } else {
+                console.log('[NotificationScheduler] 저장된 반복 횟수 데이터가 없습니다.');
             }
         } catch (e) {
             console.error('[NotificationScheduler] 반복 횟수 로드 실패:', e);
