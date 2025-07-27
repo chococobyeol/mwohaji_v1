@@ -7,10 +7,18 @@ const notificationScheduler = (() => {
         if (currentPlayingAudio) {
             currentPlayingAudio.pause();
             currentPlayingAudio.currentTime = 0;
+            currentPlayingAudio = null; // 참조 제거
         }
         const audio = new Audio('assets/sounds/notification.mp3');
         audio.play().catch(e => console.error('알림 소리 재생 실패:', e));
         currentPlayingAudio = audio; // 현재 재생 중인 오디오 객체 저장
+        
+        // 오디오 재생 완료 후 참조 정리
+        audio.addEventListener('ended', () => {
+            if (currentPlayingAudio === audio) {
+                currentPlayingAudio = null;
+            }
+        });
     };
 
     // 알림 모달 표시 함수
@@ -76,10 +84,10 @@ const notificationScheduler = (() => {
         let diff = targetTime.getTime() - now.getTime(); // 밀리초 단위 차이
 
         // 알람 시간이 이미 지난 경우 (음수 diff)
-        if (diff < 0) {
+        if (diff <= 0) {
             // 과거의 알람은 울리지 않고 notified 상태를 true로 설정하여 다시 울리지 않도록 함
             todoManager.markNotified(todo.id, type);
-            console.log(`[NotificationScheduler] 과거 알림 스킵: '${todo.text}' (${titlePrefix}) - 이미 ${-diff / 1000}초 지남.`);
+            console.log(`[NotificationScheduler] 과거 알림 스킵: '${todo.text}' (${titlePrefix}) - 이미 ${Math.abs(diff) / 1000}초 지남.`);
             return;
         }
 
@@ -93,7 +101,7 @@ const notificationScheduler = (() => {
         // setTimeout으로 알림 예약
         const timeoutId = setTimeout(() => {
             // 알림이 트리거될 때 실제 알림을 띄우고 소리를 재생
-            console.log(`    >>> ${titlePrefix} 트리거: '${todo.text}'`);
+            console.log(`    >>> ${titlePrefix} 트리거: '${todo.text}' (예약된 시간: ${targetTime}, 실제 트리거 시간: ${new Date()})`);
             if (todo.schedule[modalProperty] !== false) {
                 showNotificationModal(titlePrefix, `'${todo.text}'`);
             }
@@ -104,6 +112,12 @@ const notificationScheduler = (() => {
             todoManager.markNotified(todo.id, type);
             // 예약된 타이머 목록에서 제거
             scheduledTimeouts.delete(timeoutKey);
+            
+            // 알람이 울린 후 즉시 UI 업데이트
+            if (window.app && window.app.renderTodos) {
+                console.log('[Notification] 알람 울림 후 UI 즉시 업데이트');
+                window.app.renderTodos();
+            }
 
         }, diff);
 
@@ -113,10 +127,11 @@ const notificationScheduler = (() => {
 
     // 반복 알림의 다음 알림 시각 계산 함수
     function getNextRepeatTime(todo, type) {
-        // 시스템 시간 변경을 강제로 반영하기 위해 Date 객체를 새로 생성
-        // 브라우저 캐시 무시를 위해 시간을 다시 설정
-        const now = new Date(new Date().getTime());
-        console.log(`[RepeatAlarm] 현재 시간 확인: ${now}`);
+        // 브라우저 캐싱을 우회하여 실제 시스템 시간 강제 가져오기
+        const now = new Date(Date.now());
+        console.log(`[RepeatAlarm] 현재 시간 확인: ${now.toLocaleString('ko-KR')} (${now.toISOString()}) [Timestamp: ${Date.now()}]`);
+        
+        // 사용자가 설정한 최신 시간을 base로 사용 (수정된 시간이 우선)
         let base = new Date(todo.schedule[type === 'start' ? 'startTime' : 'dueTime']);
         if (!todo.repeat) { 
             console.log('[RepeatAlarm] repeat 없음, 예약 불가'); 
@@ -129,23 +144,33 @@ const notificationScheduler = (() => {
             return null;
         }
         
+        console.log(`[RepeatAlarm] 사용자 설정 시간 (base): ${base.toLocaleString('ko-KR')} (${base.toISOString()})`);
+        
         if (todo.repeat.type === 'daily') {
             // 현재 시간을 기준으로 다음 알림 시간 계산
             const interval = todo.repeat.interval || 1;
+            
+            // base 시간의 시/분을 추출 (사용자가 설정한 정확한 시간)
             const baseHours = base.getHours();
             const baseMinutes = base.getMinutes();
             
-            // base 시간부터 시작해서 현재 시간 이후의 다음 알림 시간 찾기
+            console.log(`[RepeatAlarm] daily 설정된 시간: ${baseHours}시 ${baseMinutes}분`);
+            
+            // 사용자가 설정한 날짜에 설정된 시간을 적용 (오늘 날짜가 아님!)
             let nextTime = new Date(base);
+            nextTime.setHours(baseHours, baseMinutes, 0, 0);
             
-            console.log(`[RepeatAlarm] daily 초기 계산: base=${base}, now=${now}, nextTime=${nextTime}, interval=${interval}`);
+            console.log(`[RepeatAlarm] daily 초기 계산: base=${base.toLocaleString('ko-KR')}, now=${now.toLocaleString('ko-KR')}, nextTime=${nextTime.toLocaleString('ko-KR')}, interval=${interval}`);
             
-            // base 시간이 현재 시간보다 이전이면 interval만큼 증가
+            // nextTime이 현재 시간보다 이전이거나 같으면 다음 날로 이동
             let iteration = 0;
-            while (nextTime < now && iteration < 100) { // 무한 루프 방지 (<= 대신 < 사용)
+            let skippedCount = 0;
+            while (nextTime <= now && iteration < 100) {
+                const previousTime = new Date(nextTime);
                 nextTime = new Date(nextTime.getTime() + (interval * 24 * 60 * 60 * 1000));
                 iteration++;
-                console.log(`[RepeatAlarm] daily 반복 계산 ${iteration}: nextTime=${nextTime} (interval=${interval}일)`);
+                skippedCount++;
+                console.log(`[RepeatAlarm] daily 반복 계산 ${iteration}: ${previousTime.toLocaleString('ko-KR')} 스킵 → ${nextTime.toLocaleString('ko-KR')} (interval=${interval}일)`);
             }
             
             if (iteration >= 100) {
@@ -153,7 +178,11 @@ const notificationScheduler = (() => {
                 return null;
             }
             
-            console.log(`[RepeatAlarm] daily 최종: base=${base}, now=${now}, nextTime=${nextTime}`);
+            if (skippedCount > 0) {
+                console.log(`[RepeatAlarm] daily 스킵된 알림: ${skippedCount}개, 다음 알림: ${nextTime.toLocaleString('ko-KR')}`);
+            }
+            
+            console.log(`[RepeatAlarm] daily 최종: base=${base.toLocaleString('ko-KR')}, now=${now.toLocaleString('ko-KR')}, nextTime=${nextTime.toLocaleString('ko-KR')}`);
             return nextTime;
         }
         
@@ -164,11 +193,18 @@ const notificationScheduler = (() => {
                 return null; 
             }
             
-            // 오늘 포함하여 앞으로 28일 동안 확인
+            // base 시간의 시/분을 추출
+            const baseHours = base.getHours();
+            const baseMinutes = base.getMinutes();
+            
+            console.log(`[RepeatAlarm] weekly 설정된 시간: ${baseHours}시 ${baseMinutes}분`);
+            
+            // 사용자가 설정한 날짜부터 시작하여 앞으로 28일 동안 확인
+            let startDate = new Date(base);
             for (let i = 0; i < 28; i++) {
-                let candidate = new Date(now);
+                let candidate = new Date(startDate);
                 candidate.setDate(candidate.getDate() + i);
-                candidate.setHours(base.getHours(), base.getMinutes(), 0, 0);
+                candidate.setHours(baseHours, baseMinutes, 0, 0);
                 
                 let candidateDay = candidate.getDay();
                 let candidateDayAdjusted = candidateDay === 0 ? 7 : candidateDay;
@@ -189,14 +225,22 @@ const notificationScheduler = (() => {
                 return null; 
             }
             
-            // 현재 월부터 3개월까지 확인
+            // base 시간의 시/분을 추출
+            const baseHours = base.getHours();
+            const baseMinutes = base.getMinutes();
+            
+            console.log(`[RepeatAlarm] monthly 설정된 시간: ${baseHours}시 ${baseMinutes}분`);
+            
+            // 사용자가 설정한 월부터 3개월까지 확인
+            let startMonth = new Date(base.getFullYear(), base.getMonth(), 1);
             for (let monthOffset = 0; monthOffset < 3; monthOffset++) {
-                let candidateMonth = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
+                let candidateMonth = new Date(startMonth);
+                candidateMonth.setMonth(candidateMonth.getMonth() + monthOffset);
                 
                 for (let date of dates) {
                     let candidate = new Date(candidateMonth);
                     candidate.setDate(date);
-                    candidate.setHours(base.getHours(), base.getMinutes(), 0, 0);
+                    candidate.setHours(baseHours, baseMinutes, 0, 0);
                     
                     if (candidate > now) {
                         console.log(`[RepeatAlarm] monthly, nextTime: ${candidate} (날짜: ${date}일)`);
@@ -239,16 +283,36 @@ const notificationScheduler = (() => {
         console.log(`[RepeatAlarm] 계산 시점의 현재 시간: ${new Date()}`);
         
         // nextTime이 현재 시간보다 미래인지 다시 한번 확인
-        const now = new Date(new Date().getTime()); // getNextRepeatTime과 동일한 방식
+        const now = new Date(Date.now());
         const diff = nextTime.getTime() - now.getTime();
         
-        console.log(`[RepeatAlarm] 시간 차이 확인: nextTime=${nextTime}, now=${now}, diff=${diff}ms`);
+        console.log(`[RepeatAlarm] 시간 차이 확인: nextTime=${nextTime.toLocaleString('ko-KR')}, now=${now.toLocaleString('ko-KR')}, diff=${diff}ms [Timestamp: ${Date.now()}]`);
         
-        if (diff < 0) { 
-            console.log(`[RepeatAlarm] nextTime이 과거(${nextTime}), 예약 스킵 - diff=${diff}ms`);
-            console.log(`[RepeatAlarm] 현재 시간이 ${Math.abs(diff/1000/60)}분 더 늦음`);
+        if (diff <= 0) { 
+            console.log(`[RepeatAlarm] nextTime이 과거 또는 현재(${nextTime}), 예약 스킵 - diff=${diff}ms`);
+            if (diff < 0) {
+                console.log(`[RepeatAlarm] 현재 시간이 ${Math.abs(diff/1000/60)}분 더 늦음`);
+            }
+            // 스킵된 경우에도 다음 알림을 재계산해보기 (최대 3회까지만)
+            const retryKey = `${todo.id}-${type}-retry`;
+            const retryCount = parseInt(sessionStorage.getItem(retryKey) || '0');
+            
+            if (retryCount < 3) {
+                console.log(`[RepeatAlarm] 스킵된 알림에 대해 다음 알림 재계산 시도 (${retryCount + 1}/3)`);
+                sessionStorage.setItem(retryKey, (retryCount + 1).toString());
+                setTimeout(() => {
+                    scheduleRepeatNotification(todo, type);
+                }, 1000); // 1초 후 재시도
+            } else {
+                console.log(`[RepeatAlarm] 최대 재시도 횟수 초과, 알림 스킵`);
+                sessionStorage.removeItem(retryKey);
+            }
             return; 
         }
+        
+        // 성공적으로 예약되면 재시도 카운터 초기화
+        const retryKey = `${todo.id}-${type}-retry`;
+        sessionStorage.removeItem(retryKey);
         
         // 디버깅: 예약 전 최종 확인
         console.log(`[RepeatAlarm] 최종 예약 확인: ${todo.text} (${type}) - ${nextTime}까지 ${Math.round(diff/1000)}초 남음`);
@@ -262,19 +326,34 @@ const notificationScheduler = (() => {
         console.log(`[RepeatAlarm] 예약: ${todo.text} (${type}), ${nextTime}까지 ${Math.round(diff/1000)}초 남음`);
         
         const timeoutId = setTimeout(() => {
-            console.log(`[RepeatAlarm] 트리거: ${todo.text} (${type}), ${nextTime}`);
+            console.log(`[RepeatAlarm] 트리거: ${todo.text} (${type}), 예약된 시간: ${nextTime}, 실제 트리거 시간: ${new Date()}`);
+            
+            // 알림 표시 및 소리 재생
             if (todo.schedule[modalProperty] !== false) {
                 showNotificationModal(titlePrefix, `'${todo.text}' (반복)`);
             }
             if (todo.schedule[notificationProperty]) {
                 playNotificationSound();
             }
-            // 반복 알림에서는 notified 상태를 업데이트하지 않음 (반복이므로)
-            // 다음 알림만 예약 (알람이 울린 시점 기준으로 계산)
-            const alarmTriggerTime = new Date(new Date().getTime()); // 강제 시간 동기화
-            console.log(`[RepeatAlarm] 알람 울림 시점: ${alarmTriggerTime}`);
-            console.log(`[RepeatAlarm] 다음 알림 예약 시작 - 알람 울림 시점 기준`);
-            scheduleRepeatNotification(todo, type);
+            
+            // 알람이 울린 후 즉시 UI 업데이트
+            if (window.app && window.app.renderTodos) {
+                console.log('[RepeatAlarm] 알람 울림 후 UI 즉시 업데이트');
+                window.app.renderTodos();
+            }
+            
+            // 반복 알림에서는 다음 알림을 즉시 예약
+            // 약간의 지연을 두어 현재 알림 처리가 완료된 후 다음 알림을 예약
+            setTimeout(() => {
+                console.log(`[RepeatAlarm] 다음 알림 예약 시작 - 알람 울림 시점 기준`);
+                scheduleRepeatNotification(todo, type);
+                
+                // 다음 알람 예약 후에도 UI 업데이트
+                if (window.app && window.app.renderTodos) {
+                    console.log('[RepeatAlarm] 다음 알람 예약 후 UI 업데이트');
+                    window.app.renderTodos();
+                }
+            }, 100);
         }, diff);
         
         scheduledTimeouts.set(timeoutKey, timeoutId);
@@ -283,15 +362,21 @@ const notificationScheduler = (() => {
     // 모든 할 일의 알림을 재스케줄링하는 함수
     const rescheduleAllNotifications = (todos) => {
         console.log('[NotificationScheduler] 모든 알림 재스케줄링 시작');
+        const now = new Date(Date.now());
+        console.log(`[NotificationScheduler] 현재 시간: ${now.toLocaleString('ko-KR')} (${now.toISOString()}) [Timestamp: ${Date.now()}]`);
         
         // 기존 타이머 모두 취소
         scheduledTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
         scheduledTimeouts.clear();
         
+        let scheduledCount = 0;
+        let skippedCount = 0;
+        
         todos.forEach(todo => {
             // 완료된 할 일은 알림 스케줄링하지 않음
             if (todo.completed) {
                 console.log(`[NotificationScheduler] 완료된 할 일 스킵: ${todo.text}`);
+                skippedCount++;
                 return;
             }
             
@@ -299,9 +384,11 @@ const notificationScheduler = (() => {
                 if (todo.repeat) {
                     // 반복 할 일은 반복 알림만 사용
                     scheduleRepeatNotification(todo, 'start');
+                    scheduledCount++;
                 } else {
                     // 일반 할 일은 일반 알림 사용
                     scheduleNotification(todo, 'start');
+                    scheduledCount++;
                 }
             }
             
@@ -309,14 +396,16 @@ const notificationScheduler = (() => {
                 if (todo.repeat) {
                     // 반복 할 일은 반복 알림만 사용
                     scheduleRepeatNotification(todo, 'due');
+                    scheduledCount++;
                 } else {
                     // 일반 할 일은 일반 알림 사용
                     scheduleNotification(todo, 'due');
+                    scheduledCount++;
                 }
             }
         });
         
-        console.log('[NotificationScheduler] 모든 알림 재스케줄링 완료');
+        console.log(`[NotificationScheduler] 모든 알림 재스케줄링 완료 - 예약: ${scheduledCount}개, 스킵: ${skippedCount}개`);
         
         // UI 업데이트를 위해 renderTodos 호출
         if (window.app && window.app.renderTodos) {
@@ -338,8 +427,27 @@ const notificationScheduler = (() => {
         console.log('[NotificationScheduler] 스케줄러 초기화 완료');
     };
 
+    // 정리 함수 (앱 종료 시 호출)
+    const cleanupScheduler = () => {
+        console.log('[NotificationScheduler] 스케줄러 정리 시작');
+        
+        // 모든 타이머 취소
+        scheduledTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
+        scheduledTimeouts.clear();
+        
+        // 현재 재생 중인 오디오 정리
+        if (currentPlayingAudio) {
+            currentPlayingAudio.pause();
+            currentPlayingAudio.currentTime = 0;
+            currentPlayingAudio = null;
+        }
+        
+        console.log('[NotificationScheduler] 스케줄러 정리 완료');
+    };
+
     return {
         initScheduler,
+        cleanupScheduler,
         getNextRepeatTime,
         rescheduleAllNotifications
     };

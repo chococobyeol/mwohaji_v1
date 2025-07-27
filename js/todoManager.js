@@ -279,6 +279,16 @@ const todoManager = (() => {
                 if (isNaN(newStartTimeDate.getTime())) {
                     console.error(`[updateTodoSchedule] Invalid startTime format: ${scheduleData.startTime}`);
                     newStartTimeDate = null; // Reset to null if invalid
+                } else {
+                    // 날짜 유효성 추가 검사
+                    const now = new Date();
+                    const minDate = new Date(now.getFullYear() - 1, 0, 1); // 1년 전
+                    const maxDate = new Date(now.getFullYear() + 10, 11, 31); // 10년 후
+                    
+                    if (newStartTimeDate < minDate || newStartTimeDate > maxDate) {
+                        console.error(`[updateTodoSchedule] startTime out of valid range: ${newStartTimeDate}`);
+                        newStartTimeDate = null;
+                    }
                 }
             }
             if ((oldStartTime instanceof Date ? oldStartTime.getTime() : null) !== (newStartTimeDate ? newStartTimeDate.getTime() : null)) {
@@ -307,6 +317,16 @@ const todoManager = (() => {
                 if (isNaN(newDueTimeDate.getTime())) {
                     console.error(`[updateTodoSchedule] Invalid dueTime format: ${scheduleData.dueTime}`);
                     newDueTimeDate = null; // Reset to null if invalid
+                } else {
+                    // 날짜 유효성 추가 검사
+                    const now = new Date();
+                    const minDate = new Date(now.getFullYear() - 1, 0, 1); // 1년 전
+                    const maxDate = new Date(now.getFullYear() + 10, 11, 31); // 10년 후
+                    
+                    if (newDueTimeDate < minDate || newDueTimeDate > maxDate) {
+                        console.error(`[updateTodoSchedule] dueTime out of valid range: ${newDueTimeDate}`);
+                        newDueTimeDate = null;
+                    }
                 }
             }
             if ((oldDueTime instanceof Date ? oldDueTime.getTime() : null) !== (newDueTimeDate ? newDueTimeDate.getTime() : null)) {

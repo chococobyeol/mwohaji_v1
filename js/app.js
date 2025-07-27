@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const categoryList = document.getElementById('category-list');
     const addCategoryBtn = document.getElementById('add-category-btn');
     const newCategoryInput = document.getElementById('new-category-input');
+    const currentTimeElement = document.getElementById('current-time');
 
     // 일정 설정 모달 관련 DOM Elements
     const scheduleModal = document.getElementById('schedule-modal');
@@ -96,6 +97,35 @@ document.addEventListener('DOMContentLoaded', () => {
         settingsSidebarOverlay.classList.remove('open');
         setTimeout(() => { settingsSidebar.style.display = 'none'; settingsSidebarOverlay.style.display = 'none'; }, 300);
     }
+
+    // 실시간 시간 업데이트 함수
+    const updateCurrentTime = () => {
+        if (currentTimeElement) {
+            // 브라우저 캐싱을 우회하여 실제 시스템 시간 강제 가져오기
+            const now = new Date(Date.now());
+            
+            // 로그와 동일한 형식으로 시간 표시 (ISO 형식)
+            const timeString = now.toISOString().replace('T', ' ').substring(0, 19);
+            
+            // 로컬 시간도 함께 표시
+            const localTimeString = now.toLocaleString('ko-KR', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+            });
+            
+            // 시간대 정보 포함
+            const timezoneOffset = now.getTimezoneOffset();
+            const timezoneString = timezoneOffset === -540 ? 'KST' : 'UTC';
+            
+            currentTimeElement.textContent = `${localTimeString} (${timezoneString})`;
+            currentTimeElement.title = `ISO: ${timeString}\nLocal: ${localTimeString}\nTimezone: ${timezoneString}\nTimestamp: ${Date.now()}`;
+        }
+    };
 
     // RENDER FUNCTIONS
     const render = () => {
@@ -383,11 +413,16 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // 반복 설정 변경 시 알림 스케줄러 재초기화
             if (window.notificationScheduler) {
+                console.log('[App] 반복 설정 변경 - 알림 스케줄러 재초기화');
                 window.notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
             }
         }
         closeRepeatModal();
         render();
+        
+        // 반복 설정 변경 후 즉시 UI 업데이트
+        console.log('[App] 반복 설정 변경 후 즉시 UI 업데이트');
+        renderTodos();
     };
 
     // 카테고리 삭제 모달 관련 함수들
@@ -1165,8 +1200,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         todoManager.updateTodoSchedule(currentEditingTodoId, scheduleData);
+        
+        // 일정 변경 시 알림 스케줄러 재초기화
+        if (window.notificationScheduler) {
+            console.log('[App] 일정 변경 - 알림 스케줄러 재초기화');
+            window.notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
+        }
+        
         closeScheduleModal();
         render();
+        
+        // 일정 변경 후 즉시 UI 업데이트
+        console.log('[App] 일정 변경 후 즉시 UI 업데이트');
+        renderTodos();
     };
 
     // 일정 설정 토글 함수
@@ -1194,7 +1240,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         todoManager.updateTodoSchedule(todoId, scheduleData);
+        
+        // 알림 설정 변경 시 알림 스케줄러 재초기화
+        if (window.notificationScheduler) {
+            console.log('[App] 알림 설정 변경 - 알림 스케줄러 재초기화');
+            window.notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
+        }
+        
         render();
+        
+        // 알림 설정 변경 후 즉시 UI 업데이트
+        console.log('[App] 알림 설정 변경 후 즉시 UI 업데이트');
+        renderTodos();
     };
 
     // 설정 토글 이벤트 핸들러
@@ -1234,6 +1291,10 @@ document.addEventListener('DOMContentLoaded', () => {
         initIcons();
         createRepeatModal();
 
+        // 실시간 시간 업데이트 시작
+        updateCurrentTime(); // 초기 시간 표시
+        setInterval(updateCurrentTime, 1000); // 1초마다 업데이트
+
         // 이벤트 리스너 추가
         saveScheduleBtn.addEventListener('click', saveSchedule);
         cancelScheduleBtn.addEventListener('click', closeScheduleModal);
@@ -1248,6 +1309,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // 시스템 시간 변경 감지를 위한 이벤트 리스너 추가
         window.addEventListener('focus', () => {
             console.log('[App] 페이지 포커스 감지 - 알림 재스케줄링');
+            const now = new Date(Date.now());
+            console.log(`[App] 포커스 시 현재 시간: ${now.toLocaleString('ko-KR')} (${now.toISOString()}) [Timestamp: ${Date.now()}]`);
             notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
         });
         
@@ -1255,10 +1318,25 @@ document.addEventListener('DOMContentLoaded', () => {
         document.addEventListener('visibilitychange', () => {
             if (!document.hidden) {
                 console.log('[App] 페이지 가시성 변경 감지 - 알림 재스케줄링');
-                // 강제로 시간 동기화
-                const currentTime = new Date();
-                console.log(`[App] 가시성 변경 시 현재 시간: ${currentTime}`);
+                const now = new Date(Date.now());
+                console.log(`[App] 가시성 변경 시 현재 시간: ${now.toLocaleString('ko-KR')} (${now.toISOString()}) [Timestamp: ${Date.now()}]`);
                 notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
+            }
+        });
+        
+        // 주기적인 시간 동기화 (5분마다)
+        setInterval(() => {
+            console.log('[App] 주기적 시간 동기화 실행');
+            const now = new Date(Date.now());
+            console.log(`[App] 주기적 동기화 시 현재 시간: ${now.toLocaleString('ko-KR')} (${now.toISOString()}) [Timestamp: ${Date.now()}]`);
+            notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
+        }, 5 * 60 * 1000); // 5분마다
+        
+        // 페이지 언로드 시 정리
+        window.addEventListener('beforeunload', () => {
+            console.log('[App] 페이지 언로드 - 스케줄러 정리');
+            if (window.notificationScheduler && window.notificationScheduler.cleanupScheduler) {
+                window.notificationScheduler.cleanupScheduler();
             }
         });
         
@@ -1284,8 +1362,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // 시간 동기화 버튼 이벤트 리스너
         document.getElementById('sync-time-btn').addEventListener('click', () => {
             console.log('[App] 수동 시간 동기화 실행');
-            const currentTime = new Date();
-            console.log(`[App] 수동 동기화 시 현재 시간: ${currentTime}`);
+            const now = new Date(Date.now());
+            console.log(`[App] 수동 동기화 시 현재 시간: ${now.toLocaleString('ko-KR')} (${now.toISOString()}) [Timestamp: ${Date.now()}]`);
             notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
         });
         
