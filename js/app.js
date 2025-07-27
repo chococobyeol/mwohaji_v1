@@ -77,7 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentView = 'project';
     let selectedCategoryId = 'default';
     let currentEditingTodoId = null;
-    let settings = { showCompleted: true, todoSortOrder: 'created-desc', collapsedCategories: {} }; // 설정 상태
+    let settings = { showCompleted: true, todoSortOrder: 'created-desc', collapsedCategories: {}, autoScrollToCategory: true }; // 설정 상태
 
     // 설정 사이드바 관련
     const globalSettingsBtn = document.getElementById('global-settings-btn');
@@ -159,9 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let displayTime;
             if (todo.repeat && getNextRepeatTime) {
                 // 현재 시간을 강제로 동기화한 후 다음 알림 시간 계산
-                console.log(`[App] renderScheduleInfo - 시작 시간 계산 전 현재 시간: ${new Date()}`);
                 const next = getNextRepeatTime(todo, 'start');
-                console.log(`[App] renderScheduleInfo - 시작 시간 계산 결과: ${next}`);
                 displayTime = next ? utils.formatDateTime(next) : utils.formatDateTime(new Date(todo.schedule.startTime));
             } else {
                 displayTime = utils.formatDateTime(new Date(todo.schedule.startTime));
@@ -179,9 +177,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let displayTime;
             if (todo.repeat && getNextRepeatTime) {
                 // 현재 시간을 강제로 동기화한 후 다음 알림 시간 계산
-                console.log(`[App] renderScheduleInfo - 마감 시간 계산 전 현재 시간: ${new Date()}`);
                 const next = getNextRepeatTime(todo, 'due');
-                console.log(`[App] renderScheduleInfo - 마감 시간 계산 결과: ${next}`);
                 displayTime = next ? utils.formatDateTime(next) : utils.formatDateTime(new Date(todo.schedule.dueTime));
             } else {
                 displayTime = utils.formatDateTime(new Date(todo.schedule.dueTime));
@@ -205,9 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
             allTodos = allTodos.filter(todo => !todo.completed);
         }
         
-        console.log('=== renderTodos 디버그 ===');
-        console.log('모든 할 일:', allTodos);
-        console.log('설정 - 완료된 할 일 표시:', settings.showCompleted);
+        // 디버그 로그 제거 (프로덕션 환경용)
         
         todoListContainer.innerHTML = '';
         projectViewBtn.classList.toggle('active', currentView === 'project');
@@ -992,21 +986,18 @@ document.addEventListener('DOMContentLoaded', () => {
             textWithBreaks = textWithBreaks.replace(
                 /!\[([^\]]*)\]\(([^)]+)\)\{([^}]+)\}/g,
                 (match, alt, src, style) => {
-                    console.log('이미지 사이즈 처리:', { match, alt, src, style }); // 디버깅
-                    const widthMatch = style.match(/width=(\d+)/);
-                    const heightMatch = style.match(/height=(\d+)/);
-                    const width = widthMatch ? widthMatch[1] : 'auto';
-                    const height = heightMatch ? heightMatch[1] : 'auto';
-                    // HTML img 태그로 직접 변환
-                    const result = `<img src="${src}" alt="${alt}" style="width:${width}px;height:${height}px;">`;
-                    console.log('변환 결과:', result); // 디버깅
+                                const widthMatch = style.match(/width=(\d+)/);
+            const heightMatch = style.match(/height=(\d+)/);
+            const width = widthMatch ? widthMatch[1] : 'auto';
+            const height = heightMatch ? heightMatch[1] : 'auto';
+            // HTML img 태그로 직접 변환
+            const result = `<img src="${src}" alt="${alt}" style="width:${width}px;height:${height}px;">`;
                     return result;
                 }
             );
             
             // marked.js를 사용하여 마크다운을 HTML로 변환
             const rawHtml = marked.parse(textWithBreaks);
-            console.log('마크다운 변환 결과:', rawHtml); // 디버깅용
             // security.js의 sanitizeHtml을 사용하여 안전하게 처리
             renderedText = security.sanitizeHtml(rawHtml);
         } catch (e) {
@@ -1202,6 +1193,26 @@ document.addEventListener('DOMContentLoaded', () => {
         if (event.target.tagName === 'BUTTON') {
             selectedCategoryId = event.target.dataset.id;
             renderCategorySelector();
+            
+            // 자동 스크롤 설정이 활성화된 경우 해당 카테고리로 스크롤
+            if (settings.autoScrollToCategory && currentView === 'project') {
+                setTimeout(() => {
+                    const categoryName = event.target.textContent.trim();
+                    const categoryGroup = Array.from(document.querySelectorAll('.project-group')).find(group => {
+                        const title = group.querySelector('.project-title');
+                        return title && title.textContent === categoryName;
+                    });
+                    
+                    if (categoryGroup) {
+                        // 부드러운 스크롤로 해당 위치로 이동 (접힌 상태 유지)
+                        categoryGroup.scrollIntoView({ 
+                            behavior: 'smooth', 
+                            block: 'start',
+                            inline: 'nearest'
+                        });
+                    }
+                }, 100); // 렌더링 완료 후 스크롤
+            }
         }
     };
     
@@ -1528,6 +1539,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // 자동 스크롤 토글 이벤트 핸들러
+    const handleAutoScrollToggle = () => {
+        const autoScrollToggle = document.getElementById('auto-scroll-toggle');
+        if (autoScrollToggle) {
+            settings.autoScrollToCategory = autoScrollToggle.checked;
+            storage.saveSettings(settings);
+        }
+    };
+
     // 전체 데이터 초기화 핸들러
     const handleResetAllData = () => {
         const confirmMessage = `⚠️ 정말로 모든 데이터를 초기화하시겠습니까?\n\n` +
@@ -1573,20 +1593,23 @@ document.addEventListener('DOMContentLoaded', () => {
             `다음 설정이 기본값으로 초기화됩니다:\n` +
             `• 완료된 할일 표시 여부\n` +
             `• 할일 정렬 순서\n` +
-            `• 카테고리 접기 상태\n\n` +
+            `• 카테고리 접기 상태\n` +
+            `• 카테고리 자동 스크롤\n\n` +
             `할일 데이터는 그대로 유지됩니다.`;
         
         if (confirm(confirmMessage)) {
             // 설정만 초기화
-            settings = { showCompleted: true, todoSortOrder: 'created-desc', collapsedCategories: {} };
+            settings = { showCompleted: true, todoSortOrder: 'created-desc', collapsedCategories: {}, autoScrollToCategory: true };
             storage.saveSettings(settings);
             
             // UI 업데이트
             const showCompletedToggle = document.getElementById('show-completed-toggle');
             const todoSortSelect = document.getElementById('todo-sort-select');
+            const autoScrollToggle = document.getElementById('auto-scroll-toggle');
             
             if (showCompletedToggle) showCompletedToggle.checked = true;
             if (todoSortSelect) todoSortSelect.value = 'created-desc';
+            if (autoScrollToggle) autoScrollToggle.checked = true;
             
             renderTodos();
             
@@ -1734,6 +1757,26 @@ document.addEventListener('DOMContentLoaded', () => {
             // 시간 동기화 섹션 다음에 추가
             timeSyncSection.parentNode.insertBefore(todoSortSection, timeSyncSection.nextSibling);
         }
+
+        // 자동 스크롤 섹션 추가 (중복 방지)
+        let autoScrollSection = document.getElementById('auto-scroll-toggle')?.closest('.setting-item');
+        if (!autoScrollSection) {
+            autoScrollSection = document.createElement('div');
+            autoScrollSection.className = 'setting-item';
+            autoScrollSection.innerHTML = `
+                <div class="setting-row">
+                    <label class="setting-label">카테고리 자동 스크롤</label>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="auto-scroll-toggle" class="toggle-input">
+                        <span class="toggle-label"></span>
+                    </label>
+                </div>
+                <p class="setting-description">카테고리 선택 시 해당 위치로 자동 스크롤합니다. 접힌 카테고리는 그대로 유지됩니다.</p>
+            `;
+            
+            // 할일 정렬 섹션 다음에 추가
+            todoSortSection.parentNode.insertBefore(autoScrollSection, todoSortSection.nextSibling);
+        }
         
         // 데이터 초기화 섹션 추가 (중복 방지)
         let dataResetSection = document.getElementById('reset-all-data-btn')?.closest('.setting-item');
@@ -1762,6 +1805,15 @@ document.addEventListener('DOMContentLoaded', () => {
             // 이벤트 리스너 중복 방지
             todoSortSelect.removeEventListener('change', handleTodoSortChange);
             todoSortSelect.addEventListener('change', handleTodoSortChange);
+        }
+
+        // 자동 스크롤 토글 초기화 (중복 방지)
+        const autoScrollToggle = document.getElementById('auto-scroll-toggle');
+        if (autoScrollToggle) {
+            autoScrollToggle.checked = settings.autoScrollToCategory !== false; // 기본값 true
+            // 이벤트 리스너 중복 방지
+            autoScrollToggle.removeEventListener('change', handleAutoScrollToggle);
+            autoScrollToggle.addEventListener('change', handleAutoScrollToggle);
         }
 
         // 데이터 초기화 버튼 이벤트 리스너 (중복 방지)
@@ -2019,9 +2071,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 체크박스 변경 시 입력 필드 활성화/비활성화
     startTimeEnabled.addEventListener('change', (e) => {
-        console.log('=== 시작 시간 체크박스 변경 ===');
-        console.log('체크박스 상태:', e.target.checked);
-        
         if (e.target.checked) {
             startTimeInputs.classList.add('enabled');
             // 현재 날짜/시간으로 기본값 설정
@@ -2035,19 +2084,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             startDate.value = `${year}-${month}-${day}`;
             startTime.value = `${hours}:${minutes}`;
-            console.log('시작 시간 필드 활성화 및 기본값 설정');
-            console.log('설정된 날짜:', startDate.value);
-            console.log('설정된 시간:', startTime.value);
         } else {
             startTimeInputs.classList.remove('enabled');
-            console.log('시작 시간 필드 비활성화');
         }
     });
 
     dueTimeEnabled.addEventListener('change', (e) => {
-        console.log('=== 마감 시간 체크박스 변경 ===');
-        console.log('체크박스 상태:', e.target.checked);
-        
         if (e.target.checked) {
             dueTimeInputs.classList.add('enabled');
             // 현재 날짜/시간으로 기본값 설정
@@ -2063,12 +2105,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             dueDate.value = `${year}-${month}-${day}`;
             dueTime.value = `${hours}:${minutes}`;
-            console.log('마감 시간 필드 활성화 및 기본값 설정');
-            console.log('설정된 날짜:', dueDate.value);
-            console.log('설정된 시간:', dueTime.value);
         } else {
             dueTimeInputs.classList.remove('enabled');
-            console.log('마감 시간 필드 비활성화');
         }
     });
 
