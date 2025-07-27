@@ -86,16 +86,33 @@ document.addEventListener('DOMContentLoaded', () => {
     const settingsSidebarOverlay = document.querySelector('.settings-sidebar-overlay');
     const showCompletedToggle = document.getElementById('show-completed-toggle');
 
+    // 설정 사이드바 열기
     function openSettingsSidebar() {
         settingsSidebar.style.display = 'flex';
         setTimeout(() => settingsSidebar.classList.add('open'), 10);
         settingsSidebarOverlay.classList.add('open');
         settingsSidebarOverlay.style.display = 'block';
         
-        // 설정 사이드바가 열릴 때 정렬 선택기 값 업데이트
+        // 설정 사이드바가 열릴 때 AI 토글 상태를 올바르게 설정
+        const aiFeatureToggle = document.getElementById('ai-feature-toggle');
+        if (aiFeatureToggle) {
+            const isAiEnabled = storage.getAiFeatureEnabled();
+            aiFeatureToggle.checked = isAiEnabled;
+        }
+        
+        // 다른 설정들도 올바르게 설정
+        const showCompletedToggle = document.getElementById('show-completed-toggle');
         const todoSortSelect = document.getElementById('todo-sort-select');
-        if (todoSortSelect) {
-            todoSortSelect.value = settings.todoSortOrder || 'created-desc';
+        const autoScrollToggle = document.getElementById('auto-scroll-toggle');
+        
+        if (showCompletedToggle) showCompletedToggle.checked = settings.showCompleted;
+        if (todoSortSelect) todoSortSelect.value = settings.todoSortOrder;
+        if (autoScrollToggle) autoScrollToggle.checked = settings.autoScrollToCategory;
+        
+        // API 키 입력 필드 설정
+        const apiKeyInput = document.getElementById('ai-api-key-input');
+        if (apiKeyInput) {
+            apiKeyInput.value = storage.getAiApiKey();
         }
     }
     function closeSettingsSidebarFn() {
@@ -1594,7 +1611,8 @@ document.addEventListener('DOMContentLoaded', () => {
             `• 완료된 할일 표시 여부\n` +
             `• 할일 정렬 순서\n` +
             `• 카테고리 접기 상태\n` +
-            `• 카테고리 자동 스크롤\n\n` +
+            `• 카테고리 자동 스크롤\n` +
+            `• AI 기능 활성화 상태\n\n` +
             `할일 데이터는 그대로 유지됩니다.`;
         
         if (confirm(confirmMessage)) {
@@ -1602,18 +1620,50 @@ document.addEventListener('DOMContentLoaded', () => {
             settings = { showCompleted: true, todoSortOrder: 'created-desc', collapsedCategories: {}, autoScrollToCategory: true };
             storage.saveSettings(settings);
             
+            // AI 기능 상태도 초기화 (비활성화)
+            storage.saveAiFeatureEnabled(false);
+            
             // UI 업데이트
             const showCompletedToggle = document.getElementById('show-completed-toggle');
             const todoSortSelect = document.getElementById('todo-sort-select');
             const autoScrollToggle = document.getElementById('auto-scroll-toggle');
+            const aiFeatureToggle = document.getElementById('ai-feature-toggle');
+            const aiChatToggleBtn = document.getElementById('ai-chat-toggle-btn');
             
             if (showCompletedToggle) showCompletedToggle.checked = true;
             if (todoSortSelect) todoSortSelect.value = 'created-desc';
             if (autoScrollToggle) autoScrollToggle.checked = true;
+            if (aiFeatureToggle) aiFeatureToggle.checked = false;
+            if (aiChatToggleBtn) {
+                aiChatToggleBtn.style.setProperty('display', 'none', 'important');
+                console.log('[App] 설정 초기화: AI 채팅 버튼 강제 숨김');
+            }
             
             renderTodos();
             
             alert('설정이 기본값으로 초기화되었습니다.');
+        }
+    };
+
+    // AI 기능 토글 이벤트 핸들러
+    const handleAiFeatureToggle = () => {
+        const aiFeatureToggle = document.getElementById('ai-feature-toggle');
+        const aiChatToggleBtn = document.getElementById('ai-chat-toggle-btn');
+        
+        if (aiFeatureToggle) {
+            const isEnabled = aiFeatureToggle.checked;
+            storage.saveAiFeatureEnabled(isEnabled);
+            
+            // AI 채팅 버튼 표시/숨김
+            if (aiChatToggleBtn) {
+                if (isEnabled) {
+                    aiChatToggleBtn.style.setProperty('display', 'flex', 'important');
+                } else {
+                    aiChatToggleBtn.style.setProperty('display', 'none', 'important');
+                }
+            }
+            
+            console.log(`[App] AI 기능 ${isEnabled ? '활성화' : '비활성화'}`);
         }
     };
 
@@ -1634,6 +1684,44 @@ document.addEventListener('DOMContentLoaded', () => {
         icons.setButtonIcon(showCompletedToggle, 'check-circle', '완료된 할 일 표시', 18);
     };
 
+    // AI 대화 아이콘 초기화 (별도 함수)
+    const initAiChatIcons = () => {
+        console.log('[App] AI 대화 아이콘 초기화 시작');
+        
+        const aiChatToggleBtn = document.getElementById('ai-chat-toggle-btn');
+        const closeAiChatSidebarBtn = document.getElementById('close-ai-chat-sidebar');
+        const aiChatSendBtn = document.getElementById('ai-chat-send-btn');
+        
+        console.log('[App] AI 대화 버튼 요소:', aiChatToggleBtn);
+        console.log('[App] AI 대화 닫기 버튼 요소:', closeAiChatSidebarBtn);
+        console.log('[App] AI 대화 전송 버튼 요소:', aiChatSendBtn);
+        
+        if (aiChatToggleBtn) {
+            console.log('[App] AI 대화 토글 버튼 아이콘 설정');
+            // display 속성을 덮어쓰지 않도록 직접 SVG만 설정
+            aiChatToggleBtn.innerHTML = icons.get('chat', 18);
+            aiChatToggleBtn.setAttribute('aria-label', 'AI 대화');
+        } else {
+            console.error('[App] AI 대화 토글 버튼을 찾을 수 없습니다!');
+        }
+        
+        if (closeAiChatSidebarBtn) {
+            console.log('[App] AI 대화 닫기 버튼 아이콘 설정');
+            icons.setButtonIcon(closeAiChatSidebarBtn, 'close', '닫기', 18);
+        } else {
+            console.error('[App] AI 대화 닫기 버튼을 찾을 수 없습니다!');
+        }
+        
+        if (aiChatSendBtn) {
+            console.log('[App] AI 대화 전송 버튼 아이콘 설정');
+            icons.setButtonIcon(aiChatSendBtn, 'send', '전송', 16);
+        } else {
+            console.error('[App] AI 대화 전송 버튼을 찾을 수 없습니다!');
+        }
+        
+        console.log('[App] AI 대화 아이콘 초기화 완료');
+    };
+
     // INITIALIZATION
     const init = () => {
         todoManager.setTodos(storage.getTodos());
@@ -1645,6 +1733,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showCompletedToggle.checked = settings.showCompleted;
         
         initIcons();
+        initAiChatIcons();
         createRepeatModal();
 
         // 실시간 시간 업데이트 시작
@@ -1833,6 +1922,90 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // 알림 스케줄러를 먼저 초기화 (반복 횟수 로드 및 계산)
         notificationScheduler.initScheduler();
+        
+        // AI 대화 초기화 (사이드바 DOM 생성)
+        try {
+            aiChat.init();
+            console.log('[App] AI 채팅 초기화 완료');
+        } catch (error) {
+            console.error('[App] AI 채팅 초기화 실패:', error);
+        }
+        
+        // AI 대화 아이콘 초기화 (사이드바가 생성된 후, 약간의 지연 후)
+        setTimeout(() => {
+            initAiChatIcons();
+        }, 100);
+        
+        // 일반 아이콘 초기화
+        initIcons();
+        
+        // API 키 설정 이벤트 리스너
+        const apiKeyInput = document.getElementById('ai-api-key-input');
+        const saveApiKeyBtn = document.getElementById('save-api-key-btn');
+        
+        if (apiKeyInput && saveApiKeyBtn) {
+            // 저장된 API 키 로드
+            const savedApiKey = storage.getAiApiKey();
+            if (savedApiKey) {
+                apiKeyInput.value = savedApiKey;
+            }
+            
+            // API 키 저장 버튼 이벤트
+            saveApiKeyBtn.addEventListener('click', () => {
+                const apiKey = apiKeyInput.value.trim();
+                if (apiKey) {
+                    storage.saveAiApiKey(apiKey);
+                    aiChat.setApiKey(apiKey);
+                    alert('API 키가 저장되었습니다.');
+                } else {
+                    alert('API 키를 입력해주세요.');
+                }
+            });
+            
+            // Enter 키로 저장
+            apiKeyInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    saveApiKeyBtn.click();
+                }
+            });
+        }
+        
+        // AI 기능 토글 초기화
+        const aiFeatureToggle = document.getElementById('ai-feature-toggle');
+        const aiChatToggleBtn = document.getElementById('ai-chat-toggle-btn');
+        
+        // AI 채팅 버튼은 항상 초기화 (저장된 상태에 따라)
+        if (aiChatToggleBtn) {
+            const isAiEnabled = storage.getAiFeatureEnabled();
+            const rawValue = localStorage.getItem('mwohaji-ai-feature-enabled');
+            
+            console.log(`[App] AI 기능 상태 확인:`);
+            console.log(`  - localStorage 원본 값: "${rawValue}"`);
+            console.log(`  - storage.getAiFeatureEnabled(): ${isAiEnabled}`);
+            console.log(`  - 타입: ${typeof isAiEnabled}`);
+            
+            // CSS에서 display: none으로 설정되어 있으므로, 활성화된 경우에만 flex로 변경
+            if (isAiEnabled) {
+                aiChatToggleBtn.style.setProperty('display', 'flex', 'important');
+                console.log(`[App] AI 채팅 버튼 표시 설정`);
+            } else {
+                aiChatToggleBtn.style.setProperty('display', 'none', 'important');
+                console.log(`[App] AI 채팅 버튼 숨김 설정`);
+            }
+            console.log(`[App] AI 채팅 버튼 초기화: ${isAiEnabled ? '표시' : '숨김'}`);
+        }
+        
+        // AI 기능 토글 버튼이 있으면 초기화
+        if (aiFeatureToggle) {
+            // 저장된 AI 기능 상태 로드
+            const isAiEnabled = storage.getAiFeatureEnabled();
+            aiFeatureToggle.checked = isAiEnabled;
+            
+            // AI 기능 토글 이벤트 리스너
+            aiFeatureToggle.addEventListener('change', handleAiFeatureToggle);
+            
+            console.log(`[App] AI 기능 토글 초기화: ${isAiEnabled ? '활성화' : '비활성화'}`);
+        }
         
         // 그 다음에 UI 렌더링 (반복 횟수가 준비된 후)
         render();
@@ -2025,6 +2198,15 @@ document.addEventListener('DOMContentLoaded', () => {
     globalSettingsBtn.addEventListener('click', openSettingsSidebar);
     closeSettingsSidebar.addEventListener('click', closeSettingsSidebarFn);
     settingsSidebarOverlay.addEventListener('click', closeSettingsSidebarFn);
+
+    // 설정 사이드바 내부 토글 이벤트 리스너
+    showCompletedToggle.addEventListener('change', handleShowCompletedToggle);
+    
+    // AI 기능 토글 이벤트 리스너 (동적으로 추가된 요소이므로 나중에 추가)
+    const aiFeatureToggle = document.getElementById('ai-feature-toggle');
+    if (aiFeatureToggle) {
+        aiFeatureToggle.addEventListener('change', handleAiFeatureToggle);
+    }
 
     // 카테고리 삭제 모달 이벤트 리스너
     closeCategoryDeleteModalBtn.addEventListener('click', closeCategoryDeleteModal);

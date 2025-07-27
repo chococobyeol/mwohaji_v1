@@ -666,6 +666,7 @@ const notificationScheduler = (() => {
         initScheduler,
         cleanupScheduler,
         clearAllNotifications,
+        scheduleNotification, // 추가
         getNextRepeatTime,
         rescheduleAllNotifications,
         getRepeatCount: (key) => repeatCounts.get(key) || 0,

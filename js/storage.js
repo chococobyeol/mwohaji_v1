@@ -4,6 +4,8 @@ const storage = (() => {
     const COMPLETED_REPEAT_KEY = 'mwohaji-completed-repeat';
     const SETTINGS_KEY = 'mwohaji-settings';
     const REPEAT_COUNTS_KEY = 'mwohaji-repeat-counts';
+    const AI_API_KEY = 'mwohaji-ai-api-key';
+    const AI_FEATURE_ENABLED = 'mwohaji-ai-feature-enabled';
 
     const getTodos = () => {
         try {
@@ -203,6 +205,45 @@ const storage = (() => {
         }
     };
 
+    // AI API 키 저장/불러오기
+    const getAiApiKey = () => {
+        try {
+            const key = localStorage.getItem(AI_API_KEY);
+            return key || '';
+        } catch (e) {
+            console.error('Failed to get AI API key from localStorage', e);
+            return '';
+        }
+    };
+
+    const saveAiApiKey = (key) => {
+        try {
+            localStorage.setItem(AI_API_KEY, key);
+        } catch (e) {
+            console.error('Failed to save AI API key to localStorage', e);
+        }
+    };
+
+    // AI 기능 활성화 상태 저장/불러오기
+    const getAiFeatureEnabled = () => {
+        try {
+            const enabled = localStorage.getItem(AI_FEATURE_ENABLED);
+            // null이거나 'false'인 경우 false 반환, 'true'인 경우만 true 반환
+            return enabled === 'true';
+        } catch (e) {
+            console.error('Failed to get AI feature enabled status from localStorage', e);
+            return false; // 기본값: 비활성화
+        }
+    };
+
+    const saveAiFeatureEnabled = (enabled) => {
+        try {
+            localStorage.setItem(AI_FEATURE_ENABLED, enabled ? 'true' : 'false');
+        } catch (e) {
+            console.error('Failed to save AI feature enabled status to localStorage', e);
+        }
+    };
+
     // 모든 데이터 초기화
     const clearAllData = () => {
         try {
@@ -211,6 +252,8 @@ const storage = (() => {
             localStorage.removeItem(COMPLETED_REPEAT_KEY);
             localStorage.removeItem(REPEAT_COUNTS_KEY);
             localStorage.removeItem(SETTINGS_KEY);
+            localStorage.removeItem(AI_API_KEY); // AI API 키도 초기화
+            localStorage.removeItem(AI_FEATURE_ENABLED); // AI 기능 활성화 상태도 초기화
             console.log('All localStorage data cleared successfully');
         } catch (e) {
             console.error('Failed to clear localStorage data', e);
@@ -226,6 +269,10 @@ const storage = (() => {
         saveCompletedRepeatTodos,
         getSettings,
         saveSettings,
+        getAiApiKey,
+        saveAiApiKey,
+        getAiFeatureEnabled,
+        saveAiFeatureEnabled,
         clearAllData
     };
 })();
