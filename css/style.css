@@ -159,14 +159,19 @@ body {
 .main {
   display: flex;
   flex-direction: column;
-  height: 80vh; /* 전체 높이의 80%로 예시, 필요시 조정 */
+  height: calc(100vh - 120px); /* 헤더 높이를 제외한 전체 높이 */
+  min-height: 400px; /* 최소 높이 보장 */
 }
 
 .todo-list {
   flex: 1 1 auto;
   overflow-y: auto;
-  max-height: 100%;
   min-height: 0;
+  padding-bottom: 20px; /* 하단 여백 추가 */
+  max-height: none; /* 최대 높이 제한 해제 */
+  height: auto; /* 자동 높이 설정 */
+  scroll-behavior: smooth; /* 부드러운 스크롤 */
+  -webkit-overflow-scrolling: touch; /* iOS에서 부드러운 스크롤 */
 }
 
 /* 입력 필드 스타일 */
@@ -392,15 +397,16 @@ button:hover {
 }
 
 .category-todos {
-    transition: max-height 0.3s ease, opacity 0.3s ease;
-    max-height: 2000px;
+    transition: opacity 0.3s ease, height 0.3s ease;
     opacity: 1;
-    overflow: hidden;
+    height: auto;
+    overflow: visible; /* 스크롤이 제대로 작동하도록 변경 */
 }
 
 .project-group.collapsed .category-todos {
-    max-height: 0;
+    height: 0;
     opacity: 0;
+    overflow: hidden;
 }
 
 .todo-item {
@@ -529,6 +535,8 @@ button:hover {
     
     .main {
         padding: 20px;
+        height: calc(100vh - 100px);
+        min-height: 300px; /* 모바일에서 최소 높이 조정 */
     }
     
     /* 모바일에서 인풋 스타일 조정 */
