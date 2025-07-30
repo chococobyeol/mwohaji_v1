@@ -2,6 +2,7 @@ const aiChat = (() => {
     let isOpen = false;
     let messages = [];
     let apiKey = null;
+    let isInitialized = false; // 초기화 상태 추적
 
     // 사이드바 열기
     const openSidebar = () => {
@@ -180,11 +181,20 @@ const aiChat = (() => {
         if (window.geminiApi && window.geminiApi.clearHistory) {
             window.geminiApi.clearHistory();
         }
+        isInitialized = false; // 초기화 상태 리셋
         console.log('[AIChat] 대화 히스토리 초기화 완료');
     };
 
+
+
     // 초기화
     const init = () => {
+        // 이미 초기화되어 있으면 건너뛰기
+        if (isInitialized) {
+            console.log('[AIChat] 이미 초기화되어 있음, 건너뛰기');
+            return;
+        }
+        
         console.log('[AIChat] 초기화 시작');
         
         // DOM 요소들이 존재하는지 확인
@@ -238,6 +248,7 @@ const aiChat = (() => {
                 updateStatus('API 키 설정 필요', 'error');
             }
             
+            isInitialized = true; // 초기화 완료 표시
             console.log('[AIChat] 초기화 완료');
         } catch (error) {
             console.error('[AIChat] 초기화 중 오류 발생:', error);
@@ -250,6 +261,6 @@ const aiChat = (() => {
         closeSidebar,
         setApiKey,
         addMessage,
-        clearHistory // 새로 추가된 메서드를 반환
+        clearHistory
     };
 })(); 

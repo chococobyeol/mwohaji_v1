@@ -1722,8 +1722,8 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('[App] AI 대화 아이콘 초기화 완료');
     };
 
-    // INITIALIZATION
-    const init = () => {
+    // AI 채팅 초기화 제외한 초기화 함수
+    const initWithoutAiChat = () => {
         todoManager.setTodos(storage.getTodos());
         todoManager.setCategories(storage.getCategories());
         todoManager.setCompletedRepeatTodos(storage.getCompletedRepeatTodos());
@@ -2011,6 +2011,18 @@ document.addEventListener('DOMContentLoaded', () => {
         render();
     };
 
+    // 전체 초기화 함수 (AI 채팅 포함)
+    const init = () => {
+        initWithoutAiChat();
+        
+        // AI 채팅 초기화
+        if (window.aiChat && window.aiChat.init) {
+            window.aiChat.init();
+        }
+    };
+
+
+
     // textarea 키보드 이벤트 핸들러
     const handleTodoInputKeydown = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -2166,8 +2178,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     }, 100);
                 }
                 
-                // UI 초기화
-                init();
+                // UI 초기화 (AI 채팅 초기화 제외)
+                initWithoutAiChat();
+                
+                // AI 채팅 재초기화 (중복 방지 로직 포함)
+                if (window.aiChat && window.aiChat.clearHistory) {
+                    window.aiChat.clearHistory();
+                }
+                if (window.aiChat && window.aiChat.init) {
+                    window.aiChat.init();
+                }
                 
                 // 성공 메시지에 통계 정보 포함
                 const successMessage = `데이터를 성공적으로 가져왔습니다.\n\n` +
