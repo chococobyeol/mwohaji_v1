@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const addCategoryBtn = document.getElementById('add-category-btn');
     const newCategoryInput = document.getElementById('new-category-input');
     const currentTimeElement = document.getElementById('current-time');
+    const audioStatusBtn = document.getElementById('audio-status-btn');
 
     // 일정 설정 모달 관련 DOM Elements
     const scheduleModal = document.getElementById('schedule-modal');
@@ -1659,6 +1660,84 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // 소리 상태 확인 함수
+    const checkAudioStatus = async () => {
+        try {
+            // 매우 짧은 무음으로 재생 가능한지 테스트
+            const testAudio = new Audio();
+            testAudio.src = 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OSNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU7k9n1unEiBC13yO/eizEIHWq+8+OWT';
+            testAudio.volume = 0;
+            await testAudio.play();
+            testAudio.pause();
+            return 'ready';
+        } catch (error) {
+            return 'suspended';
+        }
+    };
+
+    // 소리 상태 업데이트 함수
+    const updateAudioStatus = async () => {
+        if (!audioStatusBtn) {
+            console.error('[App] audioStatusBtn을 찾을 수 없습니다');
+            return;
+        }
+        
+        try {
+            const status = await checkAudioStatus();
+            const statusText = {
+                'ready': '소리 재생 가능',
+                'suspended': '소리 권한 필요',
+                'not-ready': '소리 초기화 중'
+            }[status] || '소리 상태 확인 중';
+            
+            // 기존 클래스 제거
+            audioStatusBtn.classList.remove('ready', 'suspended', 'not-ready', 'testing');
+            // 새 클래스 추가
+            audioStatusBtn.classList.add(status);
+            
+            // 아이콘 설정 (올바른 아이콘 이름 사용)
+            let iconName = 'volume';
+            if (status === 'suspended') iconName = 'volumeX';
+            else if (status === 'not-ready') iconName = 'volume';
+            
+            console.log('[App] 소리 상태 업데이트:', status, iconName);
+            icons.setButtonIcon(audioStatusBtn, iconName, statusText, 18);
+        } catch (error) {
+            console.error('[App] 소리 상태 업데이트 실패:', error);
+        }
+    };
+
+    // 소리 상태 버튼 클릭 핸들러 (소리 재생하지 않음)
+    const handleAudioStatusClick = async () => {
+        if (!audioStatusBtn) return;
+        
+        // 테스트 중 상태로 변경
+        audioStatusBtn.classList.remove('ready', 'suspended', 'not-ready');
+        audioStatusBtn.classList.add('testing');
+        icons.setButtonIcon(audioStatusBtn, 'volume', '소리 상태 확인 중...', 18);
+        
+        try {
+            const status = await checkAudioStatus();
+            
+            // 상태만 업데이트하고 실제 소리는 재생하지 않음
+            audioStatusBtn.classList.remove('testing');
+            audioStatusBtn.classList.add(status);
+            
+            const statusText = status === 'ready' ? '소리 재생 가능!' : '소리 권한 필요';
+            const iconName = status === 'ready' ? 'volume' : 'volumeX';
+            
+            icons.setButtonIcon(audioStatusBtn, iconName, statusText, 18);
+            
+            // 2초 후 다시 업데이트
+            setTimeout(() => {
+                updateAudioStatus();
+            }, 2000);
+        } catch (error) {
+            console.error('[App] 소리 상태 확인 실패:', error);
+            updateAudioStatus();
+        }
+    };
+
     // AI 기능 토글 이벤트 핸들러
     const handleAiFeatureToggle = () => {
         const aiFeatureToggle = document.getElementById('ai-feature-toggle');
@@ -1696,6 +1775,11 @@ document.addEventListener('DOMContentLoaded', () => {
         icons.setButtonIcon(globalSettingsBtn, 'settings-gear', '설정', 18);
         icons.setButtonIcon(closeSettingsSidebar, 'close', '닫기', 18);
         icons.setButtonIcon(showCompletedToggle, 'check-circle', '완료된 할 일 표시', 18);
+        
+        // 소리 상태 버튼 초기화 (지연 실행)
+        setTimeout(() => {
+            updateAudioStatus();
+        }, 100);
     };
 
     // AI 대화 아이콘 초기화 (별도 함수)
@@ -1765,6 +1849,14 @@ document.addEventListener('DOMContentLoaded', () => {
         // 설정 토글 이벤트 리스너
         showCompletedToggle.addEventListener('change', handleShowCompletedToggle);
         
+        // 소리 상태 버튼 이벤트 리스너
+        if (audioStatusBtn) {
+            console.log('[App] 소리 상태 버튼 이벤트 리스너 추가');
+            audioStatusBtn.addEventListener('click', handleAudioStatusClick);
+        } else {
+            console.error('[App] audioStatusBtn을 찾을 수 없어서 이벤트 리스너를 추가할 수 없습니다');
+        }
+        
         // 할일 정렬 변경 이벤트 리스너 (동적으로 추가된 요소이므로 나중에 추가)
         
         // 시스템 시간 변경 감지를 위한 이벤트 리스너 추가
@@ -1773,6 +1865,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const now = new Date(Date.now());
             console.log(`[App] 포커스 시 현재 시간: ${now.toLocaleString('ko-KR')} (${now.toISOString()}) [Timestamp: ${Date.now()}]`);
             notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
+            updateAudioStatus(); // 소리 상태도 업데이트
         });
         
         // 페이지 가시성 변경 감지 (탭 전환 등)
@@ -1782,6 +1875,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const now = new Date(Date.now());
                 console.log(`[App] 가시성 변경 시 현재 시간: ${now.toLocaleString('ko-KR')} (${now.toISOString()}) [Timestamp: ${Date.now()}]`);
                 notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
+                updateAudioStatus(); // 소리 상태도 업데이트
             } else {
                 console.log('[App] 페이지가 숨겨짐 - 알림은 백그라운드에서 계속 작동');
             }
@@ -2376,6 +2470,24 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target === settingsSidebar) closeSettingsSidebarFn();
         if (e.target === settingsSidebarOverlay) closeSettingsSidebarFn();
     });
+
+    // 주기적인 소리 상태 업데이트 (30초마다)
+    setInterval(() => {
+        updateAudioStatus();
+    }, 30 * 1000); // 30초마다
+    
+    // 사용자 클릭 시 소리 상태 즉시 업데이트 (최적화된 버전)
+    let lastClickTime = 0;
+    document.addEventListener('click', () => {
+        const now = Date.now();
+        // 마지막 클릭으로부터 1초 이상 지났을 때만 상태 확인
+        if (now - lastClickTime > 1000) {
+            lastClickTime = now;
+            setTimeout(() => {
+                updateAudioStatus();
+            }, 100);
+        }
+    }, { once: false });
 
     init();
     
