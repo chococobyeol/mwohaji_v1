@@ -85,6 +85,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeSettingsSidebar = document.getElementById('close-settings-sidebar');
     const settingsSidebarOverlay = document.querySelector('.settings-sidebar-overlay');
     const showCompletedToggle = document.getElementById('show-completed-toggle');
+    
+    // 타이머 관련
+    const timerBtn = document.getElementById('timer-btn');
+    
+    // 타이머 사이드바 열기
+    function openTimerSidebar() {
+        console.log('[App] 타이머 사이드바 열기 함수 호출');
+        if (window.timer && window.timer.openTimerSidebar) {
+            console.log('[App] 타이머 모듈의 openTimerSidebar 호출');
+            window.timer.openTimerSidebar();
+        } else {
+            console.error('[App] 타이머 모듈 또는 openTimerSidebar 함수를 찾을 수 없음');
+        }
+    }
 
     // 설정 사이드바 열기
     function openSettingsSidebar() {
@@ -2019,6 +2033,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (window.aiChat && window.aiChat.init) {
             window.aiChat.init();
         }
+        
+        // 타이머 초기화
+        if (window.timer && window.timer.init) {
+            window.timer.init();
+        }
     };
 
 
@@ -2218,6 +2237,11 @@ document.addEventListener('DOMContentLoaded', () => {
     globalSettingsBtn.addEventListener('click', openSettingsSidebar);
     closeSettingsSidebar.addEventListener('click', closeSettingsSidebarFn);
     settingsSidebarOverlay.addEventListener('click', closeSettingsSidebarFn);
+    
+    // 타이머 버튼 이벤트 리스너
+    if (timerBtn) {
+        timerBtn.addEventListener('click', openTimerSidebar);
+    }
 
     // 설정 사이드바 내부 토글 이벤트 리스너
     showCompletedToggle.addEventListener('change', handleShowCompletedToggle);
