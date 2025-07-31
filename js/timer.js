@@ -631,6 +631,16 @@ const timer = (() => {
     };
 
     const showTimerCompleteNotification = () => {
+        // 타이머 완료 소리 재생
+        try {
+            const audio = new Audio('assets/sounds/notification.mp3');
+            audio.play().catch(e => {
+                console.error('타이머 완료 소리 재생 실패:', e);
+            });
+        } catch (e) {
+            console.error('타이머 완료 소리 로드 실패:', e);
+        }
+        
         const container = document.createElement('div');
         container.style.cssText = `
             position: fixed;
