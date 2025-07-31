@@ -667,6 +667,8 @@ const notificationScheduler = (() => {
         cleanupScheduler,
         clearAllNotifications,
         scheduleNotification, // 추가
+        showNotificationModal, // 타이머 알림용으로 추가
+        playNotificationSound, // 타이머 알림용으로 추가
         getNextRepeatTime,
         rescheduleAllNotifications,
         getRepeatCount: (key) => repeatCounts.get(key) || 0,

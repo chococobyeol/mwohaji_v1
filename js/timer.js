@@ -631,46 +631,7 @@ const timer = (() => {
     };
 
     const showTimerCompleteNotification = () => {
-        // 타이머 완료 소리 재생
-        let currentPlayingAudio = null;
-        try {
-            const audio = new Audio('assets/sounds/notification.mp3');
-            audio.play().catch(e => {
-                console.error('타이머 완료 소리 재생 실패:', e);
-            });
-            currentPlayingAudio = audio;
-        } catch (e) {
-            console.error('타이머 완료 소리 로드 실패:', e);
-        }
-        
-        const container = document.createElement('div');
-        container.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.85);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-            backdrop-filter: blur(5px);
-        `;
-        
-        const popup = document.createElement('div');
-        popup.style.cssText = `
-            background: white;
-            border-radius: 16px;
-            padding: 30px;
-            text-align: center;
-            max-width: 400px;
-            width: 80%;
-            box-shadow: 0 20px 25px rgba(0, 0, 0, 0.25), 0 10px 10px rgba(0, 0, 0, 0.22);
-            border: 1px solid #e5e7eb;
-            animation: fadeIn 0.3s ease-out forwards;
-        `;
-        
+        // 기존 알림 모달 재활용
         let desc = '설정한 시간이 끝났습니다.';
         if (window.lastTimerSettings) {
             const { hours, minutes, seconds } = window.lastTimerSettings;
@@ -681,42 +642,13 @@ const timer = (() => {
             desc = `${parts.join(' ')} 타이머가 완료되었습니다.`;
         }
         
-        popup.innerHTML = `
-            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 15px;">
-                <div style="width: 80px; height: 80px; background: #1a1a1a; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(26, 26, 26, 0.4); animation: pulse 1.5s infinite; margin-bottom: 5px;">
-                    <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <polyline points="12 6 12 12 16 14"></polyline>
-                    </svg>
-                </div>
-                <h1 style="margin: 0; color: #1a1a1a; font-size: 36px; font-weight: 700; line-height: 1.2;">타이머 완료!</h1>
-                <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 18px; font-weight: 500;">${desc}</p>
-                <button id="close-timer-alert" style="width: 100%; padding: 14px; margin-top: 20px; background: #1a1a1a; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 16px; transition: all 0.2s ease;">확인</button>
-            </div>
-        `;
-        
-        container.appendChild(popup);
-        document.body.appendChild(container);
-        
-        const closeBtn = document.getElementById('close-timer-alert');
-        if (closeBtn) {
-            const closeAndStopSound = () => {
-                try {
-                    document.body.removeChild(container);
-                } catch (e) {
-                    console.error('타이머 알림 닫기 오류:', e);
-                }
-                // 소리 정지
-                if (currentPlayingAudio) {
-                    currentPlayingAudio.pause();
-                    currentPlayingAudio.currentTime = 0;
-                    currentPlayingAudio = null;
-                }
-            };
-            closeBtn.addEventListener('click', closeAndStopSound);
-            container.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.key === ' ') closeAndStopSound();
-            });
+        // 기존 알림 모달과 소리 재생 함수 사용
+        if (window.notificationScheduler) {
+            window.notificationScheduler.playNotificationSound();
+            window.notificationScheduler.showNotificationModal('타이머 완료', desc);
+        } else {
+            // fallback: 간단한 alert
+            alert(`타이머 완료\n${desc}`);
         }
     };
 

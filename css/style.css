@@ -787,7 +787,7 @@ button:hover {
     padding: 20px; /* 상하좌우 여백 확보 */
     box-sizing: border-box;
     overflow-y: auto; /* 세로 스크롤 가능 */
-    z-index: 1000;
+    z-index: 3000; /* 타이머 사이드바(2001)보다 높게 설정 */
 }
 
 .modal-content {
