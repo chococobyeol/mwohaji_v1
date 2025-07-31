@@ -632,11 +632,13 @@ const timer = (() => {
 
     const showTimerCompleteNotification = () => {
         // 타이머 완료 소리 재생
+        let currentPlayingAudio = null;
         try {
             const audio = new Audio('assets/sounds/notification.mp3');
             audio.play().catch(e => {
                 console.error('타이머 완료 소리 재생 실패:', e);
             });
+            currentPlayingAudio = audio;
         } catch (e) {
             console.error('타이머 완료 소리 로드 실패:', e);
         }
@@ -698,16 +700,22 @@ const timer = (() => {
         
         const closeBtn = document.getElementById('close-timer-alert');
         if (closeBtn) {
-            const handler = () => {
+            const closeAndStopSound = () => {
                 try {
                     document.body.removeChild(container);
                 } catch (e) {
                     console.error('타이머 알림 닫기 오류:', e);
                 }
+                // 소리 정지
+                if (currentPlayingAudio) {
+                    currentPlayingAudio.pause();
+                    currentPlayingAudio.currentTime = 0;
+                    currentPlayingAudio = null;
+                }
             };
-            closeBtn.addEventListener('click', handler);
+            closeBtn.addEventListener('click', closeAndStopSound);
             container.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.key === ' ') handler();
+                if (e.key === 'Enter' || e.key === ' ') closeAndStopSound();
             });
         }
     };
