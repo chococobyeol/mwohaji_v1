@@ -125,9 +125,9 @@ body {
     display: flex !important;
     align-items: center;
     justify-content: center;
-    min-width: 32px;
-    min-height: 32px;
-    border: 1px solid #d1d5db;
+    min-width: 34.4px;
+    padding: 8.19px 8.19px;
+    border: 1px solid var(--border-color);
     border-radius: 6px;
     background: white;
     cursor: pointer;
@@ -153,6 +153,12 @@ body {
 @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.5; }
+}
+
+/* 소리 상태 버튼 호버 효과 */
+#audio-status-btn:hover {
+    background: var(--hover-color);
+    border-color: var(--primary-color);
 }
 
 /* 데이터 관리 버튼들을 오른쪽으로 정렬 */
