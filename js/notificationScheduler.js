@@ -578,7 +578,7 @@ const notificationScheduler = (() => {
             repeatCounts.forEach((count, key) => {
                 countsData[key] = count;
             });
-            localStorage.setItem('mwohaji-repeat-counts', JSON.stringify(countsData));
+            storage.saveRepeatCounts(countsData);
             console.log('[NotificationScheduler] 반복 횟수 저장 완료');
         } catch (e) {
             console.error('[NotificationScheduler] 반복 횟수 저장 실패:', e);
@@ -597,14 +597,13 @@ const notificationScheduler = (() => {
     // 반복 횟수 로드
     const loadRepeatCounts = () => {
         try {
-            const countsData = localStorage.getItem('mwohaji-repeat-counts');
-            if (countsData) {
-                const counts = JSON.parse(countsData);
+            const countsData = storage.getRepeatCounts();
+            if (countsData && Object.keys(countsData).length > 0) {
                 repeatCounts.clear();
-                Object.entries(counts).forEach(([key, count]) => {
+                Object.entries(countsData).forEach(([key, count]) => {
                     repeatCounts.set(key, count);
                 });
-                console.log('[NotificationScheduler] 반복 횟수 로드 완료:', counts);
+                console.log('[NotificationScheduler] 반복 횟수 로드 완료:', countsData);
             } else {
                 console.log('[NotificationScheduler] 저장된 반복 횟수 데이터가 없습니다.');
             }
@@ -654,7 +653,7 @@ const notificationScheduler = (() => {
         
         // localStorage에서 반복 횟수 데이터 삭제
         try {
-            localStorage.removeItem('mwohaji-repeat-counts');
+            storage.removeRepeatCounts();
         } catch (e) {
             console.error('[NotificationScheduler] 반복 횟수 데이터 삭제 실패:', e);
         }

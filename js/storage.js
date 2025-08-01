@@ -1,4 +1,5 @@
 const storage = (() => {
+    // 모든 localStorage 키를 상수로 정의
     const TODOS_KEY = 'mwohaji-todos';
     const CATEGORIES_KEY = 'mwohaji-categories';
     const COMPLETED_REPEAT_KEY = 'mwohaji-completed-repeat';
@@ -7,32 +8,107 @@ const storage = (() => {
     const AI_API_KEY = 'mwohaji-ai-api-key';
     const AI_FEATURE_ENABLED = 'mwohaji-ai-feature-enabled';
 
+    // localStorage 사용 가능 여부 확인
+    const isLocalStorageAvailable = () => {
+        try {
+            const test = '__localStorage_test__';
+            localStorage.setItem(test, test);
+            localStorage.removeItem(test);
+            return true;
+        } catch (e) {
+            return false;
+        }
+    };
+
+    // 안전한 localStorage 읽기 함수
+    const safeGet = (key, defaultValue = null) => {
+        if (!isLocalStorageAvailable()) return defaultValue;
+        try {
+            const item = localStorage.getItem(key);
+            return item ? JSON.parse(item) : defaultValue;
+        } catch (e) {
+            console.warn(`Failed to parse localStorage item '${key}':`, e);
+            return defaultValue;
+        }
+    };
+
+    // 안전한 localStorage 쓰기 함수
+    const safeSet = (key, value) => {
+        if (!isLocalStorageAvailable()) return false;
+        try {
+            localStorage.setItem(key, JSON.stringify(value));
+            return true;
+        } catch (e) {
+            console.error(`Failed to save to localStorage '${key}':`, e);
+            return false;
+        }
+    };
+
+    // 안전한 localStorage 삭제 함수
+    const safeRemove = (key) => {
+        if (!isLocalStorageAvailable()) return false;
+        try {
+            localStorage.removeItem(key);
+            return true;
+        } catch (e) {
+            console.error(`Failed to remove localStorage item '${key}':`, e);
+            return false;
+        }
+    };
+
+    // Date 객체를 문자열로 변환하는 헬퍼 함수
+    const dateToString = (date) => {
+        if (!(date instanceof Date)) return date;
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        return `${year}-${month}-${day}T${hours}:${minutes}:00`;
+    };
+
+    // 문자열을 Date 객체로 변환하는 헬퍼 함수
+    const stringToDate = (dateString) => {
+        if (!dateString) return dateString;
+        return new Date(dateString);
+    };
+
+    // 할 일 데이터의 Date 객체 처리
+    const processTodoDates = (todo, toStorage = true) => {
+        if (!todo.schedule) return todo;
+        
+        const processedTodo = { ...todo };
+        if (toStorage) {
+            // 저장 시: Date 객체를 문자열로 변환
+            if (processedTodo.schedule.startTime instanceof Date) {
+                processedTodo.schedule.startTime = dateToString(processedTodo.schedule.startTime);
+            }
+            if (processedTodo.schedule.dueTime instanceof Date) {
+                processedTodo.schedule.dueTime = dateToString(processedTodo.schedule.dueTime);
+            }
+        } else {
+            // 로드 시: 문자열을 Date 객체로 변환
+            if (processedTodo.schedule.startTime) {
+                processedTodo.schedule.startTime = stringToDate(processedTodo.schedule.startTime);
+            }
+            if (processedTodo.schedule.dueTime) {
+                processedTodo.schedule.dueTime = stringToDate(processedTodo.schedule.dueTime);
+            }
+            // 알림 상태 초기화
+            if (processedTodo.schedule.notifiedStart === undefined) {
+                processedTodo.schedule.notifiedStart = false;
+            }
+            if (processedTodo.schedule.notifiedDue === undefined) {
+                processedTodo.schedule.notifiedDue = false;
+            }
+        }
+        return processedTodo;
+    };
+
     const getTodos = () => {
         try {
-            const todos = localStorage.getItem(TODOS_KEY);
-            const parsedTodos = todos ? JSON.parse(todos) : [];
-            // 저장된 시간을 Date 객체로 변환하되, 로컬 시간으로 해석되도록 처리
-            return parsedTodos.map(todo => {
-                if (todo.schedule) {
-                    if (todo.schedule.startTime) {
-                        // 'YYYY-MM-DDTHH:mm:00' 형식의 문자열을 로컬 시간으로 파싱
-                        todo.schedule.startTime = new Date(todo.schedule.startTime);
-                    }
-                    if (todo.schedule.dueTime) {
-                        // 'YYYY-MM-DDTHH:mm:00' 형식의 문자열을 로컬 시간으로 파싱
-                        todo.schedule.dueTime = new Date(todo.schedule.dueTime);
-                    }
-                    // 알림 상태는 백업에서 복원된 값을 그대로 사용 (초기화하지 않음)
-                    // notifiedStart와 notifiedDue가 undefined인 경우에만 false로 초기화
-                    if (todo.schedule.notifiedStart === undefined) {
-                        todo.schedule.notifiedStart = false;
-                    }
-                    if (todo.schedule.notifiedDue === undefined) {
-                        todo.schedule.notifiedDue = false;
-                    }
-                }
-                return todo;
-            });
+            const todos = safeGet(TODOS_KEY, []);
+            return todos.map(todo => processTodoDates(todo, false));
         } catch (e) {
             console.error('Failed to parse todos from localStorage', e);
             return [];
@@ -41,45 +117,20 @@ const storage = (() => {
 
     const saveTodos = (todos) => {
         try {
-            // 저장하기 전에 Date 객체를 'YYYY-MM-DDTHH:mm:00' 형식의 문자열로 변환하여 저장
-            const todosToSave = todos.map(todo => {
-                const newTodo = { ...todo };
-                if (newTodo.schedule) {
-                    if (newTodo.schedule.startTime instanceof Date) {
-                        const date = newTodo.schedule.startTime;
-                        const year = date.getFullYear();
-                        const month = String(date.getMonth() + 1).padStart(2, '0');
-                        const day = String(date.getDate()).padStart(2, '0');
-                        const hours = String(date.getHours()).padStart(2, '0');
-                        const minutes = String(date.getMinutes()).padStart(2, '0');
-                        newTodo.schedule.startTime = `${year}-${month}-${day}T${hours}:${minutes}:00`;
-                    }
-                    if (newTodo.schedule.dueTime instanceof Date) {
-                        const date = newTodo.schedule.dueTime;
-                        const year = date.getFullYear();
-                        const month = String(date.getMonth() + 1).padStart(2, '0');
-                        const day = String(date.getDate()).padStart(2, '0');
-                        const hours = String(date.getHours()).padStart(2, '0');
-                        const minutes = String(date.getMinutes()).padStart(2, '0');
-                        newTodo.schedule.dueTime = `${year}-${month}-${day}T${hours}:${minutes}:00`;
-                    }
-                    // 알림 상태도 함께 저장 (notifiedStart, notifiedDue)
-                    // 이 값들이 undefined가 아닌 경우에만 저장
-                }
-                return newTodo;
-            });
-            localStorage.setItem(TODOS_KEY, JSON.stringify(todosToSave));
+            const todosToSave = todos.map(todo => processTodoDates(todo, true));
+            const success = safeSet(TODOS_KEY, todosToSave);
+            if (!success) {
+                alert('데이터 저장에 실패했습니다. 저장 공간이 부족할 수 있습니다.');
+            }
         } catch (e) {
             console.error('Failed to save todos to localStorage', e);
-            // PRD 8.1. 용량 초과 시 에러 처리 연계
             alert('데이터 저장에 실패했습니다. 저장 공간이 부족할 수 있습니다.');
         }
     };
 
     const getCategories = () => {
         try {
-            const categories = localStorage.getItem(CATEGORIES_KEY);
-            let parsedCategories = categories ? JSON.parse(categories) : [{ id: 'default', name: '일반' }];
+            let parsedCategories = safeGet(CATEGORIES_KEY, [{ id: 'default', name: '일반' }]);
             
             // 기존 카테고리들에 createdAt 필드가 없다면 추가
             parsedCategories = parsedCategories.map(category => {
@@ -111,7 +162,10 @@ const storage = (() => {
 
     const saveCategories = (categories) => {
         try {
-            localStorage.setItem(CATEGORIES_KEY, JSON.stringify(categories));
+            const success = safeSet(CATEGORIES_KEY, categories);
+            if (!success) {
+                alert('카테고리 저장에 실패했습니다.');
+            }
         } catch (e) {
             console.error('Failed to save categories to localStorage', e);
             alert('카테고리 저장에 실패했습니다.');
@@ -120,27 +174,8 @@ const storage = (() => {
 
     const getCompletedRepeatTodos = () => {
         try {
-            const completed = localStorage.getItem(COMPLETED_REPEAT_KEY);
-            const parsedCompleted = completed ? JSON.parse(completed) : [];
-            // 완료된 반복 할 일도 Date 객체 변환 및 알림 상태 처리
-            return parsedCompleted.map(todo => {
-                if (todo.schedule) {
-                    if (todo.schedule.startTime) {
-                        todo.schedule.startTime = new Date(todo.schedule.startTime);
-                    }
-                    if (todo.schedule.dueTime) {
-                        todo.schedule.dueTime = new Date(todo.schedule.dueTime);
-                    }
-                    // 알림 상태는 백업에서 복원된 값을 그대로 사용
-                    if (todo.schedule.notifiedStart === undefined) {
-                        todo.schedule.notifiedStart = false;
-                    }
-                    if (todo.schedule.notifiedDue === undefined) {
-                        todo.schedule.notifiedDue = false;
-                    }
-                }
-                return todo;
-            });
+            const completed = safeGet(COMPLETED_REPEAT_KEY, []);
+            return completed.map(todo => processTodoDates(todo, false));
         } catch (e) {
             console.error('Failed to parse completed repeat todos from localStorage', e);
             return [];
@@ -149,48 +184,54 @@ const storage = (() => {
 
     const saveCompletedRepeatTodos = (completed) => {
         try {
-            // 완료된 반복 할 일도 Date 객체를 문자열로 변환하여 저장
-            const completedToSave = completed.map(todo => {
-                const newTodo = { ...todo };
-                if (newTodo.schedule) {
-                    if (newTodo.schedule.startTime instanceof Date) {
-                        const date = newTodo.schedule.startTime;
-                        const year = date.getFullYear();
-                        const month = String(date.getMonth() + 1).padStart(2, '0');
-                        const day = String(date.getDate()).padStart(2, '0');
-                        const hours = String(date.getHours()).padStart(2, '0');
-                        const minutes = String(date.getMinutes()).padStart(2, '0');
-                        newTodo.schedule.startTime = `${year}-${month}-${day}T${hours}:${minutes}:00`;
-                    }
-                    if (newTodo.schedule.dueTime instanceof Date) {
-                        const date = newTodo.schedule.dueTime;
-                        const year = date.getFullYear();
-                        const month = String(date.getMonth() + 1).padStart(2, '0');
-                        const day = String(date.getDate()).padStart(2, '0');
-                        const hours = String(date.getHours()).padStart(2, '0');
-                        const minutes = String(date.getMinutes()).padStart(2, '0');
-                        newTodo.schedule.dueTime = `${year}-${month}-${day}T${hours}:${minutes}:00`;
-                    }
-                }
-                return newTodo;
-            });
-            localStorage.setItem(COMPLETED_REPEAT_KEY, JSON.stringify(completedToSave));
+            const completedToSave = completed.map(todo => processTodoDates(todo, true));
+            safeSet(COMPLETED_REPEAT_KEY, completedToSave);
         } catch (e) {
             console.error('Failed to save completed repeat todos to localStorage', e);
+        }
+    };
+
+    // 반복 횟수 데이터 관리 함수 추가
+    const getRepeatCounts = () => {
+        try {
+            return safeGet(REPEAT_COUNTS_KEY, {});
+        } catch (e) {
+            console.error('Failed to parse repeat counts from localStorage', e);
+            return {};
+        }
+    };
+
+    const saveRepeatCounts = (counts) => {
+        try {
+            const success = safeSet(REPEAT_COUNTS_KEY, counts);
+            if (!success) {
+                console.error('Failed to save repeat counts to localStorage');
+            }
+        } catch (e) {
+            console.error('Failed to save repeat counts to localStorage', e);
+        }
+    };
+
+    const removeRepeatCounts = () => {
+        try {
+            return safeRemove(REPEAT_COUNTS_KEY);
+        } catch (e) {
+            console.error('Failed to remove repeat counts from localStorage', e);
+            return false;
         }
     };
 
     // 설정 저장/불러오기
     const getSettings = () => {
         try {
-            const settings = localStorage.getItem(SETTINGS_KEY);
             const defaultSettings = {
                 showCompleted: true, // 기본값: 완료된 할 일 표시
                 todoSortOrder: 'created-desc', // 기본값: 생성일 최신순
                 collapsedCategories: {}, // 기본값: 모든 카테고리 펼쳐짐
                 autoScrollToCategory: true // 기본값: 카테고리 선택 시 자동 스크롤
             };
-            return settings ? { ...defaultSettings, ...JSON.parse(settings) } : defaultSettings;
+            const settings = safeGet(SETTINGS_KEY, null);
+            return settings ? { ...defaultSettings, ...settings } : defaultSettings;
         } catch (e) {
             console.error('Failed to parse settings from localStorage', e);
             return { showCompleted: true, todoSortOrder: 'created-desc', collapsedCategories: {}, autoScrollToCategory: true };
@@ -199,7 +240,7 @@ const storage = (() => {
 
     const saveSettings = (settings) => {
         try {
-            localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+            safeSet(SETTINGS_KEY, settings);
         } catch (e) {
             console.error('Failed to save settings to localStorage', e);
         }
@@ -208,8 +249,7 @@ const storage = (() => {
     // AI API 키 저장/불러오기
     const getAiApiKey = () => {
         try {
-            const key = localStorage.getItem(AI_API_KEY);
-            return key || '';
+            return localStorage.getItem(AI_API_KEY) || '';
         } catch (e) {
             console.error('Failed to get AI API key from localStorage', e);
             return '';
@@ -247,13 +287,8 @@ const storage = (() => {
     // 모든 데이터 초기화
     const clearAllData = () => {
         try {
-            localStorage.removeItem(TODOS_KEY);
-            localStorage.removeItem(CATEGORIES_KEY);
-            localStorage.removeItem(COMPLETED_REPEAT_KEY);
-            localStorage.removeItem(REPEAT_COUNTS_KEY);
-            localStorage.removeItem(SETTINGS_KEY);
-            localStorage.removeItem(AI_API_KEY); // AI API 키도 초기화
-            localStorage.removeItem(AI_FEATURE_ENABLED); // AI 기능 활성화 상태도 초기화
+            const keys = [TODOS_KEY, CATEGORIES_KEY, COMPLETED_REPEAT_KEY, REPEAT_COUNTS_KEY, SETTINGS_KEY, AI_API_KEY, AI_FEATURE_ENABLED];
+            keys.forEach(key => safeRemove(key));
             console.log('All localStorage data cleared successfully');
         } catch (e) {
             console.error('Failed to clear localStorage data', e);
@@ -261,6 +296,7 @@ const storage = (() => {
     };
 
     return {
+        // 기존 함수들
         getTodos,
         saveTodos,
         getCategories,
@@ -273,6 +309,28 @@ const storage = (() => {
         saveAiApiKey,
         getAiFeatureEnabled,
         saveAiFeatureEnabled,
-        clearAllData
+        clearAllData,
+        
+        // 새로운 함수들
+        getRepeatCounts,
+        saveRepeatCounts,
+        removeRepeatCounts,
+        
+        // 유틸리티 함수들 (다른 모듈에서 사용 가능)
+        isLocalStorageAvailable,
+        safeGet,
+        safeSet,
+        safeRemove,
+        
+        // 상수들 (다른 모듈에서 사용 가능)
+        KEYS: {
+            TODOS_KEY,
+            CATEGORIES_KEY,
+            COMPLETED_REPEAT_KEY,
+            SETTINGS_KEY,
+            REPEAT_COUNTS_KEY,
+            AI_API_KEY,
+            AI_FEATURE_ENABLED
+        }
     };
 })();

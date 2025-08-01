@@ -70,40 +70,6 @@ const utils = (() => {
         });
     };
 
-    // 로컬 스토리지 유틸리티 (추가 안전성)
-    const isLocalStorageAvailable = () => {
-        try {
-            const test = '__localStorage_test__';
-            localStorage.setItem(test, test);
-            localStorage.removeItem(test);
-            return true;
-        } catch (e) {
-            return false;
-        }
-    };
-
-    const safeLocalStorageGet = (key, defaultValue = null) => {
-        if (!isLocalStorageAvailable()) return defaultValue;
-        try {
-            const item = localStorage.getItem(key);
-            return item ? JSON.parse(item) : defaultValue;
-        } catch (e) {
-            console.warn(`Failed to parse localStorage item '${key}':`, e);
-            return defaultValue;
-        }
-    };
-
-    const safeLocalStorageSet = (key, value) => {
-        if (!isLocalStorageAvailable()) return false;
-        try {
-            localStorage.setItem(key, JSON.stringify(value));
-            return true;
-        } catch (e) {
-            console.error(`Failed to save to localStorage '${key}':`, e);
-            return false;
-        }
-    };
-
     // 디바운스 함수
     const debounce = (func, wait) => {
         let timeout;
@@ -236,9 +202,6 @@ const utils = (() => {
         escapeHtml,
         groupBy,
         sortBy,
-        isLocalStorageAvailable,
-        safeLocalStorageGet,
-        safeLocalStorageSet,
         debounce,
         addEventListeners,
         isValidEmail,

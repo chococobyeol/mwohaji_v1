@@ -938,16 +938,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         startCount = window.notificationScheduler.getRepeatCount(startCountKey) || 0;
                         dueCount = window.notificationScheduler.getRepeatCount(dueCountKey) || 0;
                     } else {
-                        // notificationScheduler가 아직 초기화되지 않은 경우, localStorage에서 직접 로드
+                        // notificationScheduler가 아직 초기화되지 않은 경우, storage에서 직접 로드
                         try {
-                            const countsData = localStorage.getItem('mwohaji-repeat-counts');
+                            const countsData = storage.getRepeatCounts();
                             if (countsData) {
-                                const counts = JSON.parse(countsData);
-                                startCount = counts[startCountKey] || 0;
-                                dueCount = counts[dueCountKey] || 0;
+                                startCount = countsData[startCountKey] || 0;
+                                dueCount = countsData[dueCountKey] || 0;
                             }
                         } catch (e) {
-                            console.warn('[App] localStorage에서 반복 횟수 로드 실패:', e);
+                            console.warn('[App] storage에서 반복 횟수 로드 실패:', e);
                         }
                     }
                     
@@ -2098,10 +2097,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // AI 채팅 버튼은 항상 초기화 (저장된 상태에 따라)
         if (aiChatToggleBtn) {
             const isAiEnabled = storage.getAiFeatureEnabled();
-            const rawValue = localStorage.getItem('mwohaji-ai-feature-enabled');
             
             console.log(`[App] AI 기능 상태 확인:`);
-            console.log(`  - localStorage 원본 값: "${rawValue}"`);
             console.log(`  - storage.getAiFeatureEnabled(): ${isAiEnabled}`);
             console.log(`  - 타입: ${typeof isAiEnabled}`);
             
