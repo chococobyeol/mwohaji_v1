@@ -85,11 +85,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const settingsSidebar = document.getElementById('settings-sidebar');
     const closeSettingsSidebar = document.getElementById('close-settings-sidebar');
     const settingsSidebarOverlay = document.querySelector('.settings-sidebar-overlay');
-    const showCompletedToggle = document.getElementById('show-completed-toggle');
     
-    // Service Worker 관련 설정
-    const notificationPermissionToggle = document.getElementById('notification-permission-toggle');
-    const notificationPermissionStatus = document.getElementById('notification-permission-status');
+    // Service Worker 관련 설정 (동적으로 생성되는 요소들은 나중에 선언됨)
     
     // Service Worker 알림 처리 함수들
     const handleNotificationShown = (data) => {
@@ -132,35 +129,6 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => settingsSidebar.classList.add('open'), 10);
         settingsSidebarOverlay.classList.add('open');
         settingsSidebarOverlay.style.display = 'block';
-        
-        // 설정 사이드바가 열릴 때 AI 토글 상태를 올바르게 설정
-        const aiFeatureToggle = document.getElementById('ai-feature-toggle');
-        if (aiFeatureToggle) {
-            const isAiEnabled = storage.getAiFeatureEnabled();
-            aiFeatureToggle.checked = isAiEnabled;
-        }
-        
-        // 다른 설정들도 올바르게 설정
-        const showCompletedToggle = document.getElementById('show-completed-toggle');
-        const todoSortSelect = document.getElementById('todo-sort-select');
-        const autoScrollToggle = document.getElementById('auto-scroll-toggle');
-        
-        if (showCompletedToggle) showCompletedToggle.checked = settings.showCompleted;
-        if (todoSortSelect) todoSortSelect.value = settings.todoSortOrder;
-        if (autoScrollToggle) autoScrollToggle.checked = settings.autoScrollToCategory;
-        
-        // API 키 입력 필드 설정
-        const apiKeyInput = document.getElementById('ai-api-key-input');
-        if (apiKeyInput) {
-            apiKeyInput.value = storage.getAiApiKey();
-        }
-        
-        // Notification API 토글 상태 설정
-        const notificationApiToggle = document.getElementById('notification-api-toggle');
-        if (notificationApiToggle) {
-            const isNotificationApiEnabled = storage.getNotificationApiEnabled();
-            notificationApiToggle.checked = isNotificationApiEnabled;
-        }
     }
     function closeSettingsSidebarFn() {
         settingsSidebar.classList.remove('open');
@@ -1601,9 +1569,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 설정 토글 이벤트 핸들러
     const handleShowCompletedToggle = () => {
-        settings.showCompleted = showCompletedToggle.checked;
-        storage.saveSettings(settings);
-        renderTodos(); // 즉시 반영
+        const showCompletedToggle = document.getElementById('show-completed-toggle');
+        if (showCompletedToggle) {
+            settings.showCompleted = showCompletedToggle.checked;
+            storage.saveSettings(settings);
+            renderTodos(); // 즉시 반영
+        }
     };
 
     // 할일 정렬 변경 이벤트 핸들러
@@ -1687,19 +1658,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // Notification API 상태도 초기화 (비활성화)
             storage.saveNotificationApiEnabled(false);
             
-            // UI 업데이트
-            const showCompletedToggle = document.getElementById('show-completed-toggle');
-            const todoSortSelect = document.getElementById('todo-sort-select');
-            const autoScrollToggle = document.getElementById('auto-scroll-toggle');
-            const aiFeatureToggle = document.getElementById('ai-feature-toggle');
+            // UI 업데이트 (동적으로 생성되는 요소들은 나중에 업데이트됨)
             const aiChatToggleBtn = document.getElementById('ai-chat-toggle-btn');
-            const notificationApiToggle = document.getElementById('notification-api-toggle');
             
-            if (showCompletedToggle) showCompletedToggle.checked = true;
-            if (todoSortSelect) todoSortSelect.value = 'created-desc';
-            if (autoScrollToggle) autoScrollToggle.checked = true;
-            if (aiFeatureToggle) aiFeatureToggle.checked = false;
-            if (notificationApiToggle) notificationApiToggle.checked = false;
             if (aiChatToggleBtn) {
                 aiChatToggleBtn.style.setProperty('display', 'none', 'important');
                 console.log('[App] 설정 초기화: AI 채팅 버튼 강제 숨김');
@@ -1828,8 +1789,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // AI 기능 토글 이벤트 핸들러
     const handleAiFeatureToggle = () => {
-        const aiFeatureToggle = document.getElementById('ai-feature-toggle');
         const aiChatToggleBtn = document.getElementById('ai-chat-toggle-btn');
+        const aiFeatureToggle = document.getElementById('ai-feature-toggle');
         
         if (aiFeatureToggle) {
             const isEnabled = aiFeatureToggle.checked;
@@ -1897,6 +1858,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 알림 권한 상태 업데이트
     const updateNotificationPermissionStatus = () => {
+        const notificationPermissionStatus = document.getElementById('notification-permission-status');
         if (!notificationPermissionStatus) return;
 
         const permission = window.serviceWorkerManager ? window.serviceWorkerManager.getPermission() : 'default';
@@ -1939,7 +1901,7 @@ document.addEventListener('DOMContentLoaded', () => {
         icons.setButtonIcon(closeCategoryOrderModalBtn, 'close', '닫기', 18);
         icons.setButtonIcon(globalSettingsBtn, 'settings-gear', '설정', 18);
         icons.setButtonIcon(closeSettingsSidebar, 'close', '닫기', 18);
-        icons.setButtonIcon(showCompletedToggle, 'check-circle', '완료된 할 일 표시', 18);
+        // showCompletedToggle은 동적으로 생성되므로 나중에 설정됨
         
         // 소리 상태 버튼 초기화 (지연 실행)
         setTimeout(() => {
@@ -1993,7 +1955,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // 설정 로드 및 UI 초기화
         settings = storage.getSettings();
-        showCompletedToggle.checked = settings.showCompleted;
+        // showCompletedToggle은 동적으로 생성되므로 나중에 설정됨
         
         initIcons();
         initAiChatIcons();
@@ -2011,8 +1973,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.target === scheduleModal) closeScheduleModal();
         });
         
-        // 설정 토글 이벤트 리스너
-        showCompletedToggle.addEventListener('change', handleShowCompletedToggle);
+        // 설정 토글 이벤트 리스너 (동적으로 생성되는 요소들은 나중에 추가됨)
         
         // 소리 상태 버튼 이벤트 리스너
         if (audioStatusBtn) {
@@ -2062,128 +2023,213 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         
-        // 설정 사이드바에 시간 동기화 버튼 추가 (중복 방지)
+        // 설정 사이드바에 모든 항목을 정확한 순서로 동적 생성
         const settingsSidebar = document.getElementById('settings-sidebar');
         const settingsContent = settingsSidebar.querySelector('.settings-sidebar-content');
         
-        // 기존 동기화 섹션이 있는지 확인
-        let timeSyncSection = document.getElementById('sync-time-btn')?.closest('.setting-item');
-        if (!timeSyncSection) {
-            timeSyncSection = document.createElement('div');
-            timeSyncSection.className = 'setting-item';
-            timeSyncSection.innerHTML = `
-                <div class="setting-row">
-                    <label class="setting-label">알람 시간 동기화</label>
-                    <button id="sync-time-btn" class="secondary-btn" style="padding: 8px 16px; font-size: 14px;">동기화</button>
-                </div>
-                <p class="setting-description">PC 시간이 변경되었을 때 알람 시간을 현재 시간에 맞춰 재계산합니다.</p>
-            `;
-            
-            // 완료된 할 일 표시 설정 다음에 추가
-            const showCompletedSection = settingsContent.querySelector('.setting-item');
-            showCompletedSection.parentNode.insertBefore(timeSyncSection, showCompletedSection.nextSibling);
-        }
+        // 기존 설정 항목들 제거 (h2 제목 제외)
+        const existingItems = settingsContent.querySelectorAll('.setting-item');
+        existingItems.forEach(item => item.remove());
         
-        // 시간 동기화 버튼 이벤트 리스너
-        document.getElementById('sync-time-btn').addEventListener('click', () => {
-            console.log('[App] 수동 시간 동기화 실행');
-            const now = new Date(Date.now());
-            console.log(`[App] 수동 동기화 시 현재 시간: ${now.toLocaleString('ko-KR')} (${now.toISOString()}) [Timestamp: ${Date.now()}]`);
-            notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
-        });
+        // 1. 완료된 할 일 표시 설정
+        const showCompletedSection = document.createElement('div');
+        showCompletedSection.className = 'setting-item';
+        showCompletedSection.innerHTML = `
+            <div class="setting-row">
+                <label for="show-completed-toggle" class="setting-label">완료된 할 일 표시</label>
+                <div class="toggle-switch">
+                    <input type="checkbox" id="show-completed-toggle" class="toggle-input">
+                    <label for="show-completed-toggle" class="toggle-label"></label>
+                </div>
+            </div>
+            <p class="setting-description">완료된 할 일을 목록에 표시할지 선택합니다.</p>
+        `;
+        settingsContent.appendChild(showCompletedSection);
         
-        // 할일 정렬 섹션 추가 (중복 방지)
-        let todoSortSection = document.getElementById('todo-sort-select')?.closest('.setting-item');
-        if (!todoSortSection) {
-            todoSortSection = document.createElement('div');
-            todoSortSection.className = 'setting-item';
-            todoSortSection.innerHTML = `
-                <div class="setting-row">
-                    <label class="setting-label">할일 정렬 순서</label>
+        // 2. 카테고리 자동 스크롤 설정
+        const autoScrollSection = document.createElement('div');
+        autoScrollSection.className = 'setting-item';
+        autoScrollSection.innerHTML = `
+            <div class="setting-row">
+                <label class="setting-label">카테고리 자동 스크롤</label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="auto-scroll-toggle" class="toggle-input">
+                    <span class="toggle-label"></span>
+                </label>
+            </div>
+            <p class="setting-description">카테고리 선택 시 해당 위치로 자동 스크롤합니다. 접힌 카테고리는 그대로 유지됩니다.</p>
+        `;
+        settingsContent.appendChild(autoScrollSection);
+        
+        // 3. 할일 정렬 순서 설정
+        const todoSortSection = document.createElement('div');
+        todoSortSection.className = 'setting-item';
+        todoSortSection.innerHTML = `
+            <div class="setting-row">
+                <label class="setting-label">할일 정렬 순서</label>
+            </div>
+            <div class="setting-control">
+                <select id="todo-sort-select" class="sort-select">
+                    <option value="created-desc">생성일 최신순</option>
+                    <option value="created-asc">생성일 오래된순</option>
+                    <option value="text-asc">할일명 가나다순</option>
+                    <option value="text-desc">할일명 역순</option>
+                    <option value="completed-asc">미완료 우선</option>
+                    <option value="completed-desc">완료 우선</option>
+                    <option value="start-time-asc">시작시간 빠른순</option>
+                    <option value="start-time-desc">시작시간 늦은순</option>
+                    <option value="due-time-asc">마감시간 빠른순</option>
+                    <option value="due-time-desc">마감시간 늦은순</option>
+                </select>
+            </div>
+            <p class="setting-description">할일 목록의 정렬 순서를 설정합니다. 카테고리별 보기와 전체 보기 모두에 적용됩니다.</p>
+        `;
+        settingsContent.appendChild(todoSortSection);
+        
+        // 4. 알림시간 동기화 설정
+        const timeSyncSection = document.createElement('div');
+        timeSyncSection.className = 'setting-item';
+        timeSyncSection.innerHTML = `
+            <div class="setting-row">
+                <label class="setting-label">알림시간 동기화</label>
+                <button id="sync-time-btn" class="secondary-btn" style="padding: 8px 16px; font-size: 14px;">동기화</button>
+            </div>
+            <p class="setting-description">PC 시간이 변경되었을 때 알람 시간을 현재 시간에 맞춰 재계산합니다.</p>
+        `;
+        settingsContent.appendChild(timeSyncSection);
+        
+        // 5. 백그라운드 알림 설정
+        const notificationApiSection = document.createElement('div');
+        notificationApiSection.className = 'setting-item';
+        notificationApiSection.innerHTML = `
+            <div class="setting-row">
+                <label for="notification-api-toggle" class="setting-label">백그라운드 알림 (Notification API)</label>
+                <div class="toggle-switch">
+                    <input type="checkbox" id="notification-api-toggle" class="toggle-input">
+                    <label for="notification-api-toggle" class="toggle-label"></label>
                 </div>
-                <div class="setting-control">
-                    <select id="todo-sort-select" class="sort-select">
-                        <option value="created-desc">생성일 최신순</option>
-                        <option value="created-asc">생성일 오래된순</option>
-                        <option value="text-asc">할일명 가나다순</option>
-                        <option value="text-desc">할일명 역순</option>
-                        <option value="completed-asc">미완료 우선</option>
-                        <option value="completed-desc">완료 우선</option>
-                        <option value="start-time-asc">시작시간 빠른순</option>
-                        <option value="start-time-desc">시작시간 늦은순</option>
-                        <option value="due-time-asc">마감시간 빠른순</option>
-                        <option value="due-time-desc">마감시간 늦은순</option>
-                    </select>
+            </div>
+            <p class="setting-description">Notification API를 사용하여 백그라운드에서도 알림을 받을 수 있습니다. 탭이 비활성화되어 있어도 알림이 정상적으로 작동합니다.</p>
+        `;
+        settingsContent.appendChild(notificationApiSection);
+        
+        // 6. 알림 권한 설정
+        const notificationPermissionSection = document.createElement('div');
+        notificationPermissionSection.className = 'setting-item';
+        notificationPermissionSection.innerHTML = `
+            <div class="setting-row">
+                <label class="setting-label">알림 권한</label>
+                <button id="notification-permission-toggle" class="secondary-btn">권한 요청</button>
+            </div>
+            <div class="setting-control">
+                <div id="notification-permission-status" class="status-text warning">알림 권한 요청 필요</div>
+            </div>
+            <p class="setting-description">백그라운드 알림을 사용하려면 알림 권한이 필요합니다.</p>
+        `;
+        settingsContent.appendChild(notificationPermissionSection);
+        
+        // 7. AI 기능 토글 설정
+        const aiFeatureSection = document.createElement('div');
+        aiFeatureSection.className = 'setting-item';
+        aiFeatureSection.innerHTML = `
+            <div class="setting-row">
+                <label for="ai-feature-toggle" class="setting-label">AI 기능 (Beta)</label>
+                <div class="toggle-switch">
+                    <input type="checkbox" id="ai-feature-toggle" class="toggle-input">
+                    <label for="ai-feature-toggle" class="toggle-label"></label>
                 </div>
-                <p class="setting-description">할일 목록의 정렬 순서를 설정합니다. 카테고리별 보기와 전체 보기 모두에 적용됩니다.</p>
-            `;
-            
-            // 시간 동기화 섹션 다음에 추가
-            timeSyncSection.parentNode.insertBefore(todoSortSection, timeSyncSection.nextSibling);
-        }
+            </div>
+            <p class="setting-description">AI 대화 기능을 활성화하거나 비활성화합니다. (Beta 기능)</p>
+        `;
+        settingsContent.appendChild(aiFeatureSection);
+        
+        // 8. AI API 키 설정
+        const aiApiKeySection = document.createElement('div');
+        aiApiKeySection.className = 'setting-item';
+        aiApiKeySection.innerHTML = `
+            <div class="setting-row">
+                <label for="ai-api-key-input" class="setting-label">AI API 키</label>
+            </div>
+            <div class="setting-control">
+                <input type="password" id="ai-api-key-input" class="api-key-input" placeholder="Google Gemini API 키를 입력하세요">
+                <button id="save-api-key-btn" class="secondary-btn">저장</button>
+            </div>
+            <p class="setting-description">AI 대화 기능을 사용하려면 Google Gemini API 키가 필요합니다. <a href="https://makersuite.google.com/app/apikey" target="_blank">API 키 발급받기</a></p>
+        `;
+        settingsContent.appendChild(aiApiKeySection);
+        
+        // 9. 데이터 초기화 설정
+        const dataResetSection = document.createElement('div');
+        dataResetSection.className = 'setting-item';
+        dataResetSection.innerHTML = `
+            <div class="setting-row">
+                <div>
+                    <div class="setting-label">데이터 초기화</div>
+                    <p class="setting-description">모든 데이터를 초기화합니다 (복구 불가)</p>
+                </div>
+            </div>
+            <div class="setting-control">
+                <button id="reset-all-data-btn" class="reset-btn danger">데이터 초기화</button>
+                <button id="reset-settings-btn" class="reset-btn secondary">설정 초기화</button>
+            </div>
+        `;
+        settingsContent.appendChild(dataResetSection);
 
-        // 자동 스크롤 섹션 추가 (중복 방지)
-        let autoScrollSection = document.getElementById('auto-scroll-toggle')?.closest('.setting-item');
-        if (!autoScrollSection) {
-            autoScrollSection = document.createElement('div');
-            autoScrollSection.className = 'setting-item';
-            autoScrollSection.innerHTML = `
-                <div class="setting-row">
-                    <label class="setting-label">카테고리 자동 스크롤</label>
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="auto-scroll-toggle" class="toggle-input">
-                        <span class="toggle-label"></span>
-                    </label>
-                </div>
-                <p class="setting-description">카테고리 선택 시 해당 위치로 자동 스크롤합니다. 접힌 카테고리는 그대로 유지됩니다.</p>
-            `;
-            
-            // 할일 정렬 섹션 다음에 추가
-            todoSortSection.parentNode.insertBefore(autoScrollSection, todoSortSection.nextSibling);
-        }
-        
-        // 데이터 초기화 섹션 추가 (중복 방지)
-        let dataResetSection = document.getElementById('reset-all-data-btn')?.closest('.setting-item');
-        if (!dataResetSection) {
-            dataResetSection = document.createElement('div');
-            dataResetSection.className = 'setting-item';
-            dataResetSection.innerHTML = `
-                <div class="setting-row">
-                    <div>
-                        <div class="setting-label">데이터 초기화</div>
-                        <p class="setting-description">모든 데이터를 초기화합니다 (복구 불가)</p>
-                    </div>
-                </div>
-                <div class="setting-control">
-                    <button id="reset-all-data-btn" class="reset-btn danger">데이터 초기화</button>
-                    <button id="reset-settings-btn" class="reset-btn secondary">설정 초기화</button>
-                </div>
-            `;
-            todoSortSection.parentNode.insertBefore(dataResetSection, todoSortSection.nextSibling);
-        }
-
-        // 할일 정렬 선택 초기화 (중복 방지)
+        // 모든 설정 요소들의 이벤트 리스너와 초기화
         const todoSortSelect = document.getElementById('todo-sort-select');
+        const autoScrollToggle = document.getElementById('auto-scroll-toggle');
+        const showCompletedToggle = document.getElementById('show-completed-toggle');
+        const aiFeatureToggle = document.getElementById('ai-feature-toggle');
+        const notificationApiToggle = document.getElementById('notification-api-toggle');
+        const notificationPermissionToggle = document.getElementById('notification-permission-toggle');
+        const resetAllDataBtn = document.getElementById('reset-all-data-btn');
+        const resetSettingsBtn = document.getElementById('reset-settings-btn');
+        const syncTimeBtn = document.getElementById('sync-time-btn');
+        const apiKeyInput = document.getElementById('ai-api-key-input');
+        const saveApiKeyBtn = document.getElementById('save-api-key-btn');
+
+        // 할일 정렬 선택 초기화
         if (todoSortSelect) {
             todoSortSelect.value = settings.todoSortOrder || 'created-desc';
-            // 이벤트 리스너 중복 방지
             todoSortSelect.removeEventListener('change', handleTodoSortChange);
             todoSortSelect.addEventListener('change', handleTodoSortChange);
         }
 
-        // 자동 스크롤 토글 초기화 (중복 방지)
-        const autoScrollToggle = document.getElementById('auto-scroll-toggle');
+        // 자동 스크롤 토글 초기화
         if (autoScrollToggle) {
-            autoScrollToggle.checked = settings.autoScrollToCategory !== false; // 기본값 true
-            // 이벤트 리스너 중복 방지
+            autoScrollToggle.checked = settings.autoScrollToCategory !== false;
             autoScrollToggle.removeEventListener('change', handleAutoScrollToggle);
             autoScrollToggle.addEventListener('change', handleAutoScrollToggle);
         }
 
-        // 데이터 초기화 버튼 이벤트 리스너 (중복 방지)
-        const resetAllDataBtn = document.getElementById('reset-all-data-btn');
-        const resetSettingsBtn = document.getElementById('reset-settings-btn');
-        
+        // 완료된 할 일 표시 토글 초기화
+        if (showCompletedToggle) {
+            showCompletedToggle.checked = settings.showCompleted !== false;
+            showCompletedToggle.removeEventListener('change', handleShowCompletedToggle);
+            showCompletedToggle.addEventListener('change', handleShowCompletedToggle);
+        }
+
+        // AI 기능 토글 초기화
+        if (aiFeatureToggle) {
+            aiFeatureToggle.checked = settings.aiFeatureEnabled === true;
+            aiFeatureToggle.removeEventListener('change', handleAiFeatureToggle);
+            aiFeatureToggle.addEventListener('change', handleAiFeatureToggle);
+        }
+
+        // 백그라운드 알림 토글 초기화
+        if (notificationApiToggle) {
+            notificationApiToggle.checked = settings.notificationApiEnabled === true;
+            notificationApiToggle.removeEventListener('change', handleNotificationApiToggle);
+            notificationApiToggle.addEventListener('change', handleNotificationApiToggle);
+        }
+
+        // 알림 권한 버튼 초기화
+        if (notificationPermissionToggle) {
+            notificationPermissionToggle.removeEventListener('click', handleNotificationPermissionRequest);
+            notificationPermissionToggle.addEventListener('click', handleNotificationPermissionRequest);
+        }
+
+        // 데이터 초기화 버튼 이벤트 리스너
         if (resetAllDataBtn) {
             resetAllDataBtn.removeEventListener('click', handleResetAllData);
             resetAllDataBtn.addEventListener('click', handleResetAllData);
@@ -2192,6 +2238,54 @@ document.addEventListener('DOMContentLoaded', () => {
             resetSettingsBtn.removeEventListener('click', handleResetSettings);
             resetSettingsBtn.addEventListener('click', handleResetSettings);
         }
+
+        // 시간 동기화 버튼 이벤트 리스너
+        if (syncTimeBtn) {
+            syncTimeBtn.removeEventListener('click', () => {
+                console.log('[App] 수동 시간 동기화 실행');
+                const now = new Date(Date.now());
+                console.log(`[App] 수동 동기화 시 현재 시간: ${now.toLocaleString('ko-KR')} (${now.toISOString()}) [Timestamp: ${Date.now()}]`);
+                notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
+            });
+            syncTimeBtn.addEventListener('click', () => {
+                console.log('[App] 수동 시간 동기화 실행');
+                const now = new Date(Date.now());
+                console.log(`[App] 수동 동기화 시 현재 시간: ${now.toLocaleString('ko-KR')} (${now.toISOString()}) [Timestamp: ${Date.now()}]`);
+                notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
+            });
+        }
+
+        // AI API 키 입력 및 저장 버튼 초기화
+        if (apiKeyInput) {
+            apiKeyInput.value = settings.aiApiKey || '';
+        }
+        if (saveApiKeyBtn) {
+            saveApiKeyBtn.removeEventListener('click', () => {
+                const apiKey = apiKeyInput.value.trim();
+                if (apiKey) {
+                    settings.aiApiKey = apiKey;
+                    localStorage.setItem('settings', JSON.stringify(settings));
+                    console.log('[App] AI API 키 저장됨');
+                    alert('API 키가 저장되었습니다.');
+                } else {
+                    alert('API 키를 입력해주세요.');
+                }
+            });
+            saveApiKeyBtn.addEventListener('click', () => {
+                const apiKey = apiKeyInput.value.trim();
+                if (apiKey) {
+                    settings.aiApiKey = apiKey;
+                    localStorage.setItem('settings', JSON.stringify(settings));
+                    console.log('[App] AI API 키 저장됨');
+                    alert('API 키가 저장되었습니다.');
+                } else {
+                    alert('API 키를 입력해주세요.');
+                }
+            });
+        }
+        
+        // 알림 권한 상태 업데이트 (동적으로 생성된 요소들 이후)
+        updateNotificationPermissionStatus();
         
         // Service Worker 초기화 (알림 스케줄러보다 먼저)
         if (window.serviceWorkerManager) {
@@ -2228,42 +2322,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // 일반 아이콘 초기화
         initIcons();
         
-        // API 키 설정 이벤트 리스너
-        const apiKeyInput = document.getElementById('ai-api-key-input');
-        const saveApiKeyBtn = document.getElementById('save-api-key-btn');
-        
-        if (apiKeyInput && saveApiKeyBtn) {
-            // 저장된 API 키 로드
-            const savedApiKey = storage.getAiApiKey();
-            if (savedApiKey) {
-                apiKeyInput.value = savedApiKey;
-            }
-            
-            // API 키 저장 버튼 이벤트
-            saveApiKeyBtn.addEventListener('click', () => {
-                const apiKey = apiKeyInput.value.trim();
-                if (apiKey) {
-                    storage.saveAiApiKey(apiKey);
-                    aiChat.setApiKey(apiKey);
-                    alert('API 키가 저장되었습니다.');
-                } else {
-                    alert('API 키를 입력해주세요.');
-                }
-            });
-            
-            // Enter 키로 저장
-            apiKeyInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    saveApiKeyBtn.click();
-                }
-            });
-        }
-        
-        // AI 기능 토글 초기화
-        const aiFeatureToggle = document.getElementById('ai-feature-toggle');
+        // AI 채팅 버튼 초기화 (저장된 상태에 따라)
         const aiChatToggleBtn = document.getElementById('ai-chat-toggle-btn');
-        
-        // AI 채팅 버튼은 항상 초기화 (저장된 상태에 따라)
         if (aiChatToggleBtn) {
             const isAiEnabled = storage.getAiFeatureEnabled();
             
@@ -2280,37 +2340,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log(`[App] AI 채팅 버튼 숨김 설정`);
             }
             console.log(`[App] AI 채팅 버튼 초기화: ${isAiEnabled ? '표시' : '숨김'}`);
-        }
-        
-        // AI 기능 토글 버튼이 있으면 초기화
-        if (aiFeatureToggle) {
-            // 저장된 AI 기능 상태 로드
-            const isAiEnabled = storage.getAiFeatureEnabled();
-            aiFeatureToggle.checked = isAiEnabled;
-            
-            // AI 기능 토글 이벤트 리스너
-            aiFeatureToggle.addEventListener('change', handleAiFeatureToggle);
-            
-            console.log(`[App] AI 기능 토글 초기화: ${isAiEnabled ? '활성화' : '비활성화'}`);
-        }
-
-        // Notification API 토글 초기화
-        const notificationApiToggle = document.getElementById('notification-api-toggle');
-        if (notificationApiToggle) {
-            // 저장된 Notification API 상태 로드
-            const isNotificationApiEnabled = storage.getNotificationApiEnabled();
-            notificationApiToggle.checked = isNotificationApiEnabled;
-            
-            // Notification API 토글 이벤트 리스너
-            notificationApiToggle.addEventListener('change', handleNotificationApiToggle);
-            
-            console.log(`[App] Notification API 토글 초기화: ${isNotificationApiEnabled ? '활성화' : '비활성화'}`);
-        }
-
-        // 알림 권한 요청 버튼 초기화
-        if (notificationPermissionToggle) {
-            notificationPermissionToggle.addEventListener('click', handleNotificationPermissionRequest);
-            console.log('[App] 알림 권한 요청 버튼 초기화');
         }
         
         // 그 다음에 UI 렌더링 (반복 횟수가 준비된 후)
@@ -2377,6 +2406,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.warn('[App] notificationScheduler.playNotificationSound를 찾을 수 없습니다');
             }
         };
+
+        // Service Worker 메시지 리스너 추가
+        if (navigator.serviceWorker) {
+            navigator.serviceWorker.addEventListener('message', (event) => {
+                console.log('[App] Service Worker 메시지 수신:', event.data);
+                
+                const { type, data } = event.data;
+                
+                switch (type) {
+                    case 'NOTIFICATION_SHOWN':
+                        handleNotificationShown(data);
+                        break;
+                    case 'NOTIFICATION_CLICKED':
+                        handleNotificationClicked(data);
+                        break;
+                    case 'NOTIFICATION_CLOSED':
+                        handleNotificationClosed(data);
+                        break;
+                    case 'PLAY_NOTIFICATION_SOUND':
+                        console.log('[App] Service Worker에서 소리 재생 요청');
+                        window.playNotificationSound();
+                        break;
+                    default:
+                        console.log('[App] 알 수 없는 Service Worker 메시지 타입:', type);
+                }
+            });
+        }
     };
 
 
@@ -2582,14 +2638,9 @@ document.addEventListener('DOMContentLoaded', () => {
         timerBtn.addEventListener('click', openTimerSidebar);
     }
 
-    // 설정 사이드바 내부 토글 이벤트 리스너
-    showCompletedToggle.addEventListener('change', handleShowCompletedToggle);
+    // 설정 사이드바 내부 토글 이벤트 리스너 (동적으로 생성되는 요소들은 나중에 추가됨)
     
-    // AI 기능 토글 이벤트 리스너 (동적으로 추가된 요소이므로 나중에 추가)
-    const aiFeatureToggle = document.getElementById('ai-feature-toggle');
-    if (aiFeatureToggle) {
-        aiFeatureToggle.addEventListener('change', handleAiFeatureToggle);
-    }
+
 
     // 카테고리 삭제 모달 이벤트 리스너
     closeCategoryDeleteModalBtn.addEventListener('click', closeCategoryDeleteModal);

@@ -145,7 +145,7 @@ async function showNotification(title, message, hasSound, todoId, type) {
             badge: '/favicon.ico',
             tag: `${NOTIFICATION_TAG}-${todoId}-${type}`,
             requireInteraction: false,
-            silent: !hasSound,
+            silent: !hasSound, // hasSound가 true면 silent는 false (소리 재생)
             data: {
                 todoId,
                 type,
@@ -168,6 +168,18 @@ async function showNotification(title, message, hasSound, todoId, type) {
                 console.log('[SW] 알림 소리 재생 시도');
                 // 메인 스크립트에 소리 재생 요청
                 notifyMainScript('PLAY_NOTIFICATION_SOUND', { todoId, type });
+                
+                // Service Worker에서도 직접 소리 재생 시도 (폴백)
+                setTimeout(() => {
+                    try {
+                        const audio = new Audio('/assets/sounds/notification.mp3');
+                        audio.play().catch(e => {
+                            console.log('[SW] Service Worker에서 소리 재생 실패 (정상, 메인 스크립트에서 처리됨):', e);
+                        });
+                    } catch (e) {
+                        console.log('[SW] Service Worker에서 소리 재생 시도 실패 (정상):', e);
+                    }
+                }, 100);
             } catch (soundError) {
                 console.error('[SW] 소리 재생 실패:', soundError);
             }
@@ -192,13 +204,22 @@ self.addEventListener('notificationclick', (event) => {
     // 브라우저 창/탭 포커스
     event.waitUntil(
         self.clients.matchAll().then((clients) => {
-            if (clients.length > 0) {
-                // 기존 창/탭이 있으면 포커스
-                console.log('[SW] 기존 클라이언트 발견, 포커스:', clients.length, '개');
+            // 활성화된 클라이언트 찾기
+            const activeClient = clients.find(client => 
+                client.focus && client.visibilityState === 'visible'
+            );
+            
+            if (activeClient) {
+                // 활성화된 클라이언트가 있으면 포커스
+                console.log('[SW] 활성 클라이언트 발견, 포커스');
+                return activeClient.focus();
+            } else if (clients.length > 0) {
+                // 활성화된 클라이언트가 없지만 클라이언트가 있으면 첫 번째 것 포커스
+                console.log('[SW] 비활성 클라이언트 발견, 포커스:', clients.length, '개');
                 return clients[0].focus();
             } else {
-                // 새 창 열기
-                console.log('[SW] 기존 클라이언트 없음, 새 창 열기');
+                // 클라이언트가 전혀 없으면 새 창 열기
+                console.log('[SW] 클라이언트 없음, 새 창 열기');
                 return self.clients.openWindow('/');
             }
         })

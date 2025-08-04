@@ -226,9 +226,23 @@ const serviceWorkerManager = (() => {
                 window.notificationScheduler.playNotificationSound();
             } else {
                 console.warn('[SWManager] 소리 재생 함수를 찾을 수 없습니다');
+                // 직접 소리 재생 시도
+                const audio = new Audio('/assets/sounds/notification.mp3');
+                audio.play().catch(e => {
+                    console.error('[SWManager] 직접 소리 재생 실패:', e);
+                });
             }
         } catch (error) {
             console.error('[SWManager] 소리 재생 실패:', error);
+            // 에러 발생 시에도 직접 소리 재생 시도
+            try {
+                const audio = new Audio('/assets/sounds/notification.mp3');
+                audio.play().catch(e => {
+                    console.error('[SWManager] 직접 소리 재생 실패 (에러 후):', e);
+                });
+            } catch (e) {
+                console.error('[SWManager] 직접 소리 재생 시도 실패:', e);
+            }
         }
     };
 
