@@ -229,13 +229,16 @@ const storage = (() => {
                 showCompleted: true, // 기본값: 완료된 할 일 표시
                 todoSortOrder: 'created-desc', // 기본값: 생성일 최신순
                 collapsedCategories: {}, // 기본값: 모든 카테고리 펼쳐짐
-                autoScrollToCategory: true // 기본값: 카테고리 선택 시 자동 스크롤
+                autoScrollToCategory: true, // 기본값: 카테고리 선택 시 자동 스크롤
+                notificationApiEnabled: false, // 기본값: 백그라운드 알림 비활성화
+                aiFeatureEnabled: false, // 기본값: AI 기능 비활성화
+                aiApiKey: '' // 기본값: AI API 키 없음
             };
             const settings = safeGet(SETTINGS_KEY, null);
             return settings ? { ...defaultSettings, ...settings } : defaultSettings;
         } catch (e) {
             console.error('Failed to parse settings from localStorage', e);
-            return { showCompleted: true, todoSortOrder: 'created-desc', collapsedCategories: {}, autoScrollToCategory: true };
+            return { showCompleted: true, todoSortOrder: 'created-desc', collapsedCategories: {}, autoScrollToCategory: true, notificationApiEnabled: false, aiFeatureEnabled: false, aiApiKey: '' };
         }
     };
 

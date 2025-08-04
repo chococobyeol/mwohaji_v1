@@ -1649,7 +1649,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (confirm(confirmMessage)) {
             // 설정만 초기화
-            settings = { showCompleted: true, todoSortOrder: 'created-desc', collapsedCategories: {}, autoScrollToCategory: true };
+            settings = { showCompleted: true, todoSortOrder: 'created-desc', collapsedCategories: {}, autoScrollToCategory: true, notificationApiEnabled: false, aiFeatureEnabled: false, aiApiKey: '' };
             storage.saveSettings(settings);
             
             // AI 기능 상태도 초기화 (비활성화)
@@ -1670,6 +1670,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (window.notificationScheduler) {
                 window.notificationScheduler.setUseServiceWorker(false);
                 console.log('[App] 설정 초기화: Notification API 비활성화');
+            }
+            
+            // 설정 사이드바가 열려있다면 다시 열어서 UI 업데이트
+            if (settingsSidebar.classList.contains('open')) {
+                openSettingsSidebar();
             }
             
             renderTodos();
@@ -1794,7 +1799,11 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (aiFeatureToggle) {
             const isEnabled = aiFeatureToggle.checked;
+            
+            // 두 저장소에 모두 저장하여 동기화
             storage.saveAiFeatureEnabled(isEnabled);
+            settings.aiFeatureEnabled = isEnabled;
+            storage.saveSettings(settings);
             
             // AI 채팅 버튼 표시/숨김
             if (aiChatToggleBtn) {
@@ -1815,7 +1824,11 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (notificationApiToggle) {
             const isEnabled = notificationApiToggle.checked;
+            
+            // 두 저장소에 모두 저장하여 동기화
             storage.saveNotificationApiEnabled(isEnabled);
+            settings.notificationApiEnabled = isEnabled;
+            storage.saveSettings(settings);
             
             // 알림 스케줄러에 Service Worker 사용 설정 업데이트
             if (window.notificationScheduler) {
@@ -2098,10 +2111,10 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
         settingsContent.appendChild(timeSyncSection);
         
-        // 5. 백그라운드 알림 설정
-        const notificationApiSection = document.createElement('div');
-        notificationApiSection.className = 'setting-item';
-        notificationApiSection.innerHTML = `
+        // 5. 알림 설정 그룹
+        const notificationGroupSection = document.createElement('div');
+        notificationGroupSection.className = 'setting-item';
+        notificationGroupSection.innerHTML = `
             <div class="setting-row">
                 <label for="notification-api-toggle" class="setting-label">백그라운드 알림 (Notification API)</label>
                 <div class="toggle-switch">
@@ -2109,29 +2122,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     <label for="notification-api-toggle" class="toggle-label"></label>
                 </div>
             </div>
-            <p class="setting-description">Notification API를 사용하여 백그라운드에서도 알림을 받을 수 있습니다. 탭이 비활성화되어 있어도 알림이 정상적으로 작동합니다.</p>
-        `;
-        settingsContent.appendChild(notificationApiSection);
-        
-        // 6. 알림 권한 설정
-        const notificationPermissionSection = document.createElement('div');
-        notificationPermissionSection.className = 'setting-item';
-        notificationPermissionSection.innerHTML = `
-            <div class="setting-row">
+            <div class="setting-row" style="margin-top: 12px;">
                 <label class="setting-label">알림 권한</label>
                 <button id="notification-permission-toggle" class="secondary-btn">권한 요청</button>
             </div>
             <div class="setting-control">
                 <div id="notification-permission-status" class="status-text warning">알림 권한 요청 필요</div>
             </div>
-            <p class="setting-description">백그라운드 알림을 사용하려면 알림 권한이 필요합니다.</p>
+            <p class="setting-description">Notification API를 사용하여 백그라운드에서도 알림을 받을 수 있습니다. 탭이 비활성화되어 있어도 알림이 정상적으로 작동합니다. 백그라운드 알림을 사용하려면 알림 권한이 필요합니다.</p>
         `;
-        settingsContent.appendChild(notificationPermissionSection);
+        settingsContent.appendChild(notificationGroupSection);
         
-        // 7. AI 기능 토글 설정
-        const aiFeatureSection = document.createElement('div');
-        aiFeatureSection.className = 'setting-item';
-        aiFeatureSection.innerHTML = `
+        // 6. AI 기능 설정 그룹
+        const aiFeatureGroupSection = document.createElement('div');
+        aiFeatureGroupSection.className = 'setting-item';
+        aiFeatureGroupSection.innerHTML = `
             <div class="setting-row">
                 <label for="ai-feature-toggle" class="setting-label">AI 기능 (Beta)</label>
                 <div class="toggle-switch">
@@ -2139,26 +2144,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     <label for="ai-feature-toggle" class="toggle-label"></label>
                 </div>
             </div>
-            <p class="setting-description">AI 대화 기능을 활성화하거나 비활성화합니다. (Beta 기능)</p>
-        `;
-        settingsContent.appendChild(aiFeatureSection);
-        
-        // 8. AI API 키 설정
-        const aiApiKeySection = document.createElement('div');
-        aiApiKeySection.className = 'setting-item';
-        aiApiKeySection.innerHTML = `
-            <div class="setting-row">
+            <div class="setting-row" style="margin-top: 12px;">
                 <label for="ai-api-key-input" class="setting-label">AI API 키</label>
             </div>
-            <div class="setting-control">
-                <input type="password" id="ai-api-key-input" class="api-key-input" placeholder="Google Gemini API 키를 입력하세요">
-                <button id="save-api-key-btn" class="secondary-btn">저장</button>
+            <div class="setting-control" style="display: flex; gap: 8px; align-items: flex-start;">
+                <input type="password" id="ai-api-key-input" class="api-key-input" placeholder="Gemini API 키 입력" style="flex: 1; margin-bottom: 0;">
+                <button id="save-api-key-btn" class="secondary-btn" style="white-space: nowrap; padding: 10px 16px; height: 42px;">저장</button>
             </div>
-            <p class="setting-description">AI 대화 기능을 사용하려면 Google Gemini API 키가 필요합니다. <a href="https://makersuite.google.com/app/apikey" target="_blank">API 키 발급받기</a></p>
+            <p class="setting-description">AI 대화 기능을 활성화하거나 비활성화합니다. (Beta 기능) AI 대화 기능을 사용하려면 Google Gemini API 키가 필요합니다. <a href="https://makersuite.google.com/app/apikey" target="_blank">API 키 발급받기</a></p>
         `;
-        settingsContent.appendChild(aiApiKeySection);
+        settingsContent.appendChild(aiFeatureGroupSection);
         
-        // 9. 데이터 초기화 설정
+        // 7. 데이터 초기화 설정
         const dataResetSection = document.createElement('div');
         dataResetSection.className = 'setting-item';
         dataResetSection.innerHTML = `
@@ -2190,7 +2187,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 할일 정렬 선택 초기화
         if (todoSortSelect) {
-            todoSortSelect.value = settings.todoSortOrder || 'created-desc';
+            // 설정이 없거나 유효하지 않은 경우 기본값으로 설정
+            const currentSortOrder = settings.todoSortOrder;
+            const validOptions = ['created-desc', 'created-asc', 'text-asc', 'text-desc', 'completed-asc', 'completed-desc', 'start-time-asc', 'start-time-desc', 'due-time-asc', 'due-time-desc'];
+            
+            if (!currentSortOrder || !validOptions.includes(currentSortOrder)) {
+                settings.todoSortOrder = 'created-desc';
+                storage.saveSettings(settings);
+            }
+            
+            todoSortSelect.value = settings.todoSortOrder;
             todoSortSelect.removeEventListener('change', handleTodoSortChange);
             todoSortSelect.addEventListener('change', handleTodoSortChange);
         }
@@ -2211,17 +2217,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // AI 기능 토글 초기화
         if (aiFeatureToggle) {
+            // 두 저장소의 상태를 동기화
+            const savedAiState = storage.getAiFeatureEnabled();
+            if (settings.aiFeatureEnabled !== savedAiState) {
+                settings.aiFeatureEnabled = savedAiState;
+                storage.saveSettings(settings);
+            }
             aiFeatureToggle.checked = settings.aiFeatureEnabled === true;
             aiFeatureToggle.removeEventListener('change', handleAiFeatureToggle);
             aiFeatureToggle.addEventListener('change', handleAiFeatureToggle);
         }
 
-        // 백그라운드 알림 토글 초기화
-        if (notificationApiToggle) {
-            notificationApiToggle.checked = settings.notificationApiEnabled === true;
-            notificationApiToggle.removeEventListener('change', handleNotificationApiToggle);
-            notificationApiToggle.addEventListener('change', handleNotificationApiToggle);
+            // 백그라운드 알림 토글 초기화
+    if (notificationApiToggle) {
+        // 두 저장소의 상태를 동기화
+        const savedState = storage.getNotificationApiEnabled();
+        if (settings.notificationApiEnabled !== savedState) {
+            settings.notificationApiEnabled = savedState;
+            storage.saveSettings(settings);
         }
+        notificationApiToggle.checked = settings.notificationApiEnabled === true;
+        notificationApiToggle.removeEventListener('change', handleNotificationApiToggle);
+        notificationApiToggle.addEventListener('change', handleNotificationApiToggle);
+    }
 
         // 알림 권한 버튼 초기화
         if (notificationPermissionToggle) {
@@ -2257,6 +2275,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // AI API 키 입력 및 저장 버튼 초기화
         if (apiKeyInput) {
+            // 두 저장소의 상태를 동기화
+            const savedApiKey = storage.getAiApiKey();
+            if (settings.aiApiKey !== savedApiKey) {
+                settings.aiApiKey = savedApiKey;
+                storage.saveSettings(settings);
+            }
             apiKeyInput.value = settings.aiApiKey || '';
         }
         if (saveApiKeyBtn) {
@@ -2274,8 +2298,10 @@ document.addEventListener('DOMContentLoaded', () => {
             saveApiKeyBtn.addEventListener('click', () => {
                 const apiKey = apiKeyInput.value.trim();
                 if (apiKey) {
+                    // 두 저장소에 모두 저장하여 동기화
+                    storage.saveAiApiKey(apiKey);
                     settings.aiApiKey = apiKey;
-                    localStorage.setItem('settings', JSON.stringify(settings));
+                    storage.saveSettings(settings);
                     console.log('[App] AI API 키 저장됨');
                     alert('API 키가 저장되었습니다.');
                 } else {
