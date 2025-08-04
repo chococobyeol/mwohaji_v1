@@ -275,6 +275,30 @@
                 <p class="setting-description">AI 대화 기능을 활성화하거나 비활성화합니다. (Beta 기능)</p>
             </div>
 
+            <!-- Notification API 사용 설정 -->
+            <div class="setting-item">
+                <div class="setting-row">
+                    <label for="notification-api-toggle" class="setting-label">백그라운드 알림 (Notification API)</label>
+                    <div class="toggle-switch">
+                        <input type="checkbox" id="notification-api-toggle" class="toggle-input">
+                        <label for="notification-api-toggle" class="toggle-label"></label>
+                    </div>
+                </div>
+                <p class="setting-description">Notification API를 사용하여 백그라운드에서도 알림을 받을 수 있습니다. 탭이 비활성화되어 있어도 알림이 정상적으로 작동합니다.</p>
+            </div>
+
+            <!-- 알림 권한 설정 -->
+            <div class="setting-item">
+                <div class="setting-row">
+                    <label class="setting-label">알림 권한</label>
+                    <button id="notification-permission-toggle" class="secondary-btn">권한 요청</button>
+                </div>
+                <div class="setting-control">
+                    <div id="notification-permission-status" class="status-text warning">알림 권한 요청 필요</div>
+                </div>
+                <p class="setting-description">백그라운드 알림을 사용하려면 알림 권한이 필요합니다.</p>
+            </div>
+
             <!-- AI API 키 설정 -->
             <div class="setting-item">
                 <div class="setting-row">
@@ -327,6 +351,7 @@
     <script src="js/storage.js"></script>
     <script src="js/todoManager.js"></script>
     <script src="js/fileHandler.js"></script>
+    <script src="js/serviceWorkerManager.js"></script>
     <script src="js/notificationScheduler.js"></script>
     <script src="js/geminiApi.js"></script>
     <script src="js/aiChat.js"></script>

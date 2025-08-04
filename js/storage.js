@@ -7,6 +7,7 @@ const storage = (() => {
     const REPEAT_COUNTS_KEY = 'mwohaji-repeat-counts';
     const AI_API_KEY = 'mwohaji-ai-api-key';
     const AI_FEATURE_ENABLED = 'mwohaji-ai-feature-enabled';
+    const NOTIFICATION_API_ENABLED = 'mwohaji-notification-api-enabled';
 
     // localStorage 사용 가능 여부 확인
     const isLocalStorageAvailable = () => {
@@ -284,10 +285,30 @@ const storage = (() => {
         }
     };
 
+    // Notification API 사용 상태 저장/불러오기
+    const getNotificationApiEnabled = () => {
+        try {
+            const enabled = localStorage.getItem(NOTIFICATION_API_ENABLED);
+            // null이거나 'false'인 경우 false 반환, 'true'인 경우만 true 반환
+            return enabled === 'true';
+        } catch (e) {
+            console.error('Failed to get notification API enabled status from localStorage', e);
+            return false; // 기본값: 비활성화
+        }
+    };
+
+    const saveNotificationApiEnabled = (enabled) => {
+        try {
+            localStorage.setItem(NOTIFICATION_API_ENABLED, enabled ? 'true' : 'false');
+        } catch (e) {
+            console.error('Failed to save notification API enabled status to localStorage', e);
+        }
+    };
+
     // 모든 데이터 초기화
     const clearAllData = () => {
         try {
-            const keys = [TODOS_KEY, CATEGORIES_KEY, COMPLETED_REPEAT_KEY, REPEAT_COUNTS_KEY, SETTINGS_KEY, AI_API_KEY, AI_FEATURE_ENABLED];
+            const keys = [TODOS_KEY, CATEGORIES_KEY, COMPLETED_REPEAT_KEY, REPEAT_COUNTS_KEY, SETTINGS_KEY, AI_API_KEY, AI_FEATURE_ENABLED, NOTIFICATION_API_ENABLED];
             keys.forEach(key => safeRemove(key));
             console.log('All localStorage data cleared successfully');
         } catch (e) {
@@ -309,6 +330,8 @@ const storage = (() => {
         saveAiApiKey,
         getAiFeatureEnabled,
         saveAiFeatureEnabled,
+        getNotificationApiEnabled,
+        saveNotificationApiEnabled,
         clearAllData,
         
         // 새로운 함수들

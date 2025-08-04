@@ -1,7 +1,8 @@
 const notificationScheduler = (() => {
     let currentPlayingAudio = null; // 현재 재생 중인 알림 소리 Audio 객체
-    const scheduledTimeouts = new Map(); // 할 일 ID별 setTimeout ID를 저장
+    const scheduledTimeouts = new Map(); // 할 일 ID별 setTimeout ID를 저장 (폴백용)
     const repeatCounts = new Map(); // 할 일 ID별 반복 횟수 추적
+    let useServiceWorker = false; // Service Worker 사용 여부
 
     // 알림 사운드 재생 함수
     const playNotificationSound = () => {
@@ -65,6 +66,22 @@ const notificationScheduler = (() => {
         modal.querySelector('#notification-alert-title').textContent = title;
         modal.querySelector('#notification-alert-message').textContent = message;
         modal.style.display = 'flex';
+        
+        // 모달 외부 클릭 시 소리 정지 (전역 클릭 이벤트)
+        const handleGlobalClick = (e) => {
+            if (!modal.contains(e.target) && modal.style.display === 'flex') {
+                if (currentPlayingAudio) {
+                    currentPlayingAudio.pause();
+                    currentPlayingAudio.currentTime = 0;
+                    currentPlayingAudio = null;
+                }
+            }
+        };
+        
+        // 모달이 표시된 후 전역 클릭 이벤트 추가
+        setTimeout(() => {
+            document.addEventListener('click', handleGlobalClick);
+        }, 100);
     };
 
     // 개별 알림을 스케줄링하는 함수 (일반 할 일용)
@@ -92,7 +109,33 @@ const notificationScheduler = (() => {
             return;
         }
 
-        // 기존 타이머가 있으면 취소
+        // Service Worker 사용 가능한 경우 Service Worker로 알림 예약
+        if (useServiceWorker && window.serviceWorkerManager && window.serviceWorkerManager.hasPermission()) {
+            console.log(`[NotificationScheduler] Service Worker 사용 시도: ${titlePrefix} - '${todo.text}'`);
+            const title = titlePrefix;
+            const message = `'${todo.text}'`;
+            const hasSound = todo.schedule[notificationProperty];
+            
+            const success = window.serviceWorkerManager.scheduleNotification(
+                todo.id, 
+                type, 
+                title, 
+                message, 
+                targetTime.toISOString(), 
+                hasSound
+            );
+            
+            if (success) {
+                console.log(`[NotificationScheduler] Service Worker로 ${titlePrefix} 예약: '${todo.text}' - ${diff / 1000}초 후`);
+                return;
+            } else {
+                console.warn(`[NotificationScheduler] Service Worker 알림 예약 실패, 폴백 사용`);
+            }
+        } else {
+            console.log(`[NotificationScheduler] Service Worker 사용 불가: useServiceWorker=${useServiceWorker}, hasManager=${!!window.serviceWorkerManager}, hasPermission=${window.serviceWorkerManager ? window.serviceWorkerManager.hasPermission() : false}`);
+        }
+
+        // Service Worker 사용 불가능한 경우 기존 방식 사용 (폴백)
         const timeoutKey = `${todo.id}-${type}`;
         if (scheduledTimeouts.has(timeoutKey)) {
             clearTimeout(scheduledTimeouts.get(timeoutKey));
@@ -123,7 +166,7 @@ const notificationScheduler = (() => {
         }, diff);
 
         scheduledTimeouts.set(timeoutKey, timeoutId);
-        console.log(`[NotificationScheduler] ${titlePrefix} 예약: '${todo.text}' - ${diff / 1000}초 후`);
+        console.log(`[NotificationScheduler] 폴백 방식으로 ${titlePrefix} 예약: '${todo.text}' - ${diff / 1000}초 후`);
     };
 
     // 시간 기반 카운트 계산 함수
@@ -153,21 +196,14 @@ const notificationScheduler = (() => {
         // 기존 카운트와 비교하여 더 큰 값으로 설정
         const currentCount = repeatCounts.get(countKey) || 0;
         
-        // 실제로 알림이 발생했을 때만 카운트를 증가시킴
-        // 현재 시간이 base 시간보다 이후이고, 아직 완료되지 않은 경우에만
+        // 초기화 시에는 카운트만 동기화하고 완료 상태는 설정하지 않음
+        // 실제 알림이 발생했을 때만 완료 상태가 설정되도록 함
         if (actualCount > currentCount && actualCount > 0) {
             repeatCounts.set(countKey, actualCount);
-            console.log(`[RepeatAlarm] 시간 기반 카운트 업데이트: ${todo.text} (${type}) - ${actualCount}/${limit} (${minutesDiff}분 경과, ${interval}분 간격)`);
+            console.log(`[RepeatAlarm] 시간 기반 카운트 동기화: ${todo.text} (${type}) - ${actualCount}/${limit} (${minutesDiff}분 경과, ${interval}분 간격)`);
             
-            // 완료 상태 동기화 (실제로 limit에 도달했을 때만)
-            if (actualCount >= limit) {
-                if (type === 'start') {
-                    todo.repeat.startCompleted = true;
-                } else if (type === 'due') {
-                    todo.repeat.dueCompleted = true;
-                }
-                console.log(`[RepeatAlarm] 완료 상태 설정: ${todo.text} (${type}) - ${limit}회 완료`);
-            }
+            // 초기화 시에는 완료 상태를 자동으로 설정하지 않음
+            // 실제 알림이 발생했을 때만 완료 상태가 설정됨
         }
     };
 
@@ -393,6 +429,7 @@ const notificationScheduler = (() => {
         const diff = nextTime.getTime() - now.getTime();
         
         console.log(`[RepeatAlarm] 시간 차이 확인: nextTime=${nextTime.toLocaleString('ko-KR')}, now=${now.toLocaleString('ko-KR')}, diff=${diff}ms [Timestamp: ${Date.now()}]`);
+        console.log(`[RepeatAlarm] 시간 차이 상세: nextTime=${nextTime.getTime()}, now=${now.getTime()}, diff=${diff}ms`);
         
         if (diff <= 0) { 
             console.log(`[RepeatAlarm] nextTime이 과거 또는 현재(${nextTime}), 예약 스킵 - diff=${diff}ms`);
@@ -423,13 +460,37 @@ const notificationScheduler = (() => {
         // 디버깅: 예약 전 최종 확인
         console.log(`[RepeatAlarm] 최종 예약 확인: ${todo.text} (${type}) - ${nextTime}까지 ${Math.round(diff/1000)}초 남음`);
         
+        // Service Worker 사용 가능한 경우 Service Worker로 알림 예약
+        if (useServiceWorker && window.serviceWorkerManager && window.serviceWorkerManager.hasPermission()) {
+            const title = titlePrefix;
+            const message = `'${todo.text}' (반복)`;
+            const hasSound = todo.schedule[notificationProperty];
+            
+            const success = window.serviceWorkerManager.scheduleNotification(
+                todo.id, 
+                `repeat-${type}`, 
+                title, 
+                message, 
+                nextTime.toISOString(), 
+                hasSound
+            );
+            
+            if (success) {
+                console.log(`[RepeatAlarm] Service Worker로 예약: ${todo.text} (${type}), ${nextTime}까지 ${Math.round(diff/1000)}초 남음`);
+                return;
+            } else {
+                console.warn(`[RepeatAlarm] Service Worker 알림 예약 실패, 폴백 사용`);
+            }
+        }
+
+        // Service Worker 사용 불가능한 경우 기존 방식 사용 (폴백)
         const timeoutKey = `${todo.id}-repeat-${type}`;
         if (scheduledTimeouts.has(timeoutKey)) {
             clearTimeout(scheduledTimeouts.get(timeoutKey));
             scheduledTimeouts.delete(timeoutKey);
         }
         
-        console.log(`[RepeatAlarm] 예약: ${todo.text} (${type}), ${nextTime}까지 ${Math.round(diff/1000)}초 남음`);
+        console.log(`[RepeatAlarm] 폴백 방식으로 예약: ${todo.text} (${type}), ${nextTime}까지 ${Math.round(diff/1000)}초 남음`);
         
         const timeoutId = setTimeout(() => {
             console.log(`[RepeatAlarm] 트리거: ${todo.text} (${type}), 예약된 시간: ${nextTime}, 실제 트리거 시간: ${new Date()}`);
@@ -498,7 +559,12 @@ const notificationScheduler = (() => {
         const now = new Date(Date.now());
         console.log(`[NotificationScheduler] 현재 시간: ${now.toLocaleString('ko-KR')} (${now.toISOString()}) [Timestamp: ${Date.now()}]`);
         
-        // 기존 타이머 모두 취소
+        // Service Worker 사용 가능한 경우 모든 알림 취소
+        if (useServiceWorker && window.serviceWorkerManager) {
+            window.serviceWorkerManager.cancelAllNotifications();
+        }
+        
+        // 기존 타이머 모두 취소 (폴백용)
         scheduledTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
         scheduledTimeouts.clear();
         
@@ -558,6 +624,15 @@ const notificationScheduler = (() => {
     // 초기화 함수
     const initScheduler = () => {
         console.log('[NotificationScheduler] 스케줄러 초기화 시작');
+        
+        // 저장된 Notification API 사용 설정 로드
+        const savedUseServiceWorker = storage.getNotificationApiEnabled ? storage.getNotificationApiEnabled() : false;
+        
+        // Service Worker 사용 가능 여부 확인 (저장된 설정과 권한 모두 확인)
+        const hasPermission = !!(window.serviceWorkerManager && window.serviceWorkerManager.hasPermission());
+        useServiceWorker = savedUseServiceWorker && hasPermission;
+        
+        console.log(`[NotificationScheduler] Service Worker 사용: ${useServiceWorker} (저장된 설정: ${savedUseServiceWorker}, 권한: ${hasPermission})`);
         
         // 반복 횟수 로드
         loadRepeatCounts();
@@ -619,7 +694,12 @@ const notificationScheduler = (() => {
         // 반복 횟수 저장
         saveRepeatCounts();
         
-        // 모든 타이머 취소
+        // Service Worker 알림 취소
+        if (useServiceWorker && window.serviceWorkerManager) {
+            window.serviceWorkerManager.cancelAllNotifications();
+        }
+        
+        // 모든 타이머 취소 (폴백용)
         scheduledTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
         scheduledTimeouts.clear();
         
@@ -637,7 +717,12 @@ const notificationScheduler = (() => {
     const clearAllNotifications = () => {
         console.log('[NotificationScheduler] 모든 알림 초기화 시작');
         
-        // 모든 타이머 취소
+        // Service Worker 알림 취소
+        if (useServiceWorker && window.serviceWorkerManager) {
+            window.serviceWorkerManager.cancelAllNotifications();
+        }
+        
+        // 모든 타이머 취소 (폴백용)
         scheduledTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
         scheduledTimeouts.clear();
         
@@ -680,7 +765,12 @@ const notificationScheduler = (() => {
             console.log(`[NotificationScheduler] 카운트 리셋: ${key}`);
         },
         calculateTimeBasedCount: calculateTimeBasedCount,
-        getRepeatCountsData: getRepeatCountsData
+        getRepeatCountsData: getRepeatCountsData,
+        setUseServiceWorker: (use) => {
+            useServiceWorker = use;
+            console.log(`[NotificationScheduler] Service Worker 사용 설정: ${useServiceWorker}`);
+        },
+        isUsingServiceWorker: () => useServiceWorker
     };
 })();
 

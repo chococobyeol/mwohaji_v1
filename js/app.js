@@ -87,6 +87,31 @@ document.addEventListener('DOMContentLoaded', () => {
     const settingsSidebarOverlay = document.querySelector('.settings-sidebar-overlay');
     const showCompletedToggle = document.getElementById('show-completed-toggle');
     
+    // Service Worker 관련 설정
+    const notificationPermissionToggle = document.getElementById('notification-permission-toggle');
+    const notificationPermissionStatus = document.getElementById('notification-permission-status');
+    
+    // Service Worker 알림 처리 함수들
+    const handleNotificationShown = (data) => {
+        console.log('[App] Service Worker 알림 표시됨:', data);
+        // 알림 발생 상태로 변경
+        if (data.todoId && data.type) {
+            const type = data.type.startsWith('repeat-') ? data.type.replace('repeat-', '') : data.type;
+            todoManager.markNotified(data.todoId, type);
+            // UI 업데이트
+            renderTodos();
+        }
+    };
+
+    const handleNotificationClicked = (data) => {
+        console.log('[App] Service Worker 알림 클릭됨:', data);
+        // 브라우저 창/탭 포커스는 Service Worker에서 처리됨
+    };
+
+    const handleNotificationClosed = (data) => {
+        console.log('[App] Service Worker 알림 닫힘:', data);
+    };
+    
     // 타이머 관련
     const timerBtn = document.getElementById('timer-btn');
     
@@ -128,6 +153,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const apiKeyInput = document.getElementById('ai-api-key-input');
         if (apiKeyInput) {
             apiKeyInput.value = storage.getAiApiKey();
+        }
+        
+        // Notification API 토글 상태 설정
+        const notificationApiToggle = document.getElementById('notification-api-toggle');
+        if (notificationApiToggle) {
+            const isNotificationApiEnabled = storage.getNotificationApiEnabled();
+            notificationApiToggle.checked = isNotificationApiEnabled;
         }
     }
     function closeSettingsSidebarFn() {
@@ -1626,7 +1658,8 @@ document.addEventListener('DOMContentLoaded', () => {
             `• 할일 정렬 순서\n` +
             `• 카테고리 접기 상태\n` +
             `• 카테고리 자동 스크롤\n` +
-            `• AI 기능 활성화 상태\n\n` +
+            `• AI 기능 활성화 상태\n` +
+            `• 백그라운드 알림 (Notification API) 사용 여부\n\n` +
             `할일 데이터는 그대로 유지됩니다.`;
         
         if (confirm(confirmMessage)) {
@@ -1637,20 +1670,31 @@ document.addEventListener('DOMContentLoaded', () => {
             // AI 기능 상태도 초기화 (비활성화)
             storage.saveAiFeatureEnabled(false);
             
+            // Notification API 상태도 초기화 (비활성화)
+            storage.saveNotificationApiEnabled(false);
+            
             // UI 업데이트
             const showCompletedToggle = document.getElementById('show-completed-toggle');
             const todoSortSelect = document.getElementById('todo-sort-select');
             const autoScrollToggle = document.getElementById('auto-scroll-toggle');
             const aiFeatureToggle = document.getElementById('ai-feature-toggle');
             const aiChatToggleBtn = document.getElementById('ai-chat-toggle-btn');
+            const notificationApiToggle = document.getElementById('notification-api-toggle');
             
             if (showCompletedToggle) showCompletedToggle.checked = true;
             if (todoSortSelect) todoSortSelect.value = 'created-desc';
             if (autoScrollToggle) autoScrollToggle.checked = true;
             if (aiFeatureToggle) aiFeatureToggle.checked = false;
+            if (notificationApiToggle) notificationApiToggle.checked = false;
             if (aiChatToggleBtn) {
                 aiChatToggleBtn.style.setProperty('display', 'none', 'important');
                 console.log('[App] 설정 초기화: AI 채팅 버튼 강제 숨김');
+            }
+            
+            // 알림 스케줄러 설정 업데이트
+            if (window.notificationScheduler) {
+                window.notificationScheduler.setUseServiceWorker(false);
+                console.log('[App] 설정 초기화: Notification API 비활성화');
             }
             
             renderTodos();
@@ -1770,6 +1814,83 @@ document.addEventListener('DOMContentLoaded', () => {
             
             console.log(`[App] AI 기능 ${isEnabled ? '활성화' : '비활성화'}`);
         }
+    };
+
+    // Notification API 토글 이벤트 핸들러
+    const handleNotificationApiToggle = () => {
+        const notificationApiToggle = document.getElementById('notification-api-toggle');
+        
+        if (notificationApiToggle) {
+            const isEnabled = notificationApiToggle.checked;
+            storage.saveNotificationApiEnabled(isEnabled);
+            
+            // 알림 스케줄러에 Service Worker 사용 설정 업데이트
+            if (window.notificationScheduler) {
+                window.notificationScheduler.setUseServiceWorker(isEnabled);
+                // 모든 알림 재스케줄링
+                window.notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
+            }
+            
+            console.log(`[App] Notification API ${isEnabled ? '활성화' : '비활성화'}`);
+        }
+    };
+
+    // 알림 권한 요청
+    const handleNotificationPermissionRequest = async () => {
+        if (!window.serviceWorkerManager) {
+            console.warn('[App] Service Worker Manager가 없습니다');
+            return;
+        }
+
+        try {
+            const granted = await window.serviceWorkerManager.requestNotificationPermission();
+            if (granted) {
+                console.log('[App] 알림 권한이 허용되었습니다');
+                updateNotificationPermissionStatus();
+                // 알림 스케줄러에 Service Worker 사용 설정 (저장된 토글 설정 고려)
+                if (window.notificationScheduler) {
+                    const savedUseServiceWorker = storage.getNotificationApiEnabled();
+                    window.notificationScheduler.setUseServiceWorker(savedUseServiceWorker);
+                    // 모든 알림 재스케줄링
+                    window.notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
+                }
+            } else {
+                console.log('[App] 알림 권한이 거부되었습니다');
+                updateNotificationPermissionStatus();
+            }
+        } catch (error) {
+            console.error('[App] 알림 권한 요청 실패:', error);
+        }
+    };
+
+    // 알림 권한 상태 업데이트
+    const updateNotificationPermissionStatus = () => {
+        if (!notificationPermissionStatus) return;
+
+        const permission = window.serviceWorkerManager ? window.serviceWorkerManager.getPermission() : 'default';
+        const isUsingSW = window.notificationScheduler ? window.notificationScheduler.isUsingServiceWorker() : false;
+
+        let statusText = '';
+        let statusClass = '';
+
+        switch (permission) {
+            case 'granted':
+                statusText = isUsingSW ? '백그라운드 알림 활성화' : '알림 권한 허용됨';
+                statusClass = 'success';
+                break;
+            case 'denied':
+                statusText = '알림 권한 거부됨';
+                statusClass = 'error';
+                break;
+            case 'default':
+            default:
+                statusText = '알림 권한 요청 필요';
+                statusClass = 'warning';
+                break;
+        }
+
+        notificationPermissionStatus.textContent = statusText;
+        notificationPermissionStatus.className = `status-text ${statusClass}`;
     };
 
     // 아이콘 초기화
@@ -2124,6 +2245,25 @@ document.addEventListener('DOMContentLoaded', () => {
             
             console.log(`[App] AI 기능 토글 초기화: ${isAiEnabled ? '활성화' : '비활성화'}`);
         }
+
+        // Notification API 토글 초기화
+        const notificationApiToggle = document.getElementById('notification-api-toggle');
+        if (notificationApiToggle) {
+            // 저장된 Notification API 상태 로드
+            const isNotificationApiEnabled = storage.getNotificationApiEnabled();
+            notificationApiToggle.checked = isNotificationApiEnabled;
+            
+            // Notification API 토글 이벤트 리스너
+            notificationApiToggle.addEventListener('change', handleNotificationApiToggle);
+            
+            console.log(`[App] Notification API 토글 초기화: ${isNotificationApiEnabled ? '활성화' : '비활성화'}`);
+        }
+
+        // 알림 권한 요청 버튼 초기화
+        if (notificationPermissionToggle) {
+            notificationPermissionToggle.addEventListener('click', handleNotificationPermissionRequest);
+            console.log('[App] 알림 권한 요청 버튼 초기화');
+        }
         
         // 그 다음에 UI 렌더링 (반복 횟수가 준비된 후)
         render();
@@ -2132,6 +2272,24 @@ document.addEventListener('DOMContentLoaded', () => {
     // 전체 초기화 함수 (AI 채팅 포함)
     const init = () => {
         initWithoutAiChat();
+        
+        // Service Worker 초기화
+        if (window.serviceWorkerManager && window.serviceWorkerManager.init) {
+            window.serviceWorkerManager.init().then(() => {
+                console.log('[App] Service Worker 초기화 완료');
+                // 알림 권한 상태 업데이트
+                updateNotificationPermissionStatus();
+                
+                // Service Worker가 준비되면 알림 스케줄러에 설정 (저장된 설정 고려)
+                if (window.serviceWorkerManager.hasPermission()) {
+                    const savedUseServiceWorker = storage.getNotificationApiEnabled();
+                    console.log(`[App] Service Worker 사용 설정: ${savedUseServiceWorker}`);
+                    window.notificationScheduler.setUseServiceWorker(savedUseServiceWorker);
+                }
+            }).catch(error => {
+                console.error('[App] Service Worker 초기화 실패:', error);
+            });
+        }
         
         // AI 채팅 초기화
         if (window.aiChat && window.aiChat.init) {
@@ -2142,6 +2300,43 @@ document.addEventListener('DOMContentLoaded', () => {
         if (window.timer && window.timer.init) {
             window.timer.init();
         }
+        
+        // 모든 핵심 모듈 (예: todoManager)이 초기화되고 Service Worker가 준비된 후 알림 재스케줄
+        if (window.serviceWorkerManager && window.serviceWorkerManager.hasPermission() && window.notificationScheduler.isUsingServiceWorker()) {
+            console.log('[App] 초기화 후 알림 재스케줄링 시도');
+            const todos = window.todoManager.getTodos();
+            window.notificationScheduler.rescheduleAllNotifications(todos);
+        } else {
+            console.log('[App] Service Worker 알림 재스케줄링 건너김 (권한 또는 SW 미사용)');
+        }
+
+        // 테스트용 알림 기능 추가 (개발 중에만 사용)
+        window.testNotification = () => {
+            if (window.serviceWorkerManager && window.serviceWorkerManager.hasPermission()) {
+                const testTime = new Date(Date.now() + 10000); // 10초 후
+                console.log('[App] 테스트 알림 예약:', testTime.toISOString());
+                window.serviceWorkerManager.scheduleNotification(
+                    'test-123',
+                    'test',
+                    '테스트 알림',
+                    '이것은 테스트 알림입니다.',
+                    testTime.toISOString(),
+                    true
+                );
+            } else {
+                console.log('[App] Service Worker 또는 알림 권한이 없습니다.');
+            }
+        };
+
+        // Service Worker에서 호출할 수 있도록 소리 재생 함수를 전역으로 노출
+        window.playNotificationSound = () => {
+            console.log('[App] Service Worker에서 요청한 알림 소리 재생');
+            if (window.notificationScheduler && window.notificationScheduler.playNotificationSound) {
+                window.notificationScheduler.playNotificationSound();
+            } else {
+                console.warn('[App] notificationScheduler.playNotificationSound를 찾을 수 없습니다');
+            }
+        };
     };
 
 
@@ -2510,6 +2705,33 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // 전역으로 renderTodos 함수 노출 (notificationScheduler에서 UI 업데이트를 위해)
     window.app = {
-        renderTodos: renderTodos
+        renderTodos: renderTodos,
+        
+        // Service Worker 알림 처리 함수들
+        handleNotificationShown: (data) => {
+            console.log('[App] Service Worker 알림 표시됨:', data);
+            // UI 업데이트
+            renderTodos();
+        },
+        
+        handleNotificationClicked: (data) => {
+            console.log('[App] Service Worker 알림 클릭됨:', data);
+            // 알림 클릭 시 특별한 처리 (필요시)
+        },
+        
+        handleNotificationClosed: (data) => {
+            console.log('[App] Service Worker 알림 닫힘:', data);
+            // 알림 닫힘 시 특별한 처리 (필요시)
+        },
+        
+        // Service Worker에서 호출할 수 있도록 소리 재생 함수를 전역으로 노출
+        playNotificationSound: () => {
+            console.log('[App] Service Worker에서 요청한 알림 소리 재생');
+            if (window.notificationScheduler && window.notificationScheduler.playNotificationSound) {
+                window.notificationScheduler.playNotificationSound();
+            } else {
+                console.warn('[App] notificationScheduler.playNotificationSound를 찾을 수 없습니다');
+            }
+        }
     };
 });
