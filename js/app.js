@@ -1132,10 +1132,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 return [...todos].sort((a, b) => a.text.localeCompare(b.text, 'ko'));
             case 'text-desc':
                 return [...todos].sort((a, b) => b.text.localeCompare(a.text, 'ko'));
-            case 'category-asc':
-                return [...todos].sort((a, b) => a.category.localeCompare(b.category, 'ko'));
-            case 'category-desc':
-                return [...todos].sort((a, b) => b.category.localeCompare(a.category, 'ko'));
             case 'completed-asc':
                 return [...todos].sort((a, b) => {
                     if (a.completed === b.completed) {
@@ -1150,19 +1146,37 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     return a.completed ? -1 : 1;
                 });
-            case 'schedule-asc':
+            case 'start-time-asc':
                 return [...todos].sort((a, b) => {
-                    const aTime = a.schedule?.startTime || a.schedule?.dueTime || new Date(9999, 11, 31);
-                    const bTime = b.schedule?.startTime || b.schedule?.dueTime || new Date(9999, 11, 31);
+                    const aTime = a.schedule?.startTime || new Date(9999, 11, 31);
+                    const bTime = b.schedule?.startTime || new Date(9999, 11, 31);
                     if (aTime.getTime() === bTime.getTime()) {
                         return new Date(b.createdAt) - new Date(a.createdAt);
                     }
                     return new Date(aTime) - new Date(bTime);
                 });
-            case 'schedule-desc':
+            case 'start-time-desc':
                 return [...todos].sort((a, b) => {
-                    const aTime = a.schedule?.startTime || a.schedule?.dueTime || new Date(9999, 11, 31);
-                    const bTime = b.schedule?.startTime || b.schedule?.dueTime || new Date(9999, 11, 31);
+                    const aTime = a.schedule?.startTime || new Date(9999, 11, 31);
+                    const bTime = b.schedule?.startTime || new Date(9999, 11, 31);
+                    if (aTime.getTime() === bTime.getTime()) {
+                        return new Date(b.createdAt) - new Date(a.createdAt);
+                    }
+                    return new Date(bTime) - new Date(aTime);
+                });
+            case 'due-time-asc':
+                return [...todos].sort((a, b) => {
+                    const aTime = a.schedule?.dueTime || new Date(9999, 11, 31);
+                    const bTime = b.schedule?.dueTime || new Date(9999, 11, 31);
+                    if (aTime.getTime() === bTime.getTime()) {
+                        return new Date(b.createdAt) - new Date(a.createdAt);
+                    }
+                    return new Date(aTime) - new Date(bTime);
+                });
+            case 'due-time-desc':
+                return [...todos].sort((a, b) => {
+                    const aTime = a.schedule?.dueTime || new Date(9999, 11, 31);
+                    const bTime = b.schedule?.dueTime || new Date(9999, 11, 31);
                     if (aTime.getTime() === bTime.getTime()) {
                         return new Date(b.createdAt) - new Date(a.createdAt);
                     }
@@ -2093,12 +2107,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         <option value="created-asc">생성일 오래된순</option>
                         <option value="text-asc">할일명 가나다순</option>
                         <option value="text-desc">할일명 역순</option>
-                        <option value="category-asc">카테고리 가나다순</option>
-                        <option value="category-desc">카테고리 역순</option>
                         <option value="completed-asc">미완료 우선</option>
                         <option value="completed-desc">완료 우선</option>
-                        <option value="schedule-asc">일정 빠른순</option>
-                        <option value="schedule-desc">일정 늦은순</option>
+                        <option value="start-time-asc">시작시간 빠른순</option>
+                        <option value="start-time-desc">시작시간 늦은순</option>
+                        <option value="due-time-asc">마감시간 빠른순</option>
+                        <option value="due-time-desc">마감시간 늦은순</option>
                     </select>
                 </div>
                 <p class="setting-description">할일 목록의 정렬 순서를 설정합니다. 카테고리별 보기와 전체 보기 모두에 적용됩니다.</p>
