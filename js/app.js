@@ -1954,7 +1954,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // AI 채팅 초기화 제외한 초기화 함수
-    const initWithoutAiChat = () => {
+    const initWithoutAiChat = async () => {
         todoManager.setTodos(storage.getTodos());
         todoManager.setCategories(storage.getCategories());
         todoManager.setCompletedRepeatTodos(storage.getCompletedRepeatTodos());
@@ -2161,8 +2161,24 @@ document.addEventListener('DOMContentLoaded', () => {
             resetSettingsBtn.addEventListener('click', handleResetSettings);
         }
         
-        // 알림 스케줄러를 먼저 초기화 (반복 횟수 로드 및 계산)
-        notificationScheduler.initScheduler();
+        // Service Worker 초기화 (알림 스케줄러보다 먼저)
+        if (window.serviceWorkerManager) {
+            try {
+                await window.serviceWorkerManager.init();
+                console.log('[App] Service Worker 초기화 완료');
+                
+                // Service Worker가 준비되면 알림 스케줄러 초기화
+                notificationScheduler.initScheduler();
+            } catch (error) {
+                console.error('[App] Service Worker 초기화 실패:', error);
+                // Service Worker 실패 시에도 알림 스케줄러는 초기화
+                notificationScheduler.initScheduler();
+            }
+        } else {
+            console.warn('[App] serviceWorkerManager를 찾을 수 없습니다');
+            // Service Worker가 없어도 알림 스케줄러는 초기화
+            notificationScheduler.initScheduler();
+        }
         
         // AI 대화 초기화 (사이드바 DOM 생성)
         try {
@@ -2270,25 +2286,17 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // 전체 초기화 함수 (AI 채팅 포함)
-    const init = () => {
-        initWithoutAiChat();
+    const init = async () => {
+        await initWithoutAiChat();
         
-        // Service Worker 초기화
-        if (window.serviceWorkerManager && window.serviceWorkerManager.init) {
-            window.serviceWorkerManager.init().then(() => {
-                console.log('[App] Service Worker 초기화 완료');
-                // 알림 권한 상태 업데이트
-                updateNotificationPermissionStatus();
-                
-                // Service Worker가 준비되면 알림 스케줄러에 설정 (저장된 설정 고려)
-                if (window.serviceWorkerManager.hasPermission()) {
-                    const savedUseServiceWorker = storage.getNotificationApiEnabled();
-                    console.log(`[App] Service Worker 사용 설정: ${savedUseServiceWorker}`);
-                    window.notificationScheduler.setUseServiceWorker(savedUseServiceWorker);
-                }
-            }).catch(error => {
-                console.error('[App] Service Worker 초기화 실패:', error);
-            });
+        // 알림 권한 상태 업데이트
+        updateNotificationPermissionStatus();
+        
+        // Service Worker가 준비되면 알림 스케줄러에 설정 (저장된 설정 고려)
+        if (window.serviceWorkerManager && window.serviceWorkerManager.hasPermission()) {
+            const savedUseServiceWorker = storage.getNotificationApiEnabled();
+            console.log(`[App] Service Worker 사용 설정: ${savedUseServiceWorker}`);
+            window.notificationScheduler.setUseServiceWorker(savedUseServiceWorker);
         }
         
         // AI 채팅 초기화

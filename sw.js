@@ -1,5 +1,5 @@
 // Service Worker for Mwohaji - Background Notifications
-const CACHE_NAME = 'mwohaji-v1.2';
+const CACHE_NAME = 'mwohaji-v1.4';
 const NOTIFICATION_TAG = 'mwohaji-notification';
 
 // Service Worker 설치
@@ -39,7 +39,7 @@ self.addEventListener('message', (event) => {
     console.log('[SW] 메시지 수신:', event.data);
     console.log('[SW] 메시지 수신 시간:', new Date().toISOString());
     console.log('[SW] 메시지 출처:', event.source);
-    console.log('[SW] Service Worker 버전: v1.2');
+    console.log('[SW] Service Worker 버전: v1.4');
     
     if (event.data.type === 'SCHEDULE_NOTIFICATION' || event.data.type === 'test' || event.data.type === 'start' || event.data.type === 'due' || event.data.type === 'repeat-start' || event.data.type === 'repeat-due') {
         console.log('[SW] 알림 예약 메시지 처리 시작');
@@ -191,12 +191,14 @@ self.addEventListener('notificationclick', (event) => {
     
     // 브라우저 창/탭 포커스
     event.waitUntil(
-        self.clients.matchAll({ type: 'window' }).then((clients) => {
+        self.clients.matchAll().then((clients) => {
             if (clients.length > 0) {
-                // 기존 창이 있으면 포커스
+                // 기존 창/탭이 있으면 포커스
+                console.log('[SW] 기존 클라이언트 발견, 포커스:', clients.length, '개');
                 return clients[0].focus();
             } else {
                 // 새 창 열기
+                console.log('[SW] 기존 클라이언트 없음, 새 창 열기');
                 return self.clients.openWindow('/');
             }
         })
