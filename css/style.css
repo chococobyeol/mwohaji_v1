@@ -2315,6 +2315,14 @@ button:hover {
     background: #ef4444;
 }
 
+.status-text.success::before {
+    background: #10b981;
+}
+
+.status-text.warning::before {
+    background: #f59e0b;
+}
+
 @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.5; }

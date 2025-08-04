@@ -490,3 +490,6 @@ const todoManager = (() => {
         clearAllData
     };
 })();
+
+// 전역 객체에 할당하여 다른 모듈에서 접근 가능하도록 함
+window.todoManager = todoManager;
