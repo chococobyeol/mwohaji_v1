@@ -1614,11 +1614,33 @@ document.addEventListener('DOMContentLoaded', () => {
             notificationScheduler.clearAllNotifications();
             
             // 설정 초기화
-            settings = { showCompleted: true, todoSortOrder: 'created-desc' };
+            settings = { showCompleted: true, todoSortOrder: 'created-desc', collapsedCategories: {}, autoScrollToCategory: true, notificationApiEnabled: false, aiFeatureEnabled: false, aiApiKey: '' };
             storage.saveSettings(settings);
+            
+            // AI 기능 상태도 초기화 (비활성화)
+            storage.saveAiFeatureEnabled(false);
+            
+            // Notification API 상태도 초기화 (비활성화)
+            storage.saveNotificationApiEnabled(false);
+            
+            // AI API 키도 초기화 (삭제)
+            storage.clearAiApiKey();
+            console.log('[App] 데이터 초기화: API 키 삭제됨');
             
             // UI 새로고침
             render();
+            
+            // 설정 사이드바가 열려있다면 완전히 다시 생성하여 UI 업데이트
+            if (settingsSidebar.classList.contains('open')) {
+                closeSettingsSidebarFn();
+                setTimeout(() => {
+                    openSettingsSidebar();
+                    // 사이드바가 다시 열린 후 알림 권한 상태 업데이트
+                    setTimeout(() => {
+                        updateNotificationPermissionStatus();
+                    }, 200);
+                }, 100);
+            }
             
             alert('모든 데이터가 초기화되었습니다.');
         }
@@ -1644,7 +1666,8 @@ document.addEventListener('DOMContentLoaded', () => {
             `• 카테고리 접기 상태\n` +
             `• 카테고리 자동 스크롤\n` +
             `• AI 기능 활성화 상태\n` +
-            `• 백그라운드 알림 (Notification API) 사용 여부\n\n` +
+            `• 백그라운드 알림 (Notification API) 사용 여부\n` +
+            `• AI API 키\n\n` +
             `할일 데이터는 그대로 유지됩니다.`;
         
         if (confirm(confirmMessage)) {
@@ -1657,6 +1680,10 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Notification API 상태도 초기화 (비활성화)
             storage.saveNotificationApiEnabled(false);
+            
+            // AI API 키도 초기화 (삭제)
+            storage.clearAiApiKey();
+            console.log('[App] 설정 초기화: API 키 삭제됨');
             
             // UI 업데이트 (동적으로 생성되는 요소들은 나중에 업데이트됨)
             const aiChatToggleBtn = document.getElementById('ai-chat-toggle-btn');
@@ -1674,8 +1701,39 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // 설정 사이드바가 열려있다면 다시 열어서 UI 업데이트
             if (settingsSidebar.classList.contains('open')) {
-                openSettingsSidebar();
+                // 설정 사이드바를 완전히 다시 생성하여 UI 업데이트
+                closeSettingsSidebarFn();
+                setTimeout(() => {
+                    openSettingsSidebar();
+                    // 사이드바가 다시 열린 후 알림 권한 상태 업데이트
+                    setTimeout(() => {
+                        updateNotificationPermissionStatus();
+                    }, 200);
+                }, 100);
             }
+            
+            // UI 요소들을 즉시 업데이트
+            const aiFeatureToggle = document.getElementById('ai-feature-toggle');
+            const notificationApiToggle = document.getElementById('notification-api-toggle');
+            const apiKeyInput = document.getElementById('ai-api-key-input');
+            
+            if (aiFeatureToggle) {
+                aiFeatureToggle.checked = false;
+            }
+            if (notificationApiToggle) {
+                notificationApiToggle.checked = false;
+            }
+            if (apiKeyInput) {
+                apiKeyInput.value = '';
+                // API 키 입력 필드를 완전히 초기화 (마스킹 해제)
+                apiKeyInput.type = 'text';
+                apiKeyInput.type = 'password';
+                apiKeyInput.blur();
+                apiKeyInput.focus();
+            }
+            
+            // 알림 권한 상태 업데이트
+            updateNotificationPermissionStatus();
             
             renderTodos();
             
@@ -1837,6 +1895,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
             }
             
+            // 권한 상태 UI 즉시 업데이트
+            setTimeout(() => {
+                updateNotificationPermissionStatus();
+            }, 100);
+            
             console.log(`[App] Notification API ${isEnabled ? '활성화' : '비활성화'}`);
         }
     };
@@ -1852,7 +1915,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const granted = await window.serviceWorkerManager.requestNotificationPermission();
             if (granted) {
                 console.log('[App] 알림 권한이 허용되었습니다');
-                updateNotificationPermissionStatus();
+                // 권한 요청 후 약간의 지연을 두고 상태 업데이트
+                setTimeout(() => {
+                    updateNotificationPermissionStatus();
+                }, 100);
                 // 알림 스케줄러에 Service Worker 사용 설정 (저장된 토글 설정 고려)
                 if (window.notificationScheduler) {
                     const savedUseServiceWorker = storage.getNotificationApiEnabled();
@@ -1862,7 +1928,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } else {
                 console.log('[App] 알림 권한이 거부되었습니다');
-                updateNotificationPermissionStatus();
+                setTimeout(() => {
+                    updateNotificationPermissionStatus();
+                }, 100);
             }
         } catch (error) {
             console.error('[App] 알림 권한 요청 실패:', error);
@@ -1872,18 +1940,34 @@ document.addEventListener('DOMContentLoaded', () => {
     // 알림 권한 상태 업데이트
     const updateNotificationPermissionStatus = () => {
         const notificationPermissionStatus = document.getElementById('notification-permission-status');
-        if (!notificationPermissionStatus) return;
+        if (!notificationPermissionStatus) {
+            console.log('[App] notification-permission-status 요소를 찾을 수 없습니다');
+            return;
+        }
 
         const permission = window.serviceWorkerManager ? window.serviceWorkerManager.getPermission() : 'default';
         const isUsingSW = window.notificationScheduler ? window.notificationScheduler.isUsingServiceWorker() : false;
+        const notificationApiEnabled = storage.getNotificationApiEnabled();
+
+        console.log('[App] 알림 권한 상태 업데이트:', {
+            permission,
+            isUsingSW,
+            notificationApiEnabled
+        });
 
         let statusText = '';
         let statusClass = '';
 
+        // 실제 브라우저 권한 상태를 우선적으로 표시
         switch (permission) {
             case 'granted':
-                statusText = isUsingSW ? '백그라운드 알림 활성화' : '알림 권한 허용됨';
-                statusClass = 'success';
+                if (notificationApiEnabled) {
+                    statusText = isUsingSW ? '백그라운드 알림 활성화' : '알림 권한 허용됨';
+                    statusClass = 'success';
+                } else {
+                    statusText = '알림 권한 허용됨 (앱에서 비활성화)';
+                    statusClass = 'warning';
+                }
                 break;
             case 'denied':
                 statusText = '알림 권한 거부됨';
@@ -1896,6 +1980,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 break;
         }
 
+        console.log('[App] 설정된 상태:', { statusText, statusClass });
         notificationPermissionStatus.textContent = statusText;
         notificationPermissionStatus.className = `status-text ${statusClass}`;
     };
@@ -2281,14 +2366,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 settings.aiApiKey = savedApiKey;
                 storage.saveSettings(settings);
             }
-            apiKeyInput.value = settings.aiApiKey || '';
+            // API 키가 비어있거나 null인 경우 빈 문자열로 설정
+            const apiKeyValue = settings.aiApiKey || savedApiKey || '';
+            console.log('[App] API 키 입력 필드 초기화:', {
+                settingsAiApiKey: settings.aiApiKey,
+                savedApiKey,
+                apiKeyValue,
+                isEmpty: !apiKeyValue
+            });
+            apiKeyInput.value = apiKeyValue;
+            
+            // API 키가 비어있는 경우 입력 필드를 완전히 초기화
+            if (!apiKeyValue) {
+                console.log('[App] API 키가 비어있음 - 입력 필드 완전 초기화');
+                apiKeyInput.type = 'text';
+                apiKeyInput.type = 'password';
+                apiKeyInput.blur();
+                apiKeyInput.focus();
+            }
         }
         if (saveApiKeyBtn) {
             saveApiKeyBtn.removeEventListener('click', () => {
                 const apiKey = apiKeyInput.value.trim();
                 if (apiKey) {
+                    // 두 저장소에 모두 저장하여 동기화
+                    storage.saveAiApiKey(apiKey);
                     settings.aiApiKey = apiKey;
-                    localStorage.setItem('settings', JSON.stringify(settings));
+                    storage.saveSettings(settings);
                     console.log('[App] AI API 키 저장됨');
                     alert('API 키가 저장되었습니다.');
                 } else {
@@ -2572,6 +2676,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.settings) {
                     settings = { ...settings, ...data.settings };
                     storage.saveSettings(settings);
+                    
+                    // 개별 설정들도 별도로 저장하여 동기화
+                    if (data.settings.notificationApiEnabled !== undefined) {
+                        storage.saveNotificationApiEnabled(data.settings.notificationApiEnabled);
+                    }
+                    if (data.settings.aiFeatureEnabled !== undefined) {
+                        storage.saveAiFeatureEnabled(data.settings.aiFeatureEnabled);
+                    }
+                    // API 키는 보안상 백업에서 제외하므로 복원하지 않음
                 }
                 
                 // todoManager에 데이터 설정

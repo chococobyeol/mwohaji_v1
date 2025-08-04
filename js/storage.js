@@ -268,6 +268,14 @@ const storage = (() => {
         }
     };
 
+    const clearAiApiKey = () => {
+        try {
+            localStorage.removeItem(AI_API_KEY);
+        } catch (e) {
+            console.error('Failed to clear AI API key from localStorage', e);
+        }
+    };
+
     // AI 기능 활성화 상태 저장/불러오기
     const getAiFeatureEnabled = () => {
         try {
@@ -331,6 +339,7 @@ const storage = (() => {
         saveSettings,
         getAiApiKey,
         saveAiApiKey,
+        clearAiApiKey,
         getAiFeatureEnabled,
         saveAiFeatureEnabled,
         getNotificationApiEnabled,

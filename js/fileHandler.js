@@ -120,6 +120,10 @@ const fileHandler = (() => {
         const currentSettings = storage.getSettings();
         content += `showCompleted:${currentSettings.showCompleted}\n`;
         content += `todoSortOrder:${currentSettings.todoSortOrder || 'created-desc'}\n`;
+        content += `autoScrollToCategory:${currentSettings.autoScrollToCategory !== false}\n`;
+        content += `notificationApiEnabled:${storage.getNotificationApiEnabled()}\n`;
+        content += `aiFeatureEnabled:${storage.getAiFeatureEnabled()}\n`;
+        // API 키는 보안상 백업에서 제외
 
         // 반복 횟수 정보 저장
         if (Object.keys(repeatCounts).length > 0) {
@@ -255,7 +259,14 @@ const fileHandler = (() => {
                         importedData.settings.showCompleted = value === 'true';
                     } else if (key === 'todoSortOrder') {
                         importedData.settings.todoSortOrder = value;
+                    } else if (key === 'autoScrollToCategory') {
+                        importedData.settings.autoScrollToCategory = value === 'true';
+                    } else if (key === 'notificationApiEnabled') {
+                        importedData.settings.notificationApiEnabled = value === 'true';
+                    } else if (key === 'aiFeatureEnabled') {
+                        importedData.settings.aiFeatureEnabled = value === 'true';
                     }
+                    // API 키는 보안상 백업에서 제외하므로 복원하지 않음
                 }
             } else if (isTodosSection || isCompletedRepeatTodosSection) {
                 // PRD 개선된 형식 파싱: [상태] 내용 @cat:카테고리 @start:YYYY-MM-DD HH:mm @due:YYYY-MM-DD HH:mm @smodal:true/false @snotify:true/false @dmodal:true/false @dnotify:true/false @snotified:true/false @dnotified:true/false @id:숫자
