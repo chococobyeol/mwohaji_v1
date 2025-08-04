@@ -1763,12 +1763,30 @@ document.addEventListener('DOMContentLoaded', () => {
             const status = await checkAudioStatus();
             
             if (status === 'ready') {
-                // 알림 모달과 소리 재생
-                if (window.notificationScheduler) {
-                    // 소리 재생
-                    window.notificationScheduler.playNotificationSound();
-                    // 알림 모달 표시
-                    window.notificationScheduler.showNotificationModal('소리 테스트', '소리가 재생됩니다.');
+                // Notification API 설정에 따라 다른 방식으로 소리 테스트
+                const useNotificationApi = storage.getNotificationApiEnabled();
+                
+                if (useNotificationApi && window.serviceWorkerManager && window.serviceWorkerManager.hasPermission()) {
+                    // Notification API 사용: Service Worker를 통해 테스트
+                    console.log('[App] Notification API를 통한 소리 테스트');
+                    const testTime = new Date(Date.now() + 500); // 0.5초 후
+                    window.serviceWorkerManager.scheduleNotification(
+                        'sound-test-123',
+                        'test',
+                        '소리 테스트',
+                        '소리가 재생됩니다.',
+                        testTime.toISOString(),
+                        true // 소리 포함
+                    );
+                } else {
+                    // Notification API 미사용: 직접 소리 재생
+                    console.log('[App] 직접 소리 테스트');
+                    if (window.notificationScheduler) {
+                        // 소리 재생
+                        window.notificationScheduler.playNotificationSound();
+                        // 알림 모달 표시
+                        window.notificationScheduler.showNotificationModal('소리 테스트', '소리가 재생됩니다.');
+                    }
                 }
                 
                 audioStatusBtn.classList.remove('testing');
