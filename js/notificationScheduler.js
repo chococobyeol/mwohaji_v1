@@ -621,29 +621,23 @@ const notificationScheduler = (() => {
         }
     };
 
-    // 초기화 함수
+    // 알림 스케줄러 초기화
     const initScheduler = () => {
-        console.log('[NotificationScheduler] 스케줄러 초기화 시작');
+        console.log('[NotificationScheduler] 알림 스케줄러 초기화 시작');
         
-        // 저장된 Notification API 사용 설정 로드
-        const savedUseServiceWorker = storage.getNotificationApiEnabled ? storage.getNotificationApiEnabled() : false;
+        // Service Worker 사용 여부 확인
+        if (window.serviceWorkerManager && window.serviceWorkerManager.isUsingServiceWorker) {
+            useServiceWorker = window.serviceWorkerManager.isUsingServiceWorker();
+            console.log('[NotificationScheduler] Service Worker 사용 여부:', useServiceWorker);
+        } else {
+            console.log('[NotificationScheduler] serviceWorkerManager를 찾을 수 없어 Service Worker 사용 안함');
+            useServiceWorker = false;
+        }
         
-        // Service Worker 사용 가능 여부 확인 (저장된 설정과 권한 모두 확인)
-        const hasPermission = !!(window.serviceWorkerManager && window.serviceWorkerManager.hasPermission());
-        useServiceWorker = savedUseServiceWorker && hasPermission;
-        
-        console.log(`[NotificationScheduler] Service Worker 사용: ${useServiceWorker} (저장된 설정: ${savedUseServiceWorker}, 권한: ${hasPermission})`);
-        
-        // 반복 횟수 로드
+        // 반복 횟수 데이터 로드
         loadRepeatCounts();
         
-        // todoManager의 todos 변경 이벤트 구독
-        todoManager.onTodosChange(rescheduleAllNotifications);
-        
-        // 초기 로드 시 한 번 스케줄링
-        rescheduleAllNotifications(todoManager.getTodos());
-        
-        console.log('[NotificationScheduler] 스케줄러 초기화 완료');
+        console.log('[NotificationScheduler] 알림 스케줄러 초기화 완료');
     };
 
     // 반복 횟수 저장

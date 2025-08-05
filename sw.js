@@ -203,25 +203,38 @@ self.addEventListener('notificationclick', (event) => {
     
     // 브라우저 창/탭 포커스
     event.waitUntil(
-        self.clients.matchAll().then((clients) => {
-            // 활성화된 클라이언트 찾기
-            const activeClient = clients.find(client => 
+        self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+            console.log('[SW] 발견된 클라이언트 수:', clients.length);
+            
+            // 현재 사이트의 클라이언트만 필터링
+            const siteClients = clients.filter(client => 
+                client.url.includes(self.location.origin)
+            );
+            console.log('[SW] 현재 사이트 클라이언트 수:', siteClients.length);
+            
+            // 활성화된 클라이언트 찾기 (visible 상태)
+            const activeClient = siteClients.find(client => 
                 client.focus && client.visibilityState === 'visible'
             );
             
             if (activeClient) {
                 // 활성화된 클라이언트가 있으면 포커스
-                console.log('[SW] 활성 클라이언트 발견, 포커스');
+                console.log('[SW] 활성 클라이언트 발견, 포커스:', activeClient.url);
                 return activeClient.focus();
-            } else if (clients.length > 0) {
+            } else if (siteClients.length > 0) {
                 // 활성화된 클라이언트가 없지만 클라이언트가 있으면 첫 번째 것 포커스
-                console.log('[SW] 비활성 클라이언트 발견, 포커스:', clients.length, '개');
-                return clients[0].focus();
+                const firstClient = siteClients[0];
+                console.log('[SW] 비활성 클라이언트 발견, 포커스:', firstClient.url);
+                return firstClient.focus();
             } else {
                 // 클라이언트가 전혀 없으면 새 창 열기
                 console.log('[SW] 클라이언트 없음, 새 창 열기');
                 return self.clients.openWindow('/');
             }
+        }).catch(error => {
+            console.error('[SW] 클라이언트 매칭 실패:', error);
+            // 에러 발생 시 새 창 열기
+            return self.clients.openWindow('/');
         })
     );
 });
@@ -236,14 +249,38 @@ self.addEventListener('notificationclose', (event) => {
 
 // 메인 스크립트에 메시지 전송
 function notifyMainScript(type, data) {
-    self.clients.matchAll().then((clients) => {
-        clients.forEach((client) => {
-            client.postMessage({
-                type: type,
-                data: data,
-                timestamp: Date.now()
-            });
+    console.log(`[SW] 메인 스크립트에 메시지 전송: ${type}`, data);
+    
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+        console.log(`[SW] 메시지 전송 대상 클라이언트 수: ${clients.length}`);
+        
+        // 현재 사이트의 클라이언트만 필터링
+        const siteClients = clients.filter(client => 
+            client.url.includes(self.location.origin)
+        );
+        
+        console.log(`[SW] 현재 사이트 클라이언트 수: ${siteClients.length}`);
+        
+        if (siteClients.length === 0) {
+            console.warn('[SW] 메시지 전송할 클라이언트가 없습니다');
+            return;
+        }
+        
+        // 모든 클라이언트에 메시지 전송
+        siteClients.forEach((client, index) => {
+            try {
+                client.postMessage({
+                    type: type,
+                    data: data,
+                    timestamp: Date.now()
+                });
+                console.log(`[SW] 클라이언트 ${index + 1}에 메시지 전송 성공:`, client.url);
+            } catch (error) {
+                console.error(`[SW] 클라이언트 ${index + 1}에 메시지 전송 실패:`, error);
+            }
         });
+    }).catch(error => {
+        console.error('[SW] 클라이언트 매칭 실패 (메시지 전송):', error);
     });
 }
 

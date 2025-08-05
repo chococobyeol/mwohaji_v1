@@ -1597,7 +1597,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // 전체 데이터 초기화 핸들러
-    const handleResetAllData = () => {
+    const handleResetAllData = async () => {
         const confirmMessage = `⚠️ 정말로 모든 데이터를 초기화하시겠습니까?\n\n` +
             `이 작업은 다음을 모두 삭제합니다:\n` +
             `• 모든 할일 목록\n` +
@@ -1629,12 +1629,12 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // AI 모듈에서도 API 키 초기화
             if (window.aiChat && window.aiChat.clearApiKey) {
-                window.aiChat.clearApiKey();
-                console.log('[App] 데이터 초기화: aiChat API 키 초기화됨');
+                await window.aiChat.clearApiKey();
+                console.log('[App] 설정 초기화: aiChat API 키 초기화됨');
             }
             if (window.geminiApi && window.geminiApi.clearApiKey) {
-                window.geminiApi.clearApiKey();
-                console.log('[App] 데이터 초기화: geminiApi API 키 초기화됨');
+                await window.geminiApi.clearApiKey();
+                console.log('[App] 설정 초기화: geminiApi API 키 초기화됨');
             }
             
             // UI 새로고침
@@ -1668,7 +1668,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // 설정만 초기화 핸들러
-    const handleResetSettings = () => {
+    const handleResetSettings = async () => {
         const confirmMessage = `설정만 초기화하시겠습니까?\n\n` +
             `다음 설정이 기본값으로 초기화됩니다:\n` +
             `• 완료된 할일 표시 여부\n` +
@@ -1697,11 +1697,11 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // AI 모듈에서도 API 키 초기화
             if (window.aiChat && window.aiChat.clearApiKey) {
-                window.aiChat.clearApiKey();
+                await window.aiChat.clearApiKey();
                 console.log('[App] 설정 초기화: aiChat API 키 초기화됨');
             }
             if (window.geminiApi && window.geminiApi.clearApiKey) {
-                window.geminiApi.clearApiKey();
+                await window.geminiApi.clearApiKey();
                 console.log('[App] 설정 초기화: geminiApi API 키 초기화됨');
             }
             
@@ -1871,7 +1871,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // AI 기능 토글 이벤트 핸들러
-    const handleAiFeatureToggle = () => {
+    const handleAiFeatureToggle = async () => {
         const aiChatToggleBtn = document.getElementById('ai-chat-toggle-btn');
         const aiFeatureToggle = document.getElementById('ai-feature-toggle');
         
@@ -1905,7 +1905,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // AI 기능이 활성화되면 AI 채팅 초기화
             if (isEnabled && window.aiChat && window.aiChat.init) {
                 try {
-                    window.aiChat.init();
+                    await window.aiChat.init();
                     console.log('[App] AI 기능 활성화: AI 채팅 초기화 완료');
                 } catch (error) {
                     console.error('[App] AI 기능 활성화: AI 채팅 초기화 실패:', error);
@@ -2085,7 +2085,7 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('[App] AI 대화 아이콘 초기화 완료');
     };
 
-    // AI 채팅 초기화 제외한 초기화 함수
+    // AI 채팅 초기화 제외한 초기화 함수 (이제 AI 채팅 버튼 표시 시 AI 채팅 모듈도 초기화)
     const initWithoutAiChat = async () => {
         todoManager.setTodos(storage.getTodos());
         todoManager.setCategories(storage.getCategories());
@@ -2426,28 +2426,60 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         if (saveApiKeyBtn) {
-            saveApiKeyBtn.removeEventListener('click', () => {
+            saveApiKeyBtn.removeEventListener('click', async () => {
                 const apiKey = apiKeyInput.value.trim();
                 if (apiKey) {
-                    // 두 저장소에 모두 저장하여 동기화
-                    storage.saveAiApiKey(apiKey);
-                    settings.aiApiKey = apiKey;
-                    storage.saveSettings(settings);
-                    console.log('[App] AI API 키 저장됨');
-                    alert('API 키가 저장되었습니다.');
+                    try {
+                        // API 키 유효성 검증
+                        if (window.aiChat && window.aiChat.setApiKey) {
+                            await window.aiChat.setApiKey(apiKey);
+                            // 두 저장소에 모두 저장하여 동기화
+                            storage.saveAiApiKey(apiKey);
+                            settings.aiApiKey = apiKey;
+                            storage.saveSettings(settings);
+                            console.log('[App] AI API 키 저장 및 검증 완료');
+                            alert('API 키가 저장되고 검증되었습니다.');
+                        } else {
+                            // aiChat이 없는 경우 기본 저장
+                            storage.saveAiApiKey(apiKey);
+                            settings.aiApiKey = apiKey;
+                            storage.saveSettings(settings);
+                            console.log('[App] AI API 키 저장됨 (검증 생략)');
+                            alert('API 키가 저장되었습니다.');
+                        }
+                    } catch (error) {
+                        console.error('[App] API 키 검증 실패:', error);
+                        alert('API 키 검증에 실패했습니다. 올바른 API 키인지 확인해주세요.');
+                    }
                 } else {
                     alert('API 키를 입력해주세요.');
                 }
             });
-            saveApiKeyBtn.addEventListener('click', () => {
+            saveApiKeyBtn.addEventListener('click', async () => {
                 const apiKey = apiKeyInput.value.trim();
                 if (apiKey) {
-                    // 두 저장소에 모두 저장하여 동기화
-                    storage.saveAiApiKey(apiKey);
-                    settings.aiApiKey = apiKey;
-                    storage.saveSettings(settings);
-                    console.log('[App] AI API 키 저장됨');
-                    alert('API 키가 저장되었습니다.');
+                    try {
+                        // API 키 유효성 검증
+                        if (window.aiChat && window.aiChat.setApiKey) {
+                            await window.aiChat.setApiKey(apiKey);
+                            // 두 저장소에 모두 저장하여 동기화
+                            storage.saveAiApiKey(apiKey);
+                            settings.aiApiKey = apiKey;
+                            storage.saveSettings(settings);
+                            console.log('[App] AI API 키 저장 및 검증 완료');
+                            alert('API 키가 저장되고 검증되었습니다.');
+                        } else {
+                            // aiChat이 없는 경우 기본 저장
+                            storage.saveAiApiKey(apiKey);
+                            settings.aiApiKey = apiKey;
+                            storage.saveSettings(settings);
+                            console.log('[App] AI API 키 저장됨 (검증 생략)');
+                            alert('API 키가 저장되었습니다.');
+                        }
+                    } catch (error) {
+                        console.error('[App] API 키 검증 실패:', error);
+                        alert('API 키 검증에 실패했습니다. 올바른 API 키인지 확인해주세요.');
+                    }
                 } else {
                     alert('API 키를 입력해주세요.');
                 }
@@ -2459,35 +2491,31 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Service Worker 초기화 (알림 스케줄러보다 먼저)
         if (window.serviceWorkerManager) {
-            try {
-                await window.serviceWorkerManager.init();
-                console.log('[App] Service Worker 초기화 완료');
-                
-                // Service Worker가 준비되면 알림 스케줄러 초기화
-                notificationScheduler.initScheduler();
-            } catch (error) {
-                console.error('[App] Service Worker 초기화 실패:', error);
-                // Service Worker 실패 시에도 알림 스케줄러는 초기화
-                notificationScheduler.initScheduler();
-            }
+            console.log('[App] Service Worker Manager 초기화 시작');
+            const swInitialized = await window.serviceWorkerManager.init();
+            console.log('[App] Service Worker Manager 초기화 결과:', swInitialized);
+            
+            // Service Worker 등록 후 약간의 지연을 두고 상태 확인
+            setTimeout(() => {
+                if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+                    console.log('[App] Service Worker 컨트롤러 활성화 확인됨');
+                } else {
+                    console.log('[App] Service Worker 컨트롤러 아직 활성화되지 않음');
+                }
+            }, 1000);
         } else {
-            console.warn('[App] serviceWorkerManager를 찾을 수 없습니다');
-            // Service Worker가 없어도 알림 스케줄러는 초기화
-            notificationScheduler.initScheduler();
+            console.warn('[App] Service Worker Manager를 찾을 수 없습니다');
         }
         
-        // AI 대화 초기화 (AI 기능이 활성화된 경우에만)
-        const isAiEnabled = storage.getAiFeatureEnabled();
-        if (isAiEnabled) {
-            try {
-                aiChat.init();
-                console.log('[App] AI 채팅 초기화 완료');
-            } catch (error) {
-                console.error('[App] AI 채팅 초기화 실패:', error);
-            }
-        } else {
-            console.log('[App] AI 기능이 비활성화되어 있어 AI 채팅 초기화 건너뜀');
+        // 알림 스케줄러 초기화
+        try {
+            notificationScheduler.initScheduler();
+            console.log('[App] 알림 스케줄러 초기화 완료');
+        } catch (error) {
+            console.error('[App] 알림 스케줄러 초기화 실패:', error);
         }
+        
+
         
         // AI 대화 아이콘 초기화 (사이드바가 생성된 후, 약간의 지연 후)
         setTimeout(() => {
@@ -2510,6 +2538,16 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isAiEnabled) {
                 aiChatToggleBtn.style.setProperty('display', 'flex', 'important');
                 console.log(`[App] AI 채팅 버튼 표시 설정`);
+                
+                // AI 기능이 활성화된 경우 AI 채팅 모듈도 초기화
+                if (window.aiChat && window.aiChat.init) {
+                    try {
+                        await window.aiChat.init();
+                        console.log('[App] AI 채팅 모듈 초기화 완료');
+                    } catch (error) {
+                        console.error('[App] AI 채팅 모듈 초기화 실패:', error);
+                    }
+                }
             } else {
                 aiChatToggleBtn.style.setProperty('display', 'none', 'important');
                 console.log(`[App] AI 채팅 버튼 숨김 설정`);
@@ -2535,11 +2573,7 @@ document.addEventListener('DOMContentLoaded', () => {
             window.notificationScheduler.setUseServiceWorker(savedUseServiceWorker);
         }
         
-        // AI 채팅 초기화 (AI 기능이 활성화된 경우에만)
-        const isAiEnabled = storage.getAiFeatureEnabled();
-        if (isAiEnabled && window.aiChat && window.aiChat.init) {
-            window.aiChat.init();
-        }
+        // AI 채팅 초기화는 이제 initWithoutAiChat에서 처리됨 (AI 기능이 활성화된 경우에만)
         
         // 타이머 초기화
         if (window.timer && window.timer.init) {
@@ -2592,22 +2626,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 switch (type) {
                     case 'NOTIFICATION_SHOWN':
+                        console.log('[App] NOTIFICATION_SHOWN 처리 시작');
                         handleNotificationShown(data);
                         break;
                     case 'NOTIFICATION_CLICKED':
+                        console.log('[App] NOTIFICATION_CLICKED 처리 시작');
                         handleNotificationClicked(data);
                         break;
                     case 'NOTIFICATION_CLOSED':
+                        console.log('[App] NOTIFICATION_CLOSED 처리 시작');
                         handleNotificationClosed(data);
                         break;
                     case 'PLAY_NOTIFICATION_SOUND':
                         console.log('[App] Service Worker에서 소리 재생 요청');
-                        window.playNotificationSound();
+                        if (window.notificationScheduler && window.notificationScheduler.playNotificationSound) {
+                            console.log('[App] notificationScheduler.playNotificationSound 호출');
+                            window.notificationScheduler.playNotificationSound();
+                        } else {
+                            console.warn('[App] notificationScheduler.playNotificationSound를 찾을 수 없습니다');
+                        }
                         break;
                     default:
                         console.log('[App] 알 수 없는 Service Worker 메시지 타입:', type);
                 }
             });
+            
+            // Service Worker 컨트롤러 상태 확인
+            if (navigator.serviceWorker.controller) {
+                console.log('[App] Service Worker 컨트롤러가 활성화되어 있습니다');
+            } else {
+                console.log('[App] Service Worker 컨트롤러가 아직 활성화되지 않았습니다');
+            }
         }
     };
 

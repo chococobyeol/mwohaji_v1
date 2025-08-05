@@ -2,13 +2,19 @@ const aiChat = (() => {
     let isOpen = false;
     let messages = [];
     let apiKey = null;
-    let isInitialized = false; // 초기화 상태 추적
 
     // 사이드바 열기
     const openSidebar = () => {
+        console.log('[AIChat] openSidebar 함수 호출됨');
         const sidebar = document.getElementById('ai-chat-sidebar');
         const overlay = document.querySelector('.ai-chat-sidebar-overlay');
         const input = document.getElementById('ai-chat-input');
+        
+        console.log('[AIChat] DOM 요소 확인:', {
+            sidebar: !!sidebar,
+            overlay: !!overlay,
+            input: !!input
+        });
         
         if (sidebar && overlay && input) {
             isOpen = true;
@@ -17,6 +23,9 @@ const aiChat = (() => {
             overlay.classList.add('open');
             overlay.style.display = 'block';
             input.focus();
+            console.log('[AIChat] 사이드바 열기 완료');
+        } else {
+            console.error('[AIChat] 사이드바 열기 실패: 필요한 DOM 요소가 없습니다');
         }
     };
 
@@ -159,21 +168,10 @@ const aiChat = (() => {
         };
     };
 
-    // API 키 설정
-    const setApiKey = (key) => {
-        apiKey = key;
-        if (key) {
-            geminiApi.setApiKey(key);
-            updateStatus('AI 연결됨');
-        } else {
-            updateStatus('API 키가 설정되지 않음', 'error');
-        }
-    };
-
     // API 키 초기화
-    const clearApiKey = () => {
+    const clearApiKey = async () => {
         apiKey = null;
-        geminiApi.clearApiKey();
+        await geminiApi.clearApiKey();
         updateStatus('API 키가 설정되지 않음', 'error');
     };
 
@@ -188,20 +186,31 @@ const aiChat = (() => {
         if (window.geminiApi && window.geminiApi.clearHistory) {
             window.geminiApi.clearHistory();
         }
-        isInitialized = false; // 초기화 상태 리셋
         console.log('[AIChat] 대화 히스토리 초기화 완료');
     };
 
-
+    // API 키 설정 및 유효성 검증
+    const setApiKey = async (key) => {
+        apiKey = key;
+        if (key) {
+            // API 키 유효성 검증
+            try {
+                updateStatus('API 키 검증 중...', 'warning');
+                await geminiApi.setApiKey(key);
+                updateStatus('AI 연결됨');
+                console.log('[AIChat] API 키 유효성 검증 성공');
+            } catch (error) {
+                updateStatus('API 키가 유효하지 않습니다', 'error');
+                console.error('[AIChat] API 키 유효성 검증 실패:', error);
+                apiKey = null;
+            }
+        } else {
+            updateStatus('API 키가 설정되지 않음', 'error');
+        }
+    };
 
     // 초기화
-    const init = () => {
-        // 이미 초기화되어 있으면 건너뛰기
-        if (isInitialized) {
-            console.log('[AIChat] 이미 초기화되어 있음, 건너뛰기');
-            return;
-        }
-        
+    const init = async () => {
         // AI 기능이 활성화되어 있는지 확인
         const isAiEnabled = storage.getAiFeatureEnabled();
         if (!isAiEnabled) {
@@ -238,10 +247,19 @@ const aiChat = (() => {
         const statusText = status?.querySelector('.status-text');
 
         try {
+            // 기존 이벤트 리스너 제거 (중복 방지)
+            toggleBtn.removeEventListener('click', openSidebar);
+            closeBtn.removeEventListener('click', closeSidebar);
+            overlay.removeEventListener('click', closeSidebar);
+            sendBtn.removeEventListener('click', sendMessage);
+            
             // 이벤트 리스너 등록
             toggleBtn.addEventListener('click', openSidebar);
             closeBtn.addEventListener('click', closeSidebar);
             overlay.addEventListener('click', closeSidebar);
+            
+            console.log('[AIChat] 이벤트 리스너 등록 완료');
+            console.log('[AIChat] toggleBtn 클릭 이벤트 리스너 추가됨');
             
             sendBtn.addEventListener('click', sendMessage);
             input.addEventListener('keydown', (e) => {
@@ -251,18 +269,19 @@ const aiChat = (() => {
                 }
             });
 
-            // 초기 메시지 추가
-            addMessage('안녕하세요! 할 일이나 일정에 대해 말씀해주세요. 예를 들어:\n\n• "오늘 3시에 회의 준비 알림 설정"\n• "업무 카테고리에 보고서 작성 추가"\n• "새 카테고리 만들기: 건강관리"', 'ai');
+            // 초기 메시지 추가 (이미 있는 경우 건너뛰기)
+            if (messagesContainer.children.length === 0) {
+                addMessage('안녕하세요! 할 일이나 일정에 대해 말씀해주세요. 예를 들어:\n\n• "오늘 3시에 회의 준비 알림 설정"\n• "업무 카테고리에 보고서 작성 추가"\n• "새 카테고리 만들기: 건강관리"', 'ai');
+            }
 
-            // 저장된 API 키 로드
+            // 저장된 API 키 로드 및 유효성 검증
             const savedApiKey = storage.getAiApiKey();
             if (savedApiKey) {
-                setApiKey(savedApiKey);
+                await setApiKey(savedApiKey); // 비동기 함수 호출
             } else {
                 updateStatus('API 키 설정 필요', 'error');
             }
             
-            isInitialized = true; // 초기화 완료 표시
             console.log('[AIChat] 초기화 완료');
         } catch (error) {
             console.error('[AIChat] 초기화 중 오류 발생:', error);
@@ -278,4 +297,7 @@ const aiChat = (() => {
         addMessage,
         clearHistory
     };
-})(); 
+})();
+
+// 전역 스코프에 노출
+window.aiChat = aiChat;

@@ -38,9 +38,52 @@ const geminiApi = (() => {
         conversationHistory = [];
     };
 
-    // API 키 설정
-    const setApiKey = (key) => {
+    // API 키 설정 및 유효성 검증
+    const setApiKey = async (key) => {
         apiKey = key;
+        
+        // API 키가 설정된 경우 유효성 검증
+        if (key && key !== 'test') {
+            try {
+                console.log('[GeminiAPI] API 키 유효성 검증 시작');
+                const testContext = {
+                    todos: [],
+                    categories: [],
+                    currentTime: new Date().toISOString()
+                };
+                
+                // 간단한 테스트 요청으로 API 키 유효성 확인
+                const response = await fetch(`${getCurrentModel()}?key=${key}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [{
+                                text: 'Hello'
+                            }]
+                        }],
+                        generationConfig: {
+                            maxOutputTokens: 10,
+                        }
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    console.error('[GeminiAPI] API 키 검증 실패:', errorData);
+                    apiKey = null;
+                    throw new Error(`API 키가 유효하지 않습니다: ${errorData.error?.message || response.statusText}`);
+                }
+
+                console.log('[GeminiAPI] API 키 유효성 검증 성공');
+            } catch (error) {
+                console.error('[GeminiAPI] API 키 검증 중 오류:', error);
+                apiKey = null;
+                throw error;
+            }
+        }
     };
 
     // API 키 초기화

@@ -184,14 +184,22 @@ const serviceWorkerManager = (() => {
             const { title, message } = data;
             // 모달 표시
             if (window.notificationScheduler.showNotificationModal) {
+                console.log('[SWManager] 알림 모달 표시 시도:', title);
                 window.notificationScheduler.showNotificationModal(title, message);
+            } else {
+                console.warn('[SWManager] showNotificationModal 함수를 찾을 수 없습니다');
             }
             // 소리 재생 (별도로 처리됨)
+        } else {
+            console.warn('[SWManager] notificationScheduler를 찾을 수 없습니다');
         }
         
         // 메인 앱에 알림 발생 알림
         if (window.app && window.app.handleNotificationShown) {
+            console.log('[SWManager] 메인 앱에 알림 표시 알림 전송');
             window.app.handleNotificationShown(data);
+        } else {
+            console.warn('[SWManager] window.app.handleNotificationShown을 찾을 수 없습니다');
         }
     };
 
@@ -202,6 +210,8 @@ const serviceWorkerManager = (() => {
         // 메인 앱에 알림 클릭 알림
         if (window.app && window.app.handleNotificationClicked) {
             window.app.handleNotificationClicked(data);
+        } else {
+            console.warn('[SWManager] window.app.handleNotificationClicked를 찾을 수 없습니다');
         }
     };
 
@@ -212,6 +222,8 @@ const serviceWorkerManager = (() => {
         // 메인 앱에 알림 닫기 알림
         if (window.app && window.app.handleNotificationClosed) {
             window.app.handleNotificationClosed(data);
+        } else {
+            console.warn('[SWManager] window.app.handleNotificationClosed를 찾을 수 없습니다');
         }
     };
 
@@ -221,8 +233,10 @@ const serviceWorkerManager = (() => {
         try {
             // 메인 앱의 소리 재생 함수 호출
             if (window.app && window.app.playNotificationSound) {
+                console.log('[SWManager] window.app.playNotificationSound 호출');
                 window.app.playNotificationSound();
             } else if (window.notificationScheduler && window.notificationScheduler.playNotificationSound) {
+                console.log('[SWManager] notificationScheduler.playNotificationSound 호출');
                 window.notificationScheduler.playNotificationSound();
             } else {
                 console.warn('[SWManager] 소리 재생 함수를 찾을 수 없습니다');
@@ -244,6 +258,24 @@ const serviceWorkerManager = (() => {
                 console.error('[SWManager] 직접 소리 재생 시도 실패:', e);
             }
         }
+    };
+
+    // Service Worker 사용 여부 확인
+    const isUsingServiceWorker = () => {
+        if (!swRegistration || !swRegistration.active) {
+            return false;
+        }
+        
+        // Notification API 사용 설정 확인
+        if (window.storage && window.storage.getNotificationApiEnabled) {
+            const notificationEnabled = window.storage.getNotificationApiEnabled();
+            if (!notificationEnabled) {
+                return false;
+            }
+        }
+        
+        // 알림 권한 확인
+        return checkNotificationPermission();
     };
 
     // 초기화
@@ -298,7 +330,8 @@ const serviceWorkerManager = (() => {
         cancelAllNotifications,
         isInitialized: () => isInitialized,
         hasPermission: () => checkNotificationPermission(),
-        getPermission: () => notificationPermission
+        getPermission: () => notificationPermission,
+        isUsingServiceWorker
     };
 })();
 
