@@ -43,6 +43,11 @@ const geminiApi = (() => {
         apiKey = key;
     };
 
+    // API 키 초기화
+    const clearApiKey = () => {
+        apiKey = null;
+    };
+
     // 프롬프트 생성
     const createPrompt = (userInput, context) => {
         const conversationContext = getConversationContext();
@@ -1306,6 +1311,7 @@ JSON 응답 형식:
 
     return {
         setApiKey,
+        clearApiKey, // API 키 초기화
         sendMessage,
         clearHistory, // 대화 히스토리 초기화
         getConversationContext // 대화 히스토리 조회 (디버깅용)

@@ -170,6 +170,13 @@ const aiChat = (() => {
         }
     };
 
+    // API 키 초기화
+    const clearApiKey = () => {
+        apiKey = null;
+        geminiApi.clearApiKey();
+        updateStatus('API 키가 설정되지 않음', 'error');
+    };
+
     // 대화 히스토리 초기화
     const clearHistory = () => {
         messages = [];
@@ -192,6 +199,13 @@ const aiChat = (() => {
         // 이미 초기화되어 있으면 건너뛰기
         if (isInitialized) {
             console.log('[AIChat] 이미 초기화되어 있음, 건너뛰기');
+            return;
+        }
+        
+        // AI 기능이 활성화되어 있는지 확인
+        const isAiEnabled = storage.getAiFeatureEnabled();
+        if (!isAiEnabled) {
+            console.log('[AIChat] AI 기능이 비활성화되어 있어 초기화 건너뛰기');
             return;
         }
         
@@ -260,6 +274,7 @@ const aiChat = (() => {
         openSidebar,
         closeSidebar,
         setApiKey,
+        clearApiKey,
         addMessage,
         clearHistory
     };

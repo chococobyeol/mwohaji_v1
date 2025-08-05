@@ -1627,6 +1627,16 @@ document.addEventListener('DOMContentLoaded', () => {
             storage.clearAiApiKey();
             console.log('[App] 데이터 초기화: API 키 삭제됨');
             
+            // AI 모듈에서도 API 키 초기화
+            if (window.aiChat && window.aiChat.clearApiKey) {
+                window.aiChat.clearApiKey();
+                console.log('[App] 데이터 초기화: aiChat API 키 초기화됨');
+            }
+            if (window.geminiApi && window.geminiApi.clearApiKey) {
+                window.geminiApi.clearApiKey();
+                console.log('[App] 데이터 초기화: geminiApi API 키 초기화됨');
+            }
+            
             // UI 새로고침
             render();
             
@@ -1684,6 +1694,16 @@ document.addEventListener('DOMContentLoaded', () => {
             // AI API 키도 초기화 (삭제)
             storage.clearAiApiKey();
             console.log('[App] 설정 초기화: API 키 삭제됨');
+            
+            // AI 모듈에서도 API 키 초기화
+            if (window.aiChat && window.aiChat.clearApiKey) {
+                window.aiChat.clearApiKey();
+                console.log('[App] 설정 초기화: aiChat API 키 초기화됨');
+            }
+            if (window.geminiApi && window.geminiApi.clearApiKey) {
+                window.geminiApi.clearApiKey();
+                console.log('[App] 설정 초기화: geminiApi API 키 초기화됨');
+            }
             
             // UI 업데이트 (동적으로 생성되는 요소들은 나중에 업데이트됨)
             const aiChatToggleBtn = document.getElementById('ai-chat-toggle-btn');
@@ -1858,6 +1878,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (aiFeatureToggle) {
             const isEnabled = aiFeatureToggle.checked;
             
+            // AI 기능을 활성화하려고 할 때 API 키가 있는지 확인
+            if (isEnabled) {
+                const apiKey = storage.getAiApiKey();
+                if (!apiKey) {
+                    alert('AI 기능을 사용하려면 API 키를 먼저 입력해주세요.');
+                    aiFeatureToggle.checked = false;
+                    return;
+                }
+            }
+            
             // 두 저장소에 모두 저장하여 동기화
             storage.saveAiFeatureEnabled(isEnabled);
             settings.aiFeatureEnabled = isEnabled;
@@ -1869,6 +1899,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     aiChatToggleBtn.style.setProperty('display', 'flex', 'important');
                 } else {
                     aiChatToggleBtn.style.setProperty('display', 'none', 'important');
+                }
+            }
+            
+            // AI 기능이 활성화되면 AI 채팅 초기화
+            if (isEnabled && window.aiChat && window.aiChat.init) {
+                try {
+                    window.aiChat.init();
+                    console.log('[App] AI 기능 활성화: AI 채팅 초기화 완료');
+                } catch (error) {
+                    console.error('[App] AI 기능 활성화: AI 채팅 초기화 실패:', error);
                 }
             }
             
@@ -2436,12 +2476,17 @@ document.addEventListener('DOMContentLoaded', () => {
             notificationScheduler.initScheduler();
         }
         
-        // AI 대화 초기화 (사이드바 DOM 생성)
-        try {
-            aiChat.init();
-            console.log('[App] AI 채팅 초기화 완료');
-        } catch (error) {
-            console.error('[App] AI 채팅 초기화 실패:', error);
+        // AI 대화 초기화 (AI 기능이 활성화된 경우에만)
+        const isAiEnabled = storage.getAiFeatureEnabled();
+        if (isAiEnabled) {
+            try {
+                aiChat.init();
+                console.log('[App] AI 채팅 초기화 완료');
+            } catch (error) {
+                console.error('[App] AI 채팅 초기화 실패:', error);
+            }
+        } else {
+            console.log('[App] AI 기능이 비활성화되어 있어 AI 채팅 초기화 건너뜀');
         }
         
         // AI 대화 아이콘 초기화 (사이드바가 생성된 후, 약간의 지연 후)
@@ -2490,8 +2535,9 @@ document.addEventListener('DOMContentLoaded', () => {
             window.notificationScheduler.setUseServiceWorker(savedUseServiceWorker);
         }
         
-        // AI 채팅 초기화
-        if (window.aiChat && window.aiChat.init) {
+        // AI 채팅 초기화 (AI 기능이 활성화된 경우에만)
+        const isAiEnabled = storage.getAiFeatureEnabled();
+        if (isAiEnabled && window.aiChat && window.aiChat.init) {
             window.aiChat.init();
         }
         
