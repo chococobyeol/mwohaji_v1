@@ -536,17 +536,15 @@ const notificationScheduler = (() => {
             }
             
             // 반복 알림에서는 다음 알림을 즉시 예약 (반복이 아직 유효한 경우)
-            if (todo.repeat) {
-                setTimeout(() => {
-                    console.log(`[RepeatAlarm] 다음 알림 예약 시작 - 알람 울림 시점 기준`);
-                    scheduleRepeatNotification(todo, type);
-                    
-                    // 다음 알람 예약 후에도 UI 업데이트
-                    if (window.app && window.app.renderTodos) {
-                        console.log('[RepeatAlarm] 다음 알람 예약 후 UI 업데이트');
-                        window.app.renderTodos();
-                    }
-                }, 100);
+            if (todo.repeat && !todo.repeat[`${type}Completed`]) {
+                console.log(`[RepeatAlarm] 다음 알림 예약 시작 - 알람 울림 시점 기준`);
+                scheduleRepeatNotification(todo, type);
+                
+                // 다음 알람 예약 후에도 UI 업데이트
+                if (window.app && window.app.renderTodos) {
+                    console.log('[RepeatAlarm] 다음 알람 예약 후 UI 업데이트');
+                    window.app.renderTodos();
+                }
             }
         }, diff);
         
