@@ -325,13 +325,19 @@ const notificationScheduler = (() => {
         }
         
         if (todo.repeat.type === 'interval') {
-            const interval = todo.repeat.interval || 30; // 기본값 30분
+            let interval = todo.repeat.interval || 30; // 기본값 30분
             const limit = todo.repeat.limit; // 사용자 설정 반복 횟수 제한
             
-            // interval 유효성 검사
-            if (interval <= 0 || interval > 1440) { // 최대 24시간(1440분)
-                console.error(`[RepeatAlarm] interval 값이 유효하지 않음: ${interval}분`);
-                return null;
+            // interval 값 타입 검증 및 정규화
+            if (typeof interval !== 'number' || isNaN(interval)) {
+                console.warn(`[RepeatAlarm] interval 값이 숫자가 아님: ${interval}, 기본값 30으로 설정`);
+                interval = 30;
+            }
+            
+            // interval 유효성 검사 (음수만 제한)
+            if (interval <= 0) {
+                console.warn(`[RepeatAlarm] interval 값이 0 이하: ${interval}분, 기본값 30으로 설정`);
+                interval = 30;
             }
             
             console.log(`[RepeatAlarm] interval 설정된 간격: ${interval}분, 제한: ${limit || '없음'}`);
