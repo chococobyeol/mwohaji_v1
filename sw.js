@@ -146,6 +146,10 @@ async function showNotification(title, message, hasSound, todoId, type) {
             tag: `${NOTIFICATION_TAG}-${todoId}-${type}`,
             requireInteraction: false,
             silent: !hasSound, // hasSound가 true면 silent는 false (소리 재생)
+            // 브라우저 네이티브 알림 소리 강화
+            ...(hasSound && {
+                sound: '/assets/sounds/notification.mp3'
+            }),
             data: {
                 todoId,
                 type,
@@ -166,20 +170,36 @@ async function showNotification(title, message, hasSound, todoId, type) {
         if (hasSound) {
             try {
                 console.log('[SW] 알림 소리 재생 시도');
-                // 메인 스크립트에 소리 재생 요청
-                notifyMainScript('PLAY_NOTIFICATION_SOUND', { todoId, type });
                 
-                // Service Worker에서도 직접 소리 재생 시도 (폴백)
-                setTimeout(() => {
+                // 클라이언트 상태 확인
+                const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+                const siteClients = clients.filter(client => client.url.includes(self.location.origin));
+                const hasActiveClient = siteClients.some(client => client.visibilityState === 'visible');
+                
+                console.log('[SW] 클라이언트 상태:', {
+                    totalClients: clients.length,
+                    siteClients: siteClients.length,
+                    hasActiveClient: hasActiveClient
+                });
+                
+                if (hasActiveClient) {
+                    // 활성 클라이언트가 있으면 메인 스크립트에서 소리 재생
+                    console.log('[SW] 활성 클라이언트 발견, 메인 스크립트에서 소리 재생');
+                    notifyMainScript('PLAY_NOTIFICATION_SOUND', { todoId, type });
+                } else {
+                    // 활성 클라이언트가 없으면 Service Worker에서 직접 소리 재생
+                    console.log('[SW] 비활성 클라이언트, Service Worker에서 직접 소리 재생');
                     try {
                         const audio = new Audio('/assets/sounds/notification.mp3');
-                        audio.play().catch(e => {
-                            console.log('[SW] Service Worker에서 소리 재생 실패 (정상, 메인 스크립트에서 처리됨):', e);
-                        });
-                    } catch (e) {
-                        console.log('[SW] Service Worker에서 소리 재생 시도 실패 (정상):', e);
+                        audio.volume = 0.8; // 볼륨 설정
+                        await audio.play();
+                        console.log('[SW] Service Worker에서 소리 재생 성공');
+                    } catch (audioError) {
+                        console.log('[SW] Service Worker에서 소리 재생 실패, 메인 스크립트로 폴백:', audioError);
+                        // 폴백: 메인 스크립트에도 요청
+                        notifyMainScript('PLAY_NOTIFICATION_SOUND', { todoId, type });
                     }
-                }, 100);
+                }
             } catch (soundError) {
                 console.error('[SW] 소리 재생 실패:', soundError);
             }

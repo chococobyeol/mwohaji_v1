@@ -1143,39 +1143,39 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             case 'start-time-asc':
                 return [...todos].sort((a, b) => {
-                    const aTime = a.schedule?.startTime || new Date(9999, 11, 31);
-                    const bTime = b.schedule?.startTime || new Date(9999, 11, 31);
+                    const aTime = a.schedule?.startTime ? new Date(a.schedule.startTime) : new Date(9999, 11, 31);
+                    const bTime = b.schedule?.startTime ? new Date(b.schedule.startTime) : new Date(9999, 11, 31);
                     if (aTime.getTime() === bTime.getTime()) {
                         return new Date(b.createdAt) - new Date(a.createdAt);
                     }
-                    return new Date(aTime) - new Date(bTime);
+                    return aTime.getTime() - bTime.getTime();
                 });
             case 'start-time-desc':
                 return [...todos].sort((a, b) => {
-                    const aTime = a.schedule?.startTime || new Date(9999, 11, 31);
-                    const bTime = b.schedule?.startTime || new Date(9999, 11, 31);
+                    const aTime = a.schedule?.startTime ? new Date(a.schedule.startTime) : new Date(9999, 11, 31);
+                    const bTime = b.schedule?.startTime ? new Date(b.schedule.startTime) : new Date(9999, 11, 31);
                     if (aTime.getTime() === bTime.getTime()) {
                         return new Date(b.createdAt) - new Date(a.createdAt);
                     }
-                    return new Date(bTime) - new Date(aTime);
+                    return bTime.getTime() - aTime.getTime();
                 });
             case 'due-time-asc':
                 return [...todos].sort((a, b) => {
-                    const aTime = a.schedule?.dueTime || new Date(9999, 11, 31);
-                    const bTime = b.schedule?.dueTime || new Date(9999, 11, 31);
+                    const aTime = a.schedule?.dueTime ? new Date(a.schedule.dueTime) : new Date(9999, 11, 31);
+                    const bTime = b.schedule?.dueTime ? new Date(b.schedule.dueTime) : new Date(9999, 11, 31);
                     if (aTime.getTime() === bTime.getTime()) {
                         return new Date(b.createdAt) - new Date(a.createdAt);
                     }
-                    return new Date(aTime) - new Date(bTime);
+                    return aTime.getTime() - bTime.getTime();
                 });
             case 'due-time-desc':
                 return [...todos].sort((a, b) => {
-                    const aTime = a.schedule?.dueTime || new Date(9999, 11, 31);
-                    const bTime = b.schedule?.dueTime || new Date(9999, 11, 31);
+                    const aTime = a.schedule?.dueTime ? new Date(a.schedule.dueTime) : new Date(9999, 11, 31);
+                    const bTime = b.schedule?.dueTime ? new Date(b.schedule.dueTime) : new Date(9999, 11, 31);
                     if (aTime.getTime() === bTime.getTime()) {
                         return new Date(b.createdAt) - new Date(a.createdAt);
                     }
-                    return new Date(bTime) - new Date(aTime);
+                    return bTime.getTime() - aTime.getTime();
                 });
             default:
                 return [...todos].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
