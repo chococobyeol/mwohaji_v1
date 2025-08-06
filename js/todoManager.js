@@ -321,6 +321,13 @@ const todoManager = (() => {
                 todo.schedule.notifiedStart = false;
                 console.log(`[updateTodoSchedule] startTime 변경: ${oldStartTimeValue} -> ${newStartTimeValue}`);
                 console.log(`[updateTodoSchedule] notifiedStart reset to false for todo ${id} (startTime changed)`);
+                
+                // 반복 설정이 있고 시작 시간이 변경된 경우, 반복 시작 시간 업데이트
+                if (todo.repeat && newStartTimeDate) {
+                    todo.repeat.startTime = newStartTimeDate.toISOString();
+                    todo.repeat.lastModified = new Date().toISOString();
+                    console.log(`[updateTodoSchedule] 반복 시작 시간 업데이트: ${todo.repeat.startTime}`);
+                }
             }
         }
 
@@ -378,6 +385,13 @@ const todoManager = (() => {
                 todo.schedule.notifiedDue = false;
                 console.log(`[updateTodoSchedule] dueTime 변경: ${oldDueTimeValue} -> ${newDueTimeValue}`);
                 console.log(`[updateTodoSchedule] notifiedDue reset to false for todo ${id} (dueTime changed)`);
+                
+                // 반복 설정이 있고 마감 시간이 변경된 경우, 반복 시작 시간 업데이트 (마감 시간 기반 반복인 경우)
+                if (todo.repeat && newDueTimeDate && !todo.schedule.startTime) {
+                    todo.repeat.startTime = newDueTimeDate.toISOString();
+                    todo.repeat.lastModified = new Date().toISOString();
+                    console.log(`[updateTodoSchedule] 반복 시작 시간 업데이트 (마감 시간 기반): ${todo.repeat.startTime}`);
+                }
             }
         }
 

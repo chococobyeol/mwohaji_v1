@@ -229,42 +229,32 @@ const notificationScheduler = (() => {
         console.log(`[RepeatAlarm] 사용자 설정 시간 (base): ${base.toLocaleString('ko-KR')} (${base.toISOString()})`);
         
         if (todo.repeat.type === 'daily') {
-            // 현재 시간을 기준으로 다음 알림 시간 계산
-            const interval = todo.repeat.interval || 1;
+            const interval = todo.repeat.interval || 1; // 기본값 1일
             
-            // base 시간의 시/분을 추출 (사용자가 설정한 정확한 시간)
-            const baseHours = base.getHours();
-            const baseMinutes = base.getMinutes();
-            
-            console.log(`[RepeatAlarm] daily 설정된 시간: ${baseHours}시 ${baseMinutes}분`);
-            
-            // 사용자가 설정한 날짜에 설정된 시간을 적용 (오늘 날짜가 아님!)
-            let nextTime = new Date(base);
-            nextTime.setHours(baseHours, baseMinutes, 0, 0);
-            
-            console.log(`[RepeatAlarm] daily 초기 계산: base=${base.toLocaleString('ko-KR')}, now=${now.toLocaleString('ko-KR')}, nextTime=${nextTime.toLocaleString('ko-KR')}, interval=${interval}`);
-            
-            // nextTime이 현재 시간보다 이전이거나 같으면 다음 날로 이동
-            let iteration = 0;
-            let skippedCount = 0;
-            while (nextTime <= now && iteration < 100) {
-                const previousTime = new Date(nextTime);
-                nextTime = new Date(nextTime.getTime() + (interval * 24 * 60 * 60 * 1000));
-                iteration++;
-                skippedCount++;
-                console.log(`[RepeatAlarm] daily 반복 계산 ${iteration}: ${previousTime.toLocaleString('ko-KR')} 스킵 → ${nextTime.toLocaleString('ko-KR')} (interval=${interval}일)`);
-            }
-            
-            if (iteration >= 100) {
-                console.error('[RepeatAlarm] daily 무한 루프 방지, 계산 중단');
+            // interval 유효성 검사
+            if (interval <= 0 || interval > 365) {
+                console.error(`[RepeatAlarm] daily interval 값이 유효하지 않음: ${interval}`);
                 return null;
             }
             
-            if (skippedCount > 0) {
-                console.log(`[RepeatAlarm] daily 스킵된 알림: ${skippedCount}개, 다음 알림: ${nextTime.toLocaleString('ko-KR')}`);
+            console.log(`[RepeatAlarm] daily 설정된 시간: ${base.getHours()}시 ${base.getMinutes()}분, 간격: ${interval}일`);
+            
+            // 수식 기반 계산: 현재 시간과 base 시간을 비교하여 다음 알림 시간 계산
+            const timeDiff = now.getTime() - base.getTime();
+            const intervalMs = interval * 24 * 60 * 60 * 1000; // 일간 간격을 밀리초로
+            
+            // base 시간이 미래인 경우
+            if (timeDiff < 0) {
+                console.log(`[RepeatAlarm] daily base 시간이 미래: ${base.toLocaleString('ko-KR')}`);
+                return base; // base 시간에 바로 알림
             }
             
-            console.log(`[RepeatAlarm] daily 최종: base=${base.toLocaleString('ko-KR')}, now=${now.toLocaleString('ko-KR')}, nextTime=${nextTime.toLocaleString('ko-KR')}`);
+            // base 시간이 과거인 경우, 다음 반복 시간 계산
+            const pastIterations = Math.floor(timeDiff / intervalMs);
+            const nextTime = new Date(base.getTime() + (pastIterations + 1) * intervalMs);
+            
+            console.log(`[RepeatAlarm] daily 계산: base=${base.toLocaleString('ko-KR')}, now=${now.toLocaleString('ko-KR')}, pastIterations=${pastIterations}, nextTime=${nextTime.toLocaleString('ko-KR')}`);
+            
             return nextTime;
         }
         
@@ -281,7 +271,7 @@ const notificationScheduler = (() => {
             
             console.log(`[RepeatAlarm] weekly 설정된 시간: ${baseHours}시 ${baseMinutes}분`);
             
-            // 사용자가 설정한 날짜부터 시작하여 앞으로 28일 동안 확인
+            // 사용자가 설정한 날짜부터 시작하여 앞으로 365일 동안 확인
             let startDate = new Date(base);
             for (let i = 0; i < 365; i++) {
                 let candidate = new Date(startDate);
@@ -313,7 +303,7 @@ const notificationScheduler = (() => {
             
             console.log(`[RepeatAlarm] monthly 설정된 시간: ${baseHours}시 ${baseMinutes}분`);
             
-            // 사용자가 설정한 월부터 3개월까지 확인
+            // 사용자가 설정한 월부터 12개월까지 확인
             let startMonth = new Date(base.getFullYear(), base.getMonth(), 1);
             for (let monthOffset = 0; monthOffset < 12; monthOffset++) {
                 let candidateMonth = new Date(startMonth);
@@ -337,50 +327,37 @@ const notificationScheduler = (() => {
         if (todo.repeat.type === 'interval') {
             const interval = todo.repeat.interval || 30; // 기본값 30분
             const limit = todo.repeat.limit; // 사용자 설정 반복 횟수 제한
-            console.log(`[RepeatAlarm] interval 설정된 간격: ${interval}분, 제한: ${limit || '없음'}`);
             
-            // base 시간의 시/분을 추출 (사용자가 설정한 정확한 시간)
-            const baseHours = base.getHours();
-            const baseMinutes = base.getMinutes();
-            
-            console.log(`[RepeatAlarm] interval 설정된 시간: ${baseHours}시 ${baseMinutes}분`);
-            
-            // 사용자가 설정한 시간을 기준으로 다음 알림 시간 계산
-            let nextTime = new Date(base);
-            nextTime.setHours(baseHours, baseMinutes, 0, 0);
-            
-            console.log(`[RepeatAlarm] interval 초기 계산: base=${base.toLocaleString('ko-KR')}, now=${now.toLocaleString('ko-KR')}, nextTime=${nextTime.toLocaleString('ko-KR')}, interval=${interval}분`);
-            
-            // nextTime이 현재 시간보다 이전이거나 같으면 interval분씩 더해서 미래 시간으로 이동
-            let iteration = 0;
-            let skippedCount = 0;
-            const maxIterations = limit || 10000; // 사용자 설정 제한 또는 기본값 10000회
-            
-            while (nextTime <= now && iteration < maxIterations) {
-                const previousTime = new Date(nextTime);
-                nextTime = new Date(nextTime.getTime() + (interval * 60 * 1000));
-                iteration++;
-                skippedCount++;
-                console.log(`[RepeatAlarm] interval 반복 계산 ${iteration}: ${previousTime.toLocaleString('ko-KR')} 스킵 → ${nextTime.toLocaleString('ko-KR')} (interval=${interval}분)`);
-            }
-            
-            // 시간 기반 카운트 계산은 별도 함수로 분리 (getNextRepeatTime에서는 제거)
-            
-            if (iteration >= maxIterations) {
-                console.error('[RepeatAlarm] interval 반복 제한에 도달');
-                if (limit) {
-                    console.warn(`[RepeatAlarm] 사용자 설정 반복 횟수(${limit}회)에 도달했습니다. 반복이 종료됩니다.`);
-                } else {
-                    console.warn(`[RepeatAlarm] 기본 반복 제한(${maxIterations}회)에 도달했습니다. 반복 설정을 확인해주세요.`);
-                }
+            // interval 유효성 검사
+            if (interval <= 0 || interval > 1440) { // 최대 24시간(1440분)
+                console.error(`[RepeatAlarm] interval 값이 유효하지 않음: ${interval}분`);
                 return null;
             }
             
-            if (skippedCount > 0) {
-                console.log(`[RepeatAlarm] interval 스킵된 알림: ${skippedCount}개, 다음 알림: ${nextTime.toLocaleString('ko-KR')}`);
+            console.log(`[RepeatAlarm] interval 설정된 간격: ${interval}분, 제한: ${limit || '없음'}`);
+            
+            // 수식 기반 계산: 현재 시간과 base 시간을 비교하여 다음 알림 시간 계산
+            const timeDiff = now.getTime() - base.getTime();
+            const intervalMs = interval * 60 * 1000; // 분간 간격을 밀리초로
+            
+            // base 시간이 미래인 경우
+            if (timeDiff < 0) {
+                console.log(`[RepeatAlarm] interval base 시간이 미래: ${base.toLocaleString('ko-KR')}`);
+                return base; // base 시간에 바로 알림
             }
             
-            console.log(`[RepeatAlarm] interval 최종: base=${base.toLocaleString('ko-KR')}, now=${now.toLocaleString('ko-KR')}, nextTime=${nextTime.toLocaleString('ko-KR')}`);
+            // base 시간이 과거인 경우, 다음 반복 시간 계산
+            const pastIterations = Math.floor(timeDiff / intervalMs);
+            const nextTime = new Date(base.getTime() + (pastIterations + 1) * intervalMs);
+            
+            // 반복 제한이 있는 경우 확인
+            if (limit && pastIterations + 1 > limit) {
+                console.log(`[RepeatAlarm] interval 반복 제한에 도달: ${limit}회`);
+                return null;
+            }
+            
+            console.log(`[RepeatAlarm] interval 계산: base=${base.toLocaleString('ko-KR')}, now=${now.toLocaleString('ko-KR')}, pastIterations=${pastIterations}, nextTime=${nextTime.toLocaleString('ko-KR')}`);
+            
             return nextTime;
         }
         
@@ -502,6 +479,9 @@ const notificationScheduler = (() => {
                 const newCount = currentCount + 1;
                 repeatCounts.set(countKey, newCount);
                 console.log(`[RepeatAlarm] 반복 횟수 증가: ${todo.text} (${type}) - ${newCount}회`);
+                
+                // 반복 횟수를 localStorage에 즉시 저장
+                saveRepeatCounts();
                 
                 // 반복 제한에 도달했는지 확인 (해당 타입만)
                 if (todo.repeat.limit && newCount >= todo.repeat.limit) {

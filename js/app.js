@@ -417,6 +417,14 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('#repeat-weekdays .weekday-btn').forEach(btn=>btn.classList.remove('active'));
         document.querySelectorAll('#repeat-monthdays .monthday-btn').forEach(btn=>btn.classList.remove('active'));
         if (todo && todo.repeat) {
+            // 기존 반복 설정에 startTime이 없는 경우 현재 일정 시간으로 설정
+            if (!todo.repeat.startTime) {
+                todo.repeat.startTime = todo.schedule?.startTime || todo.schedule?.dueTime || new Date().toISOString();
+                todo.repeat.lastModified = new Date().toISOString();
+                console.log(`[App] 기존 반복 설정에 startTime 추가: ${todo.repeat.startTime}`);
+                storage.saveTodos(todoManager.getTodos());
+            }
+            
             if(todo.repeat.type==='daily'){
                 repeatTypeSelect.value='daily';
                 repeatIntervalInput.value=todo.repeat.interval||1;
@@ -461,18 +469,40 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.log(`[App] 반복 설정 제거 - 카운트 리셋: ${todo.text}`);
                 }
             } else if(type==='daily'){
-                todo.repeat = { type, interval: parseInt(repeatIntervalInput.value,10)||1 };
+                const interval = parseInt(repeatIntervalInput.value,10)||1;
+                todo.repeat = { 
+                    type, 
+                    interval,
+                    startTime: todo.schedule?.startTime || new Date().toISOString(), // 반복 시작 시간 기록
+                    lastModified: new Date().toISOString() // 마지막 수정 시간 기록
+                };
             } else if(type==='weekly'){
                 const days = Array.from(document.querySelectorAll('#repeat-weekdays .weekday-btn.active')).map(btn=>parseInt(btn.dataset.value, 10));
-                todo.repeat = { type, days };
+                todo.repeat = { 
+                    type, 
+                    days,
+                    startTime: todo.schedule?.startTime || new Date().toISOString(), // 반복 시작 시간 기록
+                    lastModified: new Date().toISOString() // 마지막 수정 시간 기록
+                };
             } else if(type==='monthly'){
                 const dates = Array.from(document.querySelectorAll('#repeat-monthdays .monthday-btn.active')).map(btn=>parseInt(btn.dataset.value, 10));
-                todo.repeat = { type, dates };
+                todo.repeat = { 
+                    type, 
+                    dates,
+                    startTime: todo.schedule?.startTime || new Date().toISOString(), // 반복 시작 시간 기록
+                    lastModified: new Date().toISOString() // 마지막 수정 시간 기록
+                };
             } else if(type==='interval'){
                 const interval = parseInt(document.getElementById('repeat-interval-minutes').value, 10) || 30;
                 const limitInput = document.getElementById('repeat-interval-limit').value;
                 const limit = limitInput ? parseInt(limitInput, 10) : null;
-                todo.repeat = { type, interval, limit };
+                todo.repeat = { 
+                    type, 
+                    interval, 
+                    limit,
+                    startTime: todo.schedule?.startTime || new Date().toISOString(), // 반복 시작 시간 기록
+                    lastModified: new Date().toISOString() // 마지막 수정 시간 기록
+                };
                 
                 // 반복 설정 변경 시 카운트 리셋 후 시간 기반 계산
                 if (window.notificationScheduler) {
@@ -493,13 +523,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log('[App] 반복 설정 변경 - 알림 스케줄러 재초기화');
                 window.notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
             }
+            
+            closeRepeatModal();
+            renderTodos();
         }
-        closeRepeatModal();
-        render();
-        
-        // 반복 설정 변경 후 즉시 UI 업데이트
-        console.log('[App] 반복 설정 변경 후 즉시 UI 업데이트');
-        renderTodos();
     };
 
     // 카테고리 삭제 모달 관련 함수들

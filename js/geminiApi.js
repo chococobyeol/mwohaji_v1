@@ -744,6 +744,13 @@ JSON 응답 형식:
                     // 기존 스케줄 업데이트
                     todoManager.updateTodoSchedule(targetTodo.id, scheduleData);
                     
+                    // 반복 설정이 있다면 반복 시작 시간도 업데이트
+                    if (targetTodo.repeat) {
+                        targetTodo.repeat.startTime = newScheduleTime.toISOString();
+                        targetTodo.repeat.lastModified = new Date().toISOString();
+                        console.log(`[GeminiAPI] 반복 시작 시간 업데이트: ${targetTodo.repeat.startTime}`);
+                    }
+                    
                     // 알림 스케줄러 재초기화
                     if (window.notificationScheduler) {
                         window.notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
@@ -956,6 +963,13 @@ JSON 응답 형식:
                             // todoManager의 updateTodoSchedule 함수 사용
                             todoManager.updateTodoSchedule(todo.id, scheduleData);
                             
+                            // 반복 설정이 있다면 반복 시작 시간도 업데이트
+                            if (todo.repeat) {
+                                todo.repeat.startTime = new Date(data.scheduleTime).toISOString();
+                                todo.repeat.lastModified = new Date().toISOString();
+                                console.log(`[GeminiAPI] 반복 시작 시간 업데이트: ${todo.repeat.startTime}`);
+                            }
+                            
                             // 알림 스케줄러 재초기화
                             if (window.notificationScheduler) {
                                 window.notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
@@ -998,6 +1012,13 @@ JSON 응답 형식:
                             
                             // todoManager의 updateTodoSchedule 함수 사용
                             todoManager.updateTodoSchedule(tempTodo.id, scheduleData);
+                            
+                            // 반복 설정이 있다면 반복 시작 시간도 업데이트
+                            if (tempTodo.repeat) {
+                                tempTodo.repeat.startTime = new Date(data.scheduleTime).toISOString();
+                                tempTodo.repeat.lastModified = new Date().toISOString();
+                                console.log(`[GeminiAPI] 반복 시작 시간 업데이트: ${tempTodo.repeat.startTime}`);
+                            }
                             
                             // 알림 스케줄러 재초기화
                             if (window.notificationScheduler) {
@@ -1044,6 +1065,13 @@ JSON 응답 형식:
                             
                             // todoManager의 updateTodoSchedule 함수 사용
                             todoManager.updateTodoSchedule(tempTodo.id, scheduleData);
+                            
+                            // 반복 설정이 있다면 반복 시작 시간도 업데이트
+                            if (tempTodo.repeat) {
+                                tempTodo.repeat.startTime = scheduleTime.toISOString();
+                                tempTodo.repeat.lastModified = new Date().toISOString();
+                                console.log(`[GeminiAPI] 반복 시작 시간 업데이트: ${tempTodo.repeat.startTime}`);
+                            }
                             
                             // 알림 스케줄러 재초기화
                             if (window.notificationScheduler) {
@@ -1123,6 +1151,13 @@ JSON 응답 형식:
                         
                         // 기존 스케줄 업데이트
                         todoManager.updateTodoSchedule(targetTodo.id, scheduleData);
+                        
+                        // 반복 설정이 있다면 반복 시작 시간도 업데이트
+                        if (targetTodo.repeat) {
+                            targetTodo.repeat.startTime = newScheduleTime.toISOString();
+                            targetTodo.repeat.lastModified = new Date().toISOString();
+                            console.log(`[GeminiAPI] 반복 시작 시간 업데이트: ${targetTodo.repeat.startTime}`);
+                        }
                         
                         // 알림 스케줄러 재초기화
                         if (window.notificationScheduler) {

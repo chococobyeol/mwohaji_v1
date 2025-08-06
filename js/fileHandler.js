@@ -57,7 +57,13 @@ const fileHandler = (() => {
             
             // 반복 규칙이 있다면 추가
             if (t.repeat) {
-                todoLine += ` @repeat:${JSON.stringify(t.repeat)}`;
+                // 반복 시작 시간과 마지막 수정 시간도 포함
+                const repeatData = {
+                    ...t.repeat,
+                    startTime: t.repeat.startTime || t.schedule?.startTime || t.schedule?.dueTime || new Date().toISOString(),
+                    lastModified: t.repeat.lastModified || new Date().toISOString()
+                };
+                todoLine += ` @repeat:${JSON.stringify(repeatData)}`;
             }
             
             // 완료 시간이 있다면 추가
@@ -100,7 +106,13 @@ const fileHandler = (() => {
                 
                 // 반복 규칙 저장
                 if (t.repeat) {
-                    todoLine += ` @repeat:${JSON.stringify(t.repeat)}`;
+                    // 반복 시작 시간과 마지막 수정 시간도 포함
+                    const repeatData = {
+                        ...t.repeat,
+                        startTime: t.repeat.startTime || t.schedule?.startTime || t.schedule?.dueTime || new Date().toISOString(),
+                        lastModified: t.repeat.lastModified || new Date().toISOString()
+                    };
+                    todoLine += ` @repeat:${JSON.stringify(repeatData)}`;
                 }
                 
                 // 완료 시간 저장
@@ -352,6 +364,13 @@ const fileHandler = (() => {
                     } else if (key === 'repeat') {
                         try {
                             repeat = JSON.parse(value);
+                            // 기존 데이터에 startTime이나 lastModified가 없는 경우 기본값 설정
+                            if (!repeat.startTime) {
+                                repeat.startTime = new Date().toISOString();
+                            }
+                            if (!repeat.lastModified) {
+                                repeat.lastModified = new Date().toISOString();
+                            }
                         } catch (e) {
                             console.warn('반복 정보 파싱 실패:', value);
                         }
