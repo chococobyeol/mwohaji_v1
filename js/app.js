@@ -2690,16 +2690,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // textarea 키보드 이벤트 핸들러
-    const handleTodoInputKeydown = (e) => {
+    // 한글 입력 시 중복 입력 방지를 위한 keyup 이벤트 핸들러
+    const handleTodoInputKeyup = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            handleAddTodo();
+            // 한글 조합 상태 확인 (isComposing이 true이면 조합 중)
+            if (!e.isComposing) {
+                e.preventDefault();
+                handleAddTodo();
+            }
         }
     };
 
     // EVENT LISTENERS
     addTodoBtn.addEventListener('click', handleAddTodo);
-    todoInput.addEventListener('keydown', handleTodoInputKeydown);
+    todoInput.addEventListener('keyup', handleTodoInputKeyup);
     categorySelector.addEventListener('click', handleCategorySelect);
     todoListContainer.addEventListener('click', handleListClick);
 
