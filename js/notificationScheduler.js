@@ -11,7 +11,7 @@ const notificationScheduler = (() => {
             currentPlayingAudio.currentTime = 0;
             currentPlayingAudio = null; // 참조 제거
         }
-        const audio = new Audio('assets/sounds/notification.mp3');
+        const audio = new Audio('/assets/sounds/notification.wav');
         audio.play().catch(e => console.error('알림 소리 재생 실패:', e));
         currentPlayingAudio = audio; // 현재 재생 중인 오디오 객체 저장
         

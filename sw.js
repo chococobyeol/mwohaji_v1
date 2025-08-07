@@ -148,7 +148,7 @@ async function showNotification(title, message, hasSound, todoId, type) {
             silent: !hasSound, // hasSound가 true면 silent는 false (소리 재생)
             // 브라우저 네이티브 알림 소리 강화
             ...(hasSound && {
-                sound: '/assets/sounds/notification.mp3'
+                sound: '/assets/sounds/notification.wav'
             }),
             data: {
                 todoId,
@@ -190,7 +190,7 @@ async function showNotification(title, message, hasSound, todoId, type) {
                     // 활성 클라이언트가 없으면 Service Worker에서 직접 소리 재생
                     console.log('[SW] 비활성 클라이언트, Service Worker에서 직접 소리 재생');
                     try {
-                        const audio = new Audio('/assets/sounds/notification.mp3');
+                        const audio = new Audio('/assets/sounds/notification.wav');
                         audio.volume = 0.8; // 볼륨 설정
                         await audio.play();
                         console.log('[SW] Service Worker에서 소리 재생 성공');
