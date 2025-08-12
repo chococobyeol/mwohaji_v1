@@ -47,9 +47,11 @@ const serviceWorkerManager = (() => {
                 });
             });
 
-            // 즉시 업데이트 확인
-            await swRegistration.update();
-            console.log('[SWManager] Service Worker 업데이트 확인 완료');
+            // 즉시 업데이트 확인은 초기 로드 성능을 위해 비동기 처리
+            // 초기 인터랙션을 막지 않도록 대기하지 않고 배경에서 수행
+            swRegistration.update()
+                .then(() => console.log('[SWManager] Service Worker 업데이트 확인 완료'))
+                .catch((e) => console.warn('[SWManager] Service Worker 업데이트 확인 실패:', e));
 
             return true;
         } catch (error) {

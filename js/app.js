@@ -167,8 +167,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // RENDER FUNCTIONS
     const render = () => {
-        renderTodos();
+        // 먼저 목록과 카테고리를 렌더해 사용자에게 핵심 UI를 즉시 보여준다
         renderCategorySelector();
+        renderTodos();
+        // 부가 영역(카테고리 관리 리스트)은 뒤에 렌더
         renderCategoryList();
     };
 
@@ -2118,17 +2120,33 @@ document.addEventListener('DOMContentLoaded', () => {
         todoManager.setCategories(storage.getCategories());
         todoManager.setCompletedRepeatTodos(storage.getCompletedRepeatTodos());
         
-        // 설정 로드 및 UI 초기화
+        // 설정 로드
         settings = storage.getSettings();
-        // showCompletedToggle은 동적으로 생성되므로 나중에 설정됨
         
-        initIcons();
-        initAiChatIcons();
-        createRepeatModal();
+        // 1) 첫 페인트를 위해 즉시 렌더 (카테고리/목록)
+        render();
+        
+        // 2) 나머지 초기화는 페인트 이후로 지연
+        requestAnimationFrame(() => {
+            initIcons();
+            initAiChatIcons();
+            
+            // 반복 모달 생성은 idle에 수행 (없으면 소폭 지연)
+            const idle = (fn) => {
+                if (window.requestIdleCallback) {
+                    window.requestIdleCallback(fn, { timeout: 1000 });
+                } else {
+                    setTimeout(fn, 120);
+                }
+            };
+            idle(() => {
+                try { createRepeatModal(); } catch (e) { console.warn('[App] createRepeatModal 실패:', e); }
+            });
 
-        // 실시간 시간 업데이트 시작
-        updateCurrentTime(); // 초기 시간 표시
-        setInterval(updateCurrentTime, 1000); // 1초마다 업데이트
+            // 실시간 시간 업데이트 시작
+            updateCurrentTime(); // 초기 시간 표시
+            setInterval(updateCurrentTime, 1000); // 1초마다 업데이트
+        });
 
         // 이벤트 리스너 추가
         saveScheduleBtn.addEventListener('click', saveSchedule);
@@ -2188,7 +2206,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         
-        // 설정 사이드바에 모든 항목을 정확한 순서로 동적 생성
+        // 설정 사이드바에 모든 항목을 정확한 순서로 동적 생성 (첫 페인트 이후로 지연)
+        setTimeout(() => {
         const settingsSidebar = document.getElementById('settings-sidebar');
         const settingsContent = settingsSidebar.querySelector('.settings-sidebar-content');
         
@@ -2323,7 +2342,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `;
         settingsContent.appendChild(dataResetSection);
-
+        
         // 모든 설정 요소들의 이벤트 리스너와 초기화
         const todoSortSelect = document.getElementById('todo-sort-select');
         const autoScrollToggle = document.getElementById('auto-scroll-toggle');
@@ -2512,24 +2531,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         }
-        
+
         // 알림 권한 상태 업데이트 (동적으로 생성된 요소들 이후)
         updateNotificationPermissionStatus();
+        }, 0);
         
-        // Service Worker 초기화 (알림 스케줄러보다 먼저)
+        // Service Worker 초기화 (알림 스케줄러보다 먼저) - 비차단 처리
         if (window.serviceWorkerManager) {
             console.log('[App] Service Worker Manager 초기화 시작');
-            const swInitialized = await window.serviceWorkerManager.init();
-            console.log('[App] Service Worker Manager 초기화 결과:', swInitialized);
-            
-            // Service Worker 등록 후 약간의 지연을 두고 상태 확인
-            setTimeout(() => {
-                if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-                    console.log('[App] Service Worker 컨트롤러 활성화 확인됨');
-                } else {
-                    console.log('[App] Service Worker 컨트롤러 아직 활성화되지 않음');
-                }
-            }, 1000);
+            window.serviceWorkerManager.init()
+                .then((swInitialized) => {
+                    console.log('[App] Service Worker Manager 초기화 결과:', swInitialized);
+                    setTimeout(() => {
+                        if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+                            console.log('[App] Service Worker 컨트롤러 활성화 확인됨');
+                        } else {
+                            console.log('[App] Service Worker 컨트롤러 아직 활성화되지 않음');
+                        }
+                    }, 1000);
+                })
+                .catch((e) => {
+                    console.warn('[App] Service Worker Manager 초기화 실패:', e);
+                });
         } else {
             console.warn('[App] Service Worker Manager를 찾을 수 없습니다');
         }
@@ -2582,8 +2605,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log(`[App] AI 채팅 버튼 초기화: ${isAiEnabled ? '표시' : '숨김'}`);
         }
         
-        // 그 다음에 UI 렌더링 (반복 횟수가 준비된 후)
-        render();
+        // UI는 이미 초기에 렌더됨
     };
 
     // 전체 초기화 함수 (AI 채팅 포함)
@@ -3047,11 +3069,11 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // 사용자 클릭 시 소리 상태 즉시 업데이트 및 소리 멈추기
     let lastClickTime = 0;
-    document.addEventListener('click', () => {
+    document.addEventListener('click', (e) => {
         const now = Date.now();
         
         // 소리 상태 버튼 클릭이 아닌 경우에만 소리 멈추기
-        if (!event.target.closest('#audio-status-btn')) {
+        if (!e.target.closest('#audio-status-btn')) {
             // notificationScheduler의 소리 중지 (모달 닫기로 처리됨)
             console.log('[App] 소리 재생 중지');
         }
