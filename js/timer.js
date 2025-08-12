@@ -100,24 +100,32 @@ const timer = (() => {
 
             .mini-timer {
                 position: fixed;
-                left: 80px;
-                top: 20px;
-                background-color: rgba(0, 0, 0, 0.8);
-                color: white;
-                padding: 8px 15px;
-                border-radius: 20px;
+                left: 88px; /* 초기값 (JS에서 정밀 보정) */
+                top: 20px;  /* 초기값 (JS에서 정밀 보정) */
+                background-color: #1a1a1a; /* 다른 버튼 톤과 일관 */
+                color: #ffffff;
+                height: 44px; /* 상단 버튼과 높이 일치 */
+                min-height: 44px;
+                box-sizing: border-box; /* 보더 포함 크기 정렬 */
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 0 14px; /* 좌우 여백만 */
+                border-radius: 6px; /* 둥근 사각형 형태(일관) */
+                border: 1px solid #e5e7eb; /* 본문 보더와 일관 */
                 font-family: 'Courier New', monospace;
-                font-size: 18px;
+                font-size: 16px;
+                line-height: 44px; /* 텍스트 수직 중앙 보정 */
                 z-index: 100;
-                box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+                box-shadow: 0 2px 8px rgba(0,0,0,0.08);
                 cursor: pointer;
                 user-select: none;
-                transition: all 0.2s ease;
+                transition: opacity 0.15s ease, background-color 0.15s ease; /* 다른 버튼과 유사한 미묘한 변화 */
             }
 
+            /* 호버: 살짝 흐려지는 정도 (다른 버튼과 유사) */
             .mini-timer:hover {
-                background-color: rgba(0, 0, 0, 0.9);
-                transform: scale(1.05);
+                opacity: 0.8;
             }
 
             .time-ending {
@@ -240,6 +248,8 @@ const timer = (() => {
         console.log('[Timer] 사이드바 열기 시도');
         const sidebar = document.getElementById('timer-sidebar');
         const overlay = document.querySelector('.timer-sidebar-overlay');
+        const timerBtn = document.getElementById('timer-btn');
+        const mini = document.getElementById('mini-timer');
         
         if (sidebar && overlay) {
             console.log('[Timer] 사이드바와 오버레이 찾음');
@@ -251,6 +261,14 @@ const timer = (() => {
             }, 10);
         } else {
             console.error('[Timer] 사이드바 또는 오버레이를 찾을 수 없음');
+        }
+
+        // 미니 타이머 위치/정렬을 버튼 기준으로 정밀 보정 (세로 중앙 + 12px 간격)
+        if (timerBtn && mini) {
+            const rect = timerBtn.getBoundingClientRect();
+            const miniHeight = mini.offsetHeight || 44;
+            mini.style.left = `${Math.round(rect.left + rect.width + 12)}px`;
+            mini.style.top = `${Math.round(rect.top + (rect.height - miniHeight) / 2)}px`;
         }
     };
 

@@ -129,10 +129,10 @@ body {
     min-width: 36px;
     min-height: 36px;
     padding: 6px;
-    border-radius: 6px;
+    border-radius: 6px; /* 둥근 사각형 유지 */
     background: white;
     cursor: pointer;
-    border: none;
+    border: 1px solid #e5e7eb; /* 본문 보더와 동일 */
 }
 
 #audio-status-btn.ready {
@@ -1536,8 +1536,8 @@ button:hover {
   right: 32px;
   z-index: 2000;
   background: #fff;
-  border: none;
-  border-radius: 50%;
+  border: 1px solid #e5e7eb; /* 본문 보더와 동일 */
+  border-radius: 6px; /* 원형 → 둥근 사각형 */
   box-shadow: 0 2px 8px rgba(0,0,0,0.08);
   width: 44px;
   height: 44px;
@@ -2349,8 +2349,8 @@ button:hover {
     left: 32px;
     z-index: 2000;
     background: #fff;
-    border: none;
-    border-radius: 50%;
+    border: 1px solid #e5e7eb; /* 본문 보더와 동일 */
+    border-radius: 6px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
     width: 44px;
     height: 44px;
@@ -2369,6 +2369,18 @@ button:hover {
 .ai-chat-toggle-btn svg {
     display: block;
     color: #6b7280;
+}
+
+/* 미니 타이머 - 종료 임박 스타일(본문 보더 톤과 일관) */
+/* 미니 타이머 기본/엔딩 스타일 (검정 바탕 유지, 둥근 사각형) */
+.mini-timer {
+    border-radius: 6px; /* 상단 버튼과 동일한 라운드 */
+}
+.mini-timer.time-ending {
+    background: #1a1a1a; /* 기본 톤 유지 */
+    color: #ef4444 !important;
+    border: 1px solid #e5e7eb; /* 본문과 조화 */
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
 }
 
 .api-key-input {
