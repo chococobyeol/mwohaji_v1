@@ -466,10 +466,8 @@ button:hover {
 }
 
 .todo-item:hover {
-    background-color: #f8f9fa; /* 연한 회색 */
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15); /* 더 진한 그림자 */
-    transform: translateY(-1px);
-    border-color: #d1d5db; /* 테두리도 약간 진하게 */
+    background-color: #f9fafb; /* 아주 미묘한 배경 변화 */
+    border-color: #d1d5db; /* 테두리만 살짝 진하게 */
 }
 
 /* 심플 그레이스케일 카테고리별 색깔 바 */
