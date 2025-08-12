@@ -19,144 +19,16 @@ const timer = (() => {
 
         console.log('[Timer] 타이머 UI 초기화 시작');
 
-        // 기존 타이머 버튼에 아이콘 설정
+        // 기존 타이머 버튼에 아이콘 설정 (아이콘 시스템으로 통일)
         const timerBtn = document.getElementById('timer-btn');
         if (timerBtn) {
-            // 타이머 아이콘 직접 설정 (SVG)
-            timerBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M6 2h12v6l-4 4 4 4v6H6v-6l4-4-4-4V2z"></path>
-            </svg>`;
+            // 원래 사용하던 인라인 SVG를 그대로 사용하여 기존 스타일을 1:1 유지
+            timerBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h12v6l-4 4 4 4v6H6v-6l4-4-4-4V2z"></path></svg>';
+            timerBtn.setAttribute('aria-label', '타이머/스톱워치');
+            timerBtn.style.display = 'flex';
+            timerBtn.style.alignItems = 'center';
+            timerBtn.style.justifyContent = 'center';
         }
-
-        // 타이머/스톱워치 사이드바 생성
-        const timerSidebar = document.createElement('div');
-        timerSidebar.id = 'timer-sidebar';
-        timerSidebar.className = 'settings-sidebar timer-sidebar';
-        timerSidebar.style.display = 'none';
-        timerSidebar.style.position = 'fixed';
-        timerSidebar.style.top = '0';
-        timerSidebar.style.left = '-360px';
-        timerSidebar.style.width = '360px';
-        timerSidebar.style.height = '100vh';
-        timerSidebar.style.background = '#fff';
-        timerSidebar.style.boxShadow = '-2px 0 16px rgba(0,0,0,0.08)';
-        timerSidebar.style.zIndex = '2001';
-        timerSidebar.style.transform = 'translateX(0)';
-        timerSidebar.style.transition = 'left 0.3s cubic-bezier(.4,0,.2,1)';
-        
-        timerSidebar.innerHTML = `
-            <div class="settings-sidebar-content">
-                <button id="close-timer-sidebar" class="icon-btn" title="닫기" style="float:right;margin:8px;">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                    </svg>
-                </button>
-                <h2 style="margin-top:40px;">타이머 / 스톱워치</h2>
-                
-                <!-- 탭 네비게이션 -->
-                <div class="tab-navigation" style="display:flex;border-radius:6px;overflow:hidden;margin:20px 0;background:#f3f4f6;padding:4px;">
-                    <button id="stopwatch-tab" class="tab-button active" style="flex:1;padding:10px;background-color:#1a1a1a;color:#fff;border:none;cursor:pointer;transition:all 0.2s ease;border-radius:4px;font-size:14px;font-weight:500;">
-                        <div style="display:flex;align-items:center;justify-content:center;gap:5px;">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="12" cy="12" r="10"></circle>
-                                <line x1="12" y1="6" x2="12" y2="12"></line>
-                                <line x1="12" y1="12" x2="16" y2="14"></line>
-                            </svg>
-                            스톱워치
-                        </div>
-                    </button>
-                    <button id="timer-tab" class="tab-button inactive" style="flex:1;padding:10px;background-color:transparent;color:#6b7280;border:none;cursor:pointer;transition:all 0.2s ease;border-radius:4px;font-size:14px;">
-                        <div style="display:flex;align-items:center;justify-content:center;gap:5px;">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M6 2h12v6l-4 4 4 4v6H6v-6l4-4-4-4V2z"></path>
-                            </svg>
-                            타이머
-                        </div>
-                    </button>
-                </div>
-                
-                <!-- 스톱워치 컨텐츠 -->
-                <div id="stopwatch-content" class="tab-content" style="display:flex;flex-direction:column;height:calc(100vh - 300px);">
-                    <div class="time-display" style="text-align:center;margin:20px 0;font-size:42px;font-family:'Courier New',monospace;font-weight:300;color:#1a1a1a;">
-                        <span id="stopwatch-display">00:00.00</span>
-                    </div>
-                    
-                    <div class="controls" style="display:flex;gap:10px;margin:20px 0;">
-                        <button id="stopwatch-start-stop" style="flex:1;padding:12px;background:#1a1a1a;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:16px;font-weight:600;transition:all 0.2s ease;">
-                            시작
-                        </button>
-                        <button id="stopwatch-reset" style="flex:1;padding:12px;background:#6b7280;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:16px;font-weight:600;transition:all 0.2s ease;">
-                            리셋
-                        </button>
-                    </div>
-                    
-                    <div id="lap-container" style="flex-grow:1;overflow-y:auto;border:1px solid #e5e7eb;border-radius:6px;background:#fff;">
-                        <ul id="lap-times" style="list-style:none;padding:0;margin:0;"></ul>
-                    </div>
-                </div>
-                
-                <!-- 타이머 컨텐츠 -->
-                <div id="timer-content" class="tab-content" style="display:none;flex-direction:column;height:calc(100vh - 300px);">
-                    <div class="timer-setup" style="margin-bottom:20px;">
-                        <div class="timer-input-group" style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:15px;">
-                            <input id="timer-hours" type="number" min="0" max="23" value="0" class="timer-input" style="width:60px;padding:8px;border:2px solid #d1d5db;border-radius:6px;text-align:center;font-size:16px;font-family:'Courier New',monospace;">
-                            <span class="timer-separator" style="font-size:20px;font-weight:bold;color:#6b7280;">:</span>
-                            <input id="timer-minutes" type="number" min="0" max="59" value="0" class="timer-input" style="width:60px;padding:8px;border:2px solid #d1d5db;border-radius:6px;text-align:center;font-size:16px;font-family:'Courier New',monospace;">
-                            <span class="timer-separator" style="font-size:20px;font-weight:bold;color:#6b7280;">:</span>
-                            <input id="timer-seconds" type="number" min="0" max="59" value="0" class="timer-input" style="width:60px;padding:8px;border:2px solid #d1d5db;border-radius:6px;text-align:center;font-size:16px;font-family:'Courier New',monospace;">
-                        </div>
-                        
-                        <div class="preset-buttons" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:15px;">
-                            <button class="timer-preset" data-minutes="1" style="padding:8px;background:#f3f4f6;color:#374151;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;font-size:14px;transition:all 0.2s ease;">1분</button>
-                            <button class="timer-preset" data-minutes="3" style="padding:8px;background:#f3f4f6;color:#374151;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;font-size:14px;transition:all 0.2s ease;">3분</button>
-                            <button class="timer-preset" data-minutes="5" style="padding:8px;background:#f3f4f6;color:#374151;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;font-size:14px;transition:all 0.2s ease;">5분</button>
-                            <button class="timer-preset" data-minutes="10" style="padding:8px;background:#f3f4f6;color:#374151;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;font-size:14px;transition:all 0.2s ease;">10분</button>
-                            <button class="timer-preset" data-minutes="30" style="padding:8px;background:#f3f4f6;color:#374151;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;font-size:14px;transition:all 0.2s ease;">30분</button>
-                            <button class="timer-preset" data-hours="1" style="padding:8px;background:#f3f4f6;color:#374151;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;font-size:14px;transition:all 0.2s ease;">1시간</button>
-                        </div>
-                    </div>
-                    
-                    <div class="time-display" style="text-align:center;margin:20px 0;font-size:42px;font-family:'Courier New',monospace;font-weight:300;color:#1a1a1a;">
-                        <span id="timer-display">00:00:00</span>
-                    </div>
-                    
-                    <div class="controls" style="display:flex;gap:10px;margin:20px 0;">
-                        <button id="timer-start-stop" style="flex:1;padding:12px;background:#1a1a1a;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:16px;font-weight:600;transition:all 0.2s ease;">
-                            시작
-                        </button>
-                        <button id="timer-reset" style="flex:1;padding:12px;background:#6b7280;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:16px;font-weight:600;transition:all 0.2s ease;">
-                            리셋
-                        </button>
-                    </div>
-                    
-                    <div style="flex-grow:1;"></div>
-                </div>
-            </div>
-        `;
-        
-        document.body.appendChild(timerSidebar);
-
-        // 타이머 사이드바 오버레이 생성
-        const timerSidebarOverlay = document.createElement('div');
-        timerSidebarOverlay.className = 'settings-sidebar-overlay timer-sidebar-overlay';
-        timerSidebarOverlay.style.display = 'none';
-        timerSidebarOverlay.style.position = 'fixed';
-        timerSidebarOverlay.style.top = '0';
-        timerSidebarOverlay.style.left = '0';
-        timerSidebarOverlay.style.width = '100vw';
-        timerSidebarOverlay.style.height = '100vh';
-        timerSidebarOverlay.style.background = 'rgba(0,0,0,0.18)';
-        timerSidebarOverlay.style.zIndex = '2000';
-        document.body.appendChild(timerSidebarOverlay);
-
-        // 미니 타이머 생성
-        const miniTimer = document.createElement('div');
-        miniTimer.className = 'mini-timer';
-        miniTimer.id = 'mini-timer';
-        miniTimer.textContent = '00:00:00';
-        miniTimer.style.display = 'none';
-        document.body.appendChild(miniTimer);
 
         // CSS 스타일 추가
         const style = document.createElement('style');
