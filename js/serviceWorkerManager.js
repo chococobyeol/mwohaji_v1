@@ -12,7 +12,7 @@ const serviceWorkerManager = (() => {
 
         try {
             console.log('[SWManager] Service Worker 등록 시도...');
-            swRegistration = await navigator.serviceWorker.register('/sw.js', {
+            swRegistration = await navigator.serviceWorker.register('sw.js', {
                 updateViaCache: 'none'
             });
             console.log('[SWManager] Service Worker 등록 성공:', swRegistration);
@@ -241,7 +241,7 @@ const serviceWorkerManager = (() => {
             } else {
                 console.warn('[SWManager] 소리 재생 함수를 찾을 수 없습니다');
                 // 직접 소리 재생 시도
-                const audio = new Audio('/assets/sounds/notification.mp3');
+                const audio = new Audio('assets/sounds/notification.mp3');
                 audio.play().catch(e => {
                     console.error('[SWManager] 직접 소리 재생 실패:', e);
                 });
@@ -250,7 +250,7 @@ const serviceWorkerManager = (() => {
             console.error('[SWManager] 소리 재생 실패:', error);
             // 에러 발생 시에도 직접 소리 재생 시도
             try {
-                const audio = new Audio('/assets/sounds/notification.mp3');
+                const audio = new Audio('assets/sounds/notification.mp3');
                 audio.play().catch(e => {
                     console.error('[SWManager] 직접 소리 재생 실패 (에러 후):', e);
                 });

@@ -11,7 +11,7 @@ const notificationScheduler = (() => {
             currentPlayingAudio.currentTime = 0;
             currentPlayingAudio = null; // 참조 제거
         }
-        const audio = new Audio('/assets/sounds/notification.wav');
+        const audio = new Audio('assets/sounds/notification.wav');
         audio.play().catch(e => console.error('알림 소리 재생 실패:', e));
         currentPlayingAudio = audio; // 현재 재생 중인 오디오 객체 저장
         
@@ -67,7 +67,7 @@ const notificationScheduler = (() => {
         modal.querySelector('#notification-alert-message').textContent = message;
         modal.style.display = 'flex';
         
-        // 모달 외부 클릭 시 소리 정지 (전역 클릭 이벤트)
+        // 모달 외부 클릭 시 소리 정지 (1회성 전역 클릭 이벤트)
         const handleGlobalClick = (e) => {
             if (!modal.contains(e.target) && modal.style.display === 'flex') {
                 if (currentPlayingAudio) {
@@ -75,10 +75,11 @@ const notificationScheduler = (() => {
                     currentPlayingAudio.currentTime = 0;
                     currentPlayingAudio = null;
                 }
+                document.removeEventListener('click', handleGlobalClick);
             }
         };
         
-        // 모달이 표시된 후 전역 클릭 이벤트 추가
+        // 모달이 표시된 후 전역 클릭 이벤트 추가 (중복 방지: once 효과 수동 구현)
         setTimeout(() => {
             document.addEventListener('click', handleGlobalClick);
         }, 100);

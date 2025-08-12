@@ -141,15 +141,11 @@ async function showNotification(title, message, hasSound, todoId, type) {
         // 알림 옵션 설정
         const options = {
             body: message,
-            icon: '/favicon.ico',
-            badge: '/favicon.ico',
+            icon: 'favicon.ico',
+            badge: 'favicon.ico',
             tag: `${NOTIFICATION_TAG}-${todoId}-${type}`,
             requireInteraction: false,
-            silent: !hasSound, // hasSound가 true면 silent는 false (소리 재생)
-            // 브라우저 네이티브 알림 소리 강화
-            ...(hasSound && {
-                sound: '/assets/sounds/notification.wav'
-            }),
+            silent: !hasSound,
             data: {
                 todoId,
                 type,
@@ -166,43 +162,9 @@ async function showNotification(title, message, hasSound, todoId, type) {
         // 메인 스크립트에 알림 발생 알림 (앱 내부 모달 표시 및 소리 재생)
         notifyMainScript('NOTIFICATION_SHOWN', { todoId, type, title, message });
         
-        // 소리 재생 (hasSound가 true인 경우)
+        // 소리 재생은 항상 메인 스크립트에서 처리
         if (hasSound) {
-            try {
-                console.log('[SW] 알림 소리 재생 시도');
-                
-                // 클라이언트 상태 확인
-                const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-                const siteClients = clients.filter(client => client.url.includes(self.location.origin));
-                const hasActiveClient = siteClients.some(client => client.visibilityState === 'visible');
-                
-                console.log('[SW] 클라이언트 상태:', {
-                    totalClients: clients.length,
-                    siteClients: siteClients.length,
-                    hasActiveClient: hasActiveClient
-                });
-                
-                if (hasActiveClient) {
-                    // 활성 클라이언트가 있으면 메인 스크립트에서 소리 재생
-                    console.log('[SW] 활성 클라이언트 발견, 메인 스크립트에서 소리 재생');
-                    notifyMainScript('PLAY_NOTIFICATION_SOUND', { todoId, type });
-                } else {
-                    // 활성 클라이언트가 없으면 Service Worker에서 직접 소리 재생
-                    console.log('[SW] 비활성 클라이언트, Service Worker에서 직접 소리 재생');
-                    try {
-                        const audio = new Audio('/assets/sounds/notification.wav');
-                        audio.volume = 0.8; // 볼륨 설정
-                        await audio.play();
-                        console.log('[SW] Service Worker에서 소리 재생 성공');
-                    } catch (audioError) {
-                        console.log('[SW] Service Worker에서 소리 재생 실패, 메인 스크립트로 폴백:', audioError);
-                        // 폴백: 메인 스크립트에도 요청
-                        notifyMainScript('PLAY_NOTIFICATION_SOUND', { todoId, type });
-                    }
-                }
-            } catch (soundError) {
-                console.error('[SW] 소리 재생 실패:', soundError);
-            }
+            notifyMainScript('PLAY_NOTIFICATION_SOUND', { todoId, type });
         }
         
     } catch (error) {
@@ -233,24 +195,14 @@ self.addEventListener('notificationclick', (event) => {
             console.log('[SW] 현재 사이트 클라이언트 수:', siteClients.length);
             
             // 활성화된 클라이언트 찾기 (visible 상태)
-            const activeClient = siteClients.find(client => 
-                client.focus && client.visibilityState === 'visible'
-            );
-            
-            if (activeClient) {
-                // 활성화된 클라이언트가 있으면 포커스
-                console.log('[SW] 활성 클라이언트 발견, 포커스:', activeClient.url);
-                return activeClient.focus();
-            } else if (siteClients.length > 0) {
-                // 활성화된 클라이언트가 없지만 클라이언트가 있으면 첫 번째 것 포커스
-                const firstClient = siteClients[0];
-                console.log('[SW] 비활성 클라이언트 발견, 포커스:', firstClient.url);
-                return firstClient.focus();
-            } else {
-                // 클라이언트가 전혀 없으면 새 창 열기
-                console.log('[SW] 클라이언트 없음, 새 창 열기');
-                return self.clients.openWindow('/');
+            const focusableClient = siteClients.find(client => typeof client.focus === 'function');
+            if (focusableClient) {
+                console.log('[SW] 포커스 가능한 클라이언트 발견, 포커스:', focusableClient.url);
+                return focusableClient.focus();
             }
+            // 클라이언트가 전혀 없으면 스코프 기준으로 새 창 열기
+            console.log('[SW] 클라이언트 없음, 새 창 열기');
+            return self.clients.openWindow(self.registration.scope || '/');
         }).catch(error => {
             console.error('[SW] 클라이언트 매칭 실패:', error);
             // 에러 발생 시 새 창 열기
