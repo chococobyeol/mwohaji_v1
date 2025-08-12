@@ -798,6 +798,11 @@ button:hover {
     background-color: rgba(26, 26, 26, 0.1); /* 연한 검은 배경 */
 }
 
+/* 스케줄 버튼과 리피트 버튼 간격 좁히기 */
+.todo-item .schedule-btn + .repeat-btn {
+    margin-left: -9px; /* 컨테이너 gap 간격 줄이기 */
+}
+
 /* 심플 그레이 삭제 버튼 */
 .delete-btn {
     background: none;
