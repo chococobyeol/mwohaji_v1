@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const projectViewBtn = document.getElementById('view-project');
     const allViewBtn = document.getElementById('view-all');
     const settingsBtn = document.getElementById('settings-btn');
+    const mobileMenuBtn = document.getElementById('mobile-menu-btn');
     const exportBtn = document.getElementById('export-btn');
     const importBtn = document.getElementById('import-btn');
     const categoryModal = document.getElementById('category-modal');
@@ -85,6 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const settingsSidebar = document.getElementById('settings-sidebar');
     const closeSettingsSidebar = document.getElementById('close-settings-sidebar');
     const settingsSidebarOverlay = document.querySelector('.settings-sidebar-overlay');
+    const mobileActionBar = document.getElementById('mobile-action-bar');
     
     // Service Worker 관련 설정 (동적으로 생성되는 요소들은 나중에 선언됨)
     
@@ -134,6 +136,72 @@ document.addEventListener('DOMContentLoaded', () => {
         settingsSidebar.classList.remove('open');
         settingsSidebarOverlay.classList.remove('open');
         setTimeout(() => { settingsSidebar.style.display = 'none'; settingsSidebarOverlay.style.display = 'none'; }, 300);
+    }
+
+    // 모바일 전용 로직
+    function isMobileWidth() { return window.innerWidth <= 980; }
+    function syncMobileButtonsVisibility() {
+        console.log('[Mobile] sync visibility. width=', window.innerWidth, 'hasBtn=', !!mobileMenuBtn, 'hasBar=', !!mobileActionBar);
+        if (!mobileMenuBtn || !mobileActionBar) return;
+        if (isMobileWidth()) {
+            mobileMenuBtn.style.display = 'inline-flex';
+        } else {
+            mobileMenuBtn.style.display = 'none';
+            mobileActionBar.classList.remove('open');
+            mobileActionBar.style.display = 'none';
+        }
+    }
+    function createClonedButton(srcBtn) {
+        if (!srcBtn) return null;
+        const clone = srcBtn.cloneNode(true);
+        // id 충돌 방지
+        clone.removeAttribute('id');
+        // 기존 이벤트를 다시 위임
+        clone.addEventListener('click', (e) => {
+            const isTimer = srcBtn.id === 'timer-btn';
+            const isGlobal = srcBtn.id === 'global-settings-btn';
+            const isAi = srcBtn.id === 'ai-chat-toggle-btn';
+            if (isTimer) openTimerSidebar();
+            if (isGlobal) openSettingsSidebar();
+            if (isAi && window.aiChat && window.aiChat.openSidebar) window.aiChat.openSidebar();
+        });
+        return clone;
+    }
+
+    function renderMobileActionBar() {
+        if (!mobileActionBar) return;
+        mobileActionBar.innerHTML = '';
+        // 버튼들을 클론으로 렌더 (원본은 제자리에 유지)
+        const timerButton = document.getElementById('timer-btn');
+        const globalButton = document.getElementById('global-settings-btn');
+        const aiToggle = document.getElementById('ai-chat-toggle-btn');
+        const aiEnabled = storage.getAiFeatureEnabled();
+        console.log('[Mobile] aiEnabled=', aiEnabled, 'hasAiToggle=', !!aiToggle);
+        const timerClone = createClonedButton(timerButton);
+        const globalClone = createClonedButton(globalButton);
+        if (timerClone) mobileActionBar.appendChild(timerClone);
+        if (globalClone) mobileActionBar.appendChild(globalClone);
+        if (aiEnabled && aiToggle) {
+            const aiClone = createClonedButton(aiToggle);
+            if (aiClone) {
+                mobileActionBar.appendChild(aiClone);
+            }
+        }
+    }
+
+    function toggleMobileActionBar() {
+        if (!mobileActionBar) return;
+        const isOpen = mobileActionBar.classList.contains('open');
+        console.log('[Mobile] toggle action bar. currentlyOpen=', isOpen);
+        if (isOpen) {
+            mobileActionBar.classList.remove('open');
+            mobileActionBar.style.display = 'none';
+            mobileActionBar.innerHTML = '';
+            return;
+        }
+        renderMobileActionBar();
+        mobileActionBar.classList.add('open');
+        mobileActionBar.style.display = 'flex';
     }
 
     // 실시간 시간 업데이트 함수
@@ -1922,12 +1990,16 @@ document.addEventListener('DOMContentLoaded', () => {
             settings.aiFeatureEnabled = isEnabled;
             storage.saveSettings(settings);
             
-            // AI 채팅 버튼 표시/숨김
+            // AI 채팅 버튼 표시/숨김 (데스크톱에서만), 모바일은 CSS 규칙 유지 + 액션시트 리렌더
             if (aiChatToggleBtn) {
-                if (isEnabled) {
-                    aiChatToggleBtn.style.setProperty('display', 'flex', 'important');
+                const isMobile = window.innerWidth <= 980;
+                if (isMobile) {
+                    aiChatToggleBtn.style.removeProperty('display');
+                    if (mobileActionBar && mobileActionBar.classList.contains('open')) {
+                        renderMobileActionBar();
+                    }
                 } else {
-                    aiChatToggleBtn.style.setProperty('display', 'none', 'important');
+                    aiChatToggleBtn.style.setProperty('display', isEnabled ? 'flex' : 'none', 'important');
                 }
             }
             
@@ -2074,6 +2146,12 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => {
             updateAudioStatus();
         }, 100);
+
+        // 햄버거 아이콘 설정
+        if (mobileMenuBtn) {
+            mobileMenuBtn.innerHTML = icons.get('menu', 18);
+            mobileMenuBtn.setAttribute('aria-label', '메뉴');
+        }
     };
 
     // AI 대화 아이콘 초기화 (별도 함수)
@@ -2146,6 +2224,18 @@ document.addEventListener('DOMContentLoaded', () => {
             // 실시간 시간 업데이트 시작
             updateCurrentTime(); // 초기 시간 표시
             setInterval(updateCurrentTime, 1000); // 1초마다 업데이트
+            // 모바일 초기화/이벤트
+            syncMobileButtonsVisibility();
+            window.addEventListener('resize', () => {
+                syncMobileButtonsVisibility();
+                // 설정 변경/리사이즈 시 액션시트 내용 최신화
+                if (mobileActionBar && mobileActionBar.classList.contains('open')) {
+                    renderMobileActionBar();
+                }
+            });
+            if (mobileMenuBtn) {
+                mobileMenuBtn.addEventListener('click', toggleMobileActionBar);
+            }
         });
 
         // 이벤트 리스너 추가
@@ -2579,30 +2669,32 @@ document.addEventListener('DOMContentLoaded', () => {
         const aiChatToggleBtn = document.getElementById('ai-chat-toggle-btn');
         if (aiChatToggleBtn) {
             const isAiEnabled = storage.getAiFeatureEnabled();
-            
-            console.log(`[App] AI 기능 상태 확인:`);
-            console.log(`  - storage.getAiFeatureEnabled(): ${isAiEnabled}`);
-            console.log(`  - 타입: ${typeof isAiEnabled}`);
-            
-            // CSS에서 display: none으로 설정되어 있으므로, 활성화된 경우에만 flex로 변경
-            if (isAiEnabled) {
-                aiChatToggleBtn.style.setProperty('display', 'flex', 'important');
-                console.log(`[App] AI 채팅 버튼 표시 설정`);
-                
-                // AI 기능이 활성화된 경우 AI 채팅 모듈도 초기화
-                if (window.aiChat && window.aiChat.init) {
-                    try {
-                        await window.aiChat.init();
-                        console.log('[App] AI 채팅 모듈 초기화 완료');
-                    } catch (error) {
-                        console.error('[App] AI 채팅 모듈 초기화 실패:', error);
-                    }
+            const isMobile = window.innerWidth <= 980;
+            console.log(`[App] AI 기능 상태 확인: enabled=${isAiEnabled}, mobile=${isMobile}`);
+
+            // 모바일에서는 고정 버튼을 표시하지 않음(액션시트 전용). 인라인 스타일 제거해 CSS 규칙이 적용되도록 함.
+            if (isMobile) {
+                aiChatToggleBtn.style.removeProperty('display');
+                // 액션시트가 열려 있다면 최신 상태로 리렌더
+                if (mobileActionBar && mobileActionBar.classList.contains('open')) {
+                    renderMobileActionBar();
                 }
             } else {
-                aiChatToggleBtn.style.setProperty('display', 'none', 'important');
-                console.log(`[App] AI 채팅 버튼 숨김 설정`);
+                if (isAiEnabled) {
+                    aiChatToggleBtn.style.setProperty('display', 'flex', 'important');
+                } else {
+                    aiChatToggleBtn.style.setProperty('display', 'none', 'important');
+                }
             }
-            console.log(`[App] AI 채팅 버튼 초기화: ${isAiEnabled ? '표시' : '숨김'}`);
+
+            if (isAiEnabled && window.aiChat && window.aiChat.init) {
+                try {
+                    await window.aiChat.init();
+                    console.log('[App] AI 채팅 모듈 초기화 완료');
+                } catch (error) {
+                    console.error('[App] AI 채팅 모듈 초기화 실패:', error);
+                }
+            }
         }
         
         // UI는 이미 초기에 렌더됨

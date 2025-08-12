@@ -2369,6 +2369,38 @@ button:hover {
     color: #6b7280;
 }
 
+/* 모바일: 햄버거/액션바 */
+.mobile-menu-btn { display: none; }
+@media (max-width: 980px) {
+  /* 모바일에서는 고정 버튼 숨김 (사이드바/액션시트에서만 사용) */
+  .global-settings-btn { display: none !important; }
+  .ai-chat-toggle-btn { display: none !important; }
+  .mobile-menu-btn { display: inline-flex !important; align-items: center; justify-content: center; }
+  /* 액션시트는 사이드바(2001)와 오버레이(2000)보다 낮게 */
+  .mobile-action-bar { position: sticky; top: 0; left: 0; right: 0; z-index: 1999; display: none; gap: 8px; padding: 8px 16px; background: #fff; border-bottom: 1px solid #e5e7eb; }
+  .mobile-action-bar.open { display: flex; }
+  .mobile-action-bar .global-settings-btn,
+  .mobile-action-bar .timer-toggle-btn,
+  .mobile-action-bar .ai-chat-toggle-btn { display: inline-flex !important; position: static !important; width: 40px; height: 40px; }
+}
+
+/* 햄버거 아이콘 가시성 보정 */
+.mobile-menu-btn { color: #6b7280 !important; position: relative; z-index: 1998; }
+.mobile-menu-btn svg { width: 18px; height: 18px; display: block; color: currentColor; stroke: currentColor; pointer-events: none; }
+
+/* 최후 보정: SVG가 브라우저/상속 문제로 안 보일 때 순수 CSS 햄버거 표시 */
+@media (max-width: 980px) {
+  .mobile-menu-btn svg { display: none !important; }
+  .mobile-menu-btn::before {
+    content: '';
+    display: block;
+    width: 18px;
+    height: 2px;
+    background: currentColor;
+    box-shadow: 0 6px 0 currentColor, 0 -6px 0 currentColor;
+  }
+}
+
 /* 미니 타이머 - 종료 임박 스타일(본문 보더 톤과 일관) */
 /* 미니 타이머 기본/엔딩 스타일 (검정 바탕 유지, 둥근 사각형) */
 .mini-timer {
