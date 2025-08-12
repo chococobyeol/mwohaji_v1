@@ -2375,6 +2375,8 @@ button:hover {
   /* 모바일에서는 고정 버튼 숨김 (사이드바/액션시트에서만 사용) */
   .global-settings-btn { display: none !important; }
   .ai-chat-toggle-btn { display: none !important; }
+  /* 모바일에서는 헤더의 현재 시간 표시 숨김 */
+  .current-time { display: none !important; }
   .mobile-menu-btn { display: inline-flex !important; align-items: center; justify-content: center; }
   /* 액션시트는 사이드바(2001)와 오버레이(2000)보다 낮게 */
   .mobile-action-bar { position: sticky; top: 0; left: 0; right: 0; z-index: 1999; display: none; gap: 8px; padding: 8px 16px; background: #fff; border-bottom: 1px solid #e5e7eb; }
@@ -2399,6 +2401,14 @@ button:hover {
     background: currentColor;
     box-shadow: 0 6px 0 currentColor, 0 -6px 0 currentColor;
   }
+}
+
+/* 매우 좁은 화면(<=550px): view-toggle을 다음 줄로 이동 */
+@media (max-width: 550px) {
+  .header { flex-wrap: wrap; align-items: flex-start; }
+  .header-left { order: 1; }
+  .header-right { order: 2; }
+  .view-toggle { order: 3; width: 100%; margin-top: 8px; justify-content: center; }
 }
 
 /* 미니 타이머 - 종료 임박 스타일(본문 보더 톤과 일관) */
