@@ -598,8 +598,13 @@ const notificationScheduler = (() => {
         console.log(`[NotificationScheduler] 현재 시간: ${now.toLocaleString('ko-KR')} (${now.toISOString()}) [Timestamp: ${Date.now()}]`);
         
         // Service Worker 사용 가능한 경우 모든 알림 취소
-        if (useServiceWorker && window.serviceWorkerManager) {
-            window.serviceWorkerManager.cancelAllNotifications();
+        if (useServiceWorker && window.serviceWorkerManager && window.serviceWorkerManager.hasPermission()) {
+            try {
+                window.serviceWorkerManager.cancelAllNotifications();
+                console.log('[NotificationScheduler] Service Worker 알림 취소 완료');
+            } catch (error) {
+                console.error('[NotificationScheduler] Service Worker 알림 취소 실패:', error);
+            }
         }
         
         // 기존 타이머 모두 취소 (폴백용)
@@ -663,12 +668,18 @@ const notificationScheduler = (() => {
     const initScheduler = () => {
         console.log('[NotificationScheduler] 알림 스케줄러 초기화 시작');
         
-        // Service Worker 사용 여부 확인
-        if (window.serviceWorkerManager && window.serviceWorkerManager.isUsingServiceWorker) {
-            useServiceWorker = window.serviceWorkerManager.isUsingServiceWorker();
-            console.log('[NotificationScheduler] Service Worker 사용 여부:', useServiceWorker);
-        } else {
-            console.log('[NotificationScheduler] serviceWorkerManager를 찾을 수 없어 Service Worker 사용 안함');
+        // Service Worker 사용 여부 확인 (더 안전한 방식)
+        try {
+            if (window.serviceWorkerManager && 
+                typeof window.serviceWorkerManager.isUsingServiceWorker === 'function') {
+                useServiceWorker = window.serviceWorkerManager.isUsingServiceWorker();
+                console.log('[NotificationScheduler] Service Worker 사용 여부:', useServiceWorker);
+            } else {
+                console.log('[NotificationScheduler] serviceWorkerManager 또는 isUsingServiceWorker 함수를 찾을 수 없음');
+                useServiceWorker = false;
+            }
+        } catch (error) {
+            console.error('[NotificationScheduler] Service Worker 사용 여부 확인 중 오류:', error);
             useServiceWorker = false;
         }
         
@@ -801,6 +812,21 @@ const notificationScheduler = (() => {
         setUseServiceWorker: (use) => {
             useServiceWorker = use;
             console.log(`[NotificationScheduler] Service Worker 사용 설정: ${useServiceWorker}`);
+            
+            // 설정 변경 후 즉시 알림 재스케줄링 (기존 알림이 있다면)
+            if (useServiceWorker && window.todoManager) {
+                try {
+                    const todos = window.todoManager.getTodos();
+                    if (todos && todos.length > 0) {
+                        console.log('[NotificationScheduler] Service Worker 사용 설정 변경 후 알림 재스케줄링');
+                        setTimeout(() => {
+                            rescheduleAllNotifications(todos);
+                        }, 100);
+                    }
+                } catch (error) {
+                    console.error('[NotificationScheduler] 설정 변경 후 알림 재스케줄링 실패:', error);
+                }
+            }
         },
         isUsingServiceWorker: () => useServiceWorker
     };

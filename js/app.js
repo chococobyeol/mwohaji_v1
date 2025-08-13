@@ -2747,93 +2747,138 @@ document.addEventListener('DOMContentLoaded', () => {
             window.timer.init();
         }
         
-        // 모든 핵심 모듈 (예: todoManager)이 초기화되고 Service Worker가 준비된 후 알림 재스케줄
-        if (window.serviceWorkerManager && window.serviceWorkerManager.hasPermission() && window.notificationScheduler.isUsingServiceWorker()) {
-            console.log('[App] 초기화 후 알림 재스케줄링 시도');
+        // Service Worker 준비 완료 후 반드시 알림 재스케줄링 실행
+        await ensureNotificationsRescheduled();
+    };
+
+    // Service Worker 준비 완료 후 알림 재스케줄링 보장 함수
+    const ensureNotificationsRescheduled = async () => {
+        try {
+            // Service Worker가 준비될 때까지 최대 5초 대기
+            let attempts = 0;
+            const maxAttempts = 50; // 100ms * 50 = 5초
+            
+            while (attempts < maxAttempts) {
+                if (window.serviceWorkerManager && 
+                    window.serviceWorkerManager.hasPermission() && 
+                    window.serviceWorkerManager.isInitialized()) {
+                    
+                    console.log('[App] Service Worker 준비 완료, 알림 재스케줄링 실행');
+                    
+                    // notificationScheduler의 Service Worker 사용 설정 강제 업데이트
+                    const savedUseServiceWorker = storage.getNotificationApiEnabled();
+                    window.notificationScheduler.setUseServiceWorker(savedUseServiceWorker);
+                    
+                    // 잠시 대기 후 Service Worker 사용 여부 재확인
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    
+                    if (window.notificationScheduler.isUsingServiceWorker()) {
+                        console.log('[App] Service Worker 사용 설정 확인됨, 알림 재스케줄링 시작');
+                        const todos = window.todoManager.getTodos();
+                        window.notificationScheduler.rescheduleAllNotifications(todos);
+                        console.log('[App] 알림 재스케줄링 완료');
+                        return;
+                    } else {
+                        console.warn('[App] Service Worker 사용 설정이 false로 설정됨, 재시도');
+                    }
+                }
+                
+                attempts++;
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            
+            // 최대 시도 횟수 초과 시 폴백으로 알림 재스케줄링
+            console.warn('[App] Service Worker 준비 대기 시간 초과, 폴백으로 알림 재스케줄링');
             const todos = window.todoManager.getTodos();
             window.notificationScheduler.rescheduleAllNotifications(todos);
-        } else {
-            console.log('[App] Service Worker 알림 재스케줄링 건너김 (권한 또는 SW 미사용)');
-        }
-
-        // 테스트용 알림 기능 추가 (개발 중에만 사용)
-        window.testNotification = () => {
-            if (window.serviceWorkerManager && window.serviceWorkerManager.hasPermission()) {
-                const testTime = new Date(Date.now() + 10000); // 10초 후
-                console.log('[App] 테스트 알림 예약:', testTime.toISOString());
-                window.serviceWorkerManager.scheduleNotification(
-                    'test-123',
-                    'test',
-                    '테스트 알림',
-                    '이것은 테스트 알림입니다.',
-                    testTime.toISOString(),
-                    true
-                );
-            } else {
-                console.log('[App] Service Worker 또는 알림 권한이 없습니다.');
-            }
-        };
-
-        // Service Worker에서 호출할 수 있도록 소리 재생 함수를 전역으로 노출
-        window.playNotificationSound = () => {
-            console.log('[App] Service Worker에서 요청한 알림 소리 재생');
-            if (window.notificationScheduler && window.notificationScheduler.playNotificationSound) {
-                window.notificationScheduler.playNotificationSound();
-            } else {
-                console.warn('[App] notificationScheduler.playNotificationSound를 찾을 수 없습니다');
-            }
-        };
-
-        // Service Worker 메시지 리스너 추가
-        if (navigator.serviceWorker) {
-            navigator.serviceWorker.addEventListener('message', (event) => {
-                console.log('[App] Service Worker 메시지 수신:', event.data);
-                
-                const { type, data } = event.data;
-                
-                switch (type) {
-                    case 'NOTIFICATION_SHOWN':
-                        console.log('[App] NOTIFICATION_SHOWN 처리 시작');
-                        handleNotificationShown(data);
-                        break;
-                    case 'NOTIFICATION_CLICKED':
-                        console.log('[App] NOTIFICATION_CLICKED 처리 시작');
-                        handleNotificationClicked(data);
-                        break;
-                    case 'NOTIFICATION_CLOSED':
-                        console.log('[App] NOTIFICATION_CLOSED 처리 시작');
-                        handleNotificationClosed(data);
-                        break;
-                    case 'PLAY_NOTIFICATION_SOUND':
-                        console.log('[App] PLAY_NOTIFICATION_SOUND 처리 시작');
-                        if (window.notificationScheduler && window.notificationScheduler.playNotificationSound) {
-                            console.log('[App] notificationScheduler.playNotificationSound 호출');
-                            window.notificationScheduler.playNotificationSound();
-                        } else {
-                            console.warn('[App] notificationScheduler.playNotificationSound를 찾을 수 없습니다');
-                        }
-                        break;
-                    case 'SCHEDULE_NEXT_REPEAT':
-                        console.log('[App] SCHEDULE_NEXT_REPEAT 처리 시작');
-                        handleScheduleNextRepeat(data);
-                        break;
-                    case 'SYNC_REPEAT_NOTIFICATIONS':
-                        console.log('[App] SYNC_REPEAT_NOTIFICATIONS 처리 시작');
-                        handleSyncRepeatNotifications(data);
-                        break;
-                    default:
-                        console.log('[App] 알 수 없는 Service Worker 메시지 타입:', type);
-                }
-            });
             
-            // Service Worker 컨트롤러 상태 확인
-            if (navigator.serviceWorker.controller) {
-                console.log('[App] Service Worker 컨트롤러가 활성화되어 있습니다');
-            } else {
-                console.log('[App] Service Worker 컨트롤러가 아직 활성화되지 않았습니다');
+        } catch (error) {
+            console.error('[App] 알림 재스케줄링 중 오류 발생:', error);
+            // 에러 발생 시에도 폴백으로 알림 재스케줄링
+            try {
+                const todos = window.todoManager.getTodos();
+                window.notificationScheduler.rescheduleAllNotifications(todos);
+            } catch (fallbackError) {
+                console.error('[App] 폴백 알림 재스케줄링도 실패:', fallbackError);
             }
         }
     };
+
+    // 테스트용 알림 기능 추가 (개발 중에만 사용)
+    window.testNotification = () => {
+        if (window.serviceWorkerManager && window.serviceWorkerManager.hasPermission()) {
+            const testTime = new Date(Date.now() + 10000); // 10초 후
+            console.log('[App] 테스트 알림 예약:', testTime.toISOString());
+            window.serviceWorkerManager.scheduleNotification(
+                'test-123',
+                'test',
+                '테스트 알림',
+                '이것은 테스트 알림입니다.',
+                testTime.toISOString(),
+                true
+            );
+        } else {
+            console.log('[App] Service Worker 또는 알림 권한이 없습니다.');
+        }
+    };
+
+    // Service Worker에서 호출할 수 있도록 소리 재생 함수를 전역으로 노출
+    window.playNotificationSound = () => {
+        console.log('[App] Service Worker에서 요청한 알림 소리 재생');
+        if (window.notificationScheduler && window.notificationScheduler.playNotificationSound) {
+            window.notificationScheduler.playNotificationSound();
+        } else {
+            console.warn('[App] notificationScheduler.playNotificationSound를 찾을 수 없습니다');
+        }
+    };
+
+    // Service Worker 메시지 리스너 추가
+    if (navigator.serviceWorker) {
+        navigator.serviceWorker.addEventListener('message', (event) => {
+            console.log('[App] Service Worker 메시지 수신:', event.data);
+            
+            const { type, data } = event.data;
+            
+            switch (type) {
+                case 'NOTIFICATION_SHOWN':
+                    console.log('[App] NOTIFICATION_SHOWN 처리 시작');
+                    handleNotificationShown(data);
+                    break;
+                case 'NOTIFICATION_CLICKED':
+                    console.log('[App] NOTIFICATION_CLICKED 처리 시작');
+                    handleNotificationClicked(data);
+                    break;
+                case 'NOTIFICATION_CLOSED':
+                    console.log('[App] NOTIFICATION_CLOSED 처리 시작');
+                    handleNotificationClosed(data);
+                    break;
+                case 'PLAY_NOTIFICATION_SOUND':
+                    console.log('[App] PLAY_NOTIFICATION_SOUND 처리 시작');
+                    if (window.notificationScheduler && window.notificationScheduler.playNotificationSound) {
+                        console.log('[App] notificationScheduler.playNotificationSound 호출');
+                        window.notificationScheduler.playNotificationSound();
+                    } else {
+                        console.warn('[App] notificationScheduler.playNotificationSound를 찾을 수 없습니다');
+                    }
+                    break;
+                case 'SCHEDULE_NEXT_REPEAT':
+                    console.log('[App] SCHEDULE_NEXT_REPEAT 처리 시작 - 함수가 제거됨');
+                    break;
+                case 'SYNC_REPEAT_NOTIFICATIONS':
+                    console.log('[App] SYNC_REPEAT_NOTIFICATIONS 처리 시작 - 함수가 제거됨');
+                    break;
+                default:
+                    console.log('[App] 알 수 없는 Service Worker 메시지 타입:', type);
+            }
+        });
+        
+        // Service Worker 컨트롤러 상태 확인
+        if (navigator.serviceWorker.controller) {
+            console.log('[App] Service Worker 컨트롤러가 활성화되어 있습니다');
+        } else {
+            console.log('[App] Service Worker 컨트롤러가 아직 활성화되지 않았습니다');
+        }
+    }
 
 
 
