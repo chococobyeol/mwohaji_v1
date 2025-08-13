@@ -623,9 +623,7 @@ button:hover {
         min-width: 0; /* 텍스트 오버플로우 방지 */
     }
     
-    .todo-item .schedule-btn {
-        margin-right: 4px; /* 간격 줄이기 */
-    }
+    .todo-item .schedule-btn { margin-right: 0; }
     
     /* 모바일에서 시간 정보 더 컴팩트하게 */
     .schedule-info {
@@ -799,9 +797,7 @@ button:hover {
 }
 
 /* 스케줄 버튼과 리피트 버튼 간격 좁히기 */
-.todo-item .schedule-btn + .repeat-btn {
-    margin-left: -9px; /* 컨테이너 gap 간격 줄이기 */
-}
+.todo-item .schedule-btn + .repeat-btn { margin-left: -9px; }
 
 /* 심플 그레이 삭제 버튼 */
 .delete-btn {
@@ -2048,6 +2044,14 @@ button:hover {
     line-height: 1.5;
 }
 
+/* 긴 단어/URL로 인한 가로 넘침 방지: 자동 줄바꿈 처리 */
+.todo-text {
+    white-space: normal;
+    overflow-wrap: anywhere; /* 표준 권장 */
+    word-break: break-word;  /* 구형 브라우저 대비 */
+    display: block;          /* 인라인 컨텍스트로 인한 폭 제약 방지 */
+}
+
 .todo-text h1, .todo-text h2, .todo-text h3, .todo-text h4, .todo-text h5, .todo-text h6 {
     margin: 0.5em 0 0.2em 0;
     font-weight: 600;
@@ -2414,6 +2418,69 @@ button:hover {
   .header-left { order: 1; }
   .header-right { order: 2; }
   .view-toggle { order: 3; width: 100%; margin-top: 8px; justify-content: center; }
+}
+
+/* 550px 이하: 투두 아이템의 좌측에 체크박스/스케줄/반복 버튼을 세로 스택으로 배치 */
+@media (max-width: 550px) {
+  .todo-item {
+    display: grid !important;
+    grid-template-columns: 36px 1fr;
+    align-items: start !important;
+    gap: 8px 10px; /* 행 간격 8px, 열 간격 10px */
+    min-height: auto !important;
+  }
+
+  /* 좌측 세로 스택: 체크박스, 스케줄, 반복 */
+  .todo-item > input[type="checkbox"],
+  .todo-item > .schedule-btn,
+  .todo-item > .repeat-btn {
+    grid-column: 1;
+    justify-self: center; /* 좌우 가운데 정렬 */
+    align-self: center;   /* 상하 가운데 정렬 */
+  }
+  .todo-item > input[type="checkbox"] { grid-row: 1; margin: 0; }
+  .todo-item > .schedule-btn { grid-row: 2; margin: 0 !important; }
+  .todo-item > .repeat-btn { grid-row: 3; margin: 0 !important; margin-left: 0 !important; }
+
+  /* 콘텐츠/시간/삭제 버튼은 우측 컬럼 */
+  .todo-item > .todo-content { grid-column: 2; grid-row: 1 / span 2; }
+  .todo-item > .schedule-times { grid-column: 2; grid-row: 3; padding: 2px 4px; }
+
+  /* 삭제 버튼: 절대 위치 해제 후 우측 상단 정렬 */
+  .todo-item > .delete-btn {
+    position: static;
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+    align-self: start;
+  }
+
+  /* 가로 배치용 간격 보정 비활성화 */
+  .todo-item .schedule-btn + .repeat-btn { margin-left: 0 !important; }
+}
+
+/* 551px 이상에서는 기존 가로 정렬/간격을 강제 유지 */
+@media (min-width: 551px) {
+  .todo-item { display: flex !important; flex-wrap: nowrap !important; align-items: flex-start !important; }
+  .todo-item .schedule-btn { margin-right: 4px !important; }
+  .todo-item .schedule-btn + .repeat-btn { margin-left: -9px !important; }
+  /* 줄당 콘텐츠 폭을 더 짧게 제한하여 자연스러운 조기 줄바꿈 유도 */
+  .todo-content { max-width: calc(100% - 150px); }
+  .todo-main-line { flex-wrap: wrap; }
+  .todo-text { white-space: normal; overflow-wrap: break-word; }
+}
+
+/* 551~768px: 스케줄 타임스는 한 줄 유지 (768 규칙 덮어쓰기) */
+@media (min-width: 551px) and (max-width: 768px) {
+  .todo-item .schedule-times {
+    order: 0;
+    width: auto;
+    align-items: flex-end;
+    align-self: center;
+    min-width: 160px;
+    margin-top: 0;
+    padding: 2px 30px 2px 4px;
+  }
 }
 
 /* 미니 타이머 - 종료 임박 스타일(본문 보더 톤과 일관) */
