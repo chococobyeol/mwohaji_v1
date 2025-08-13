@@ -1,6 +1,108 @@
 // Service Worker for Mwohaji - Background Notifications
-const CACHE_NAME = 'mwohaji-v1.4';
+const CACHE_NAME = 'mwohaji-v1.5';
 const NOTIFICATION_TAG = 'mwohaji-notification';
+
+// 반복 알림의 다음 시간 계산 함수 (notificationScheduler.js의 getNextRepeatTime 로직 복사)
+function getNextRepeatTime(todo, type) {
+    const now = new Date(Date.now());
+    let base = new Date(todo.schedule[type === 'start' ? 'startTime' : 'dueTime']);
+    
+    if (!todo.repeat) return null;
+    
+    if (todo.repeat.type === 'daily') {
+        const interval = todo.repeat.interval || 1;
+        const timeDiff = now.getTime() - base.getTime();
+        const intervalMs = interval * 24 * 60 * 60 * 1000;
+        
+        if (timeDiff < 0) return base;
+        
+        const pastIterations = Math.ceil(timeDiff / intervalMs);
+        const nextTime = new Date(base.getTime() + pastIterations * intervalMs);
+        
+        if (nextTime <= now) {
+            nextTime.setTime(nextTime.getTime() + intervalMs);
+        }
+        
+        return nextTime;
+    }
+    
+    if (todo.repeat.type === 'weekly') {
+        let days = todo.repeat.days || [];
+        if (days.length === 0) return null;
+        
+        const baseHours = base.getHours();
+        const baseMinutes = base.getMinutes();
+        
+        let startDate = new Date(base);
+        for (let i = 0; i < 365; i++) {
+            let candidate = new Date(startDate);
+            candidate.setDate(candidate.getDate() + i);
+            candidate.setHours(baseHours, baseMinutes, 0, 0);
+            
+            let candidateDay = candidate.getDay();
+            let candidateDayAdjusted = candidateDay === 0 ? 7 : candidateDay;
+            
+            if (days.includes(candidateDayAdjusted) && candidate > now) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+    
+    if (todo.repeat.type === 'monthly') {
+        let dates = todo.repeat.dates || [];
+        if (dates.length === 0) return null;
+        
+        const baseHours = base.getHours();
+        const baseMinutes = base.getMinutes();
+        
+        let startMonth = new Date(base.getFullYear(), base.getMonth(), 1);
+        for (let monthOffset = 0; monthOffset < 12; monthOffset++) {
+            let candidateMonth = new Date(startMonth);
+            candidateMonth.setMonth(candidateMonth.getMonth() + monthOffset);
+            
+            for (let date of dates) {
+                let candidate = new Date(candidateMonth);
+                candidate.setDate(date);
+                candidate.setHours(baseHours, baseMinutes, 0, 0);
+                
+                if (candidate > now) {
+                    return candidate;
+                }
+            }
+        }
+        return null;
+    }
+    
+    if (todo.repeat.type === 'interval') {
+        let interval = todo.repeat.interval || 30;
+        const limit = todo.repeat.limit;
+        
+        if (typeof interval !== 'number' || isNaN(interval) || interval <= 0) {
+            interval = 30;
+        }
+        
+        const timeDiff = now.getTime() - base.getTime();
+        const intervalMs = interval * 60 * 1000;
+        
+        if (timeDiff < 0) return base;
+        
+        const pastIterations = Math.ceil(timeDiff / intervalMs);
+        const nextTime = new Date(base.getTime() + pastIterations * intervalMs);
+        
+        if (nextTime <= now) {
+            nextTime.setTime(nextTime.getTime() + intervalMs);
+        }
+        
+        if (limit && pastIterations > limit) {
+            return null;
+        }
+        
+        return nextTime;
+    }
+    
+    return null;
+}
 
 // Service Worker 설치
 self.addEventListener('install', (event) => {
@@ -39,14 +141,20 @@ self.addEventListener('message', (event) => {
     console.log('[SW] 메시지 수신:', event.data);
     console.log('[SW] 메시지 수신 시간:', new Date().toISOString());
     console.log('[SW] 메시지 출처:', event.source);
-    console.log('[SW] Service Worker 버전: v1.4');
+    console.log('[SW] Service Worker 버전: v1.5');
     
     if (event.data.type === 'SCHEDULE_NOTIFICATION' || event.data.type === 'test' || event.data.type === 'start' || event.data.type === 'due' || event.data.type === 'repeat-start' || event.data.type === 'repeat-due') {
         console.log('[SW] 알림 예약 메시지 처리 시작');
         console.log('[SW] 메시지 타입:', event.data.type);
-        const { todoId, type, title, message, scheduledTime, hasSound } = event.data;
+        const { todoId, type, title, message, scheduledTime, hasSound, todo } = event.data;
         console.log('[SW] 알림 정보:', { todoId, type, title, message, scheduledTime, hasSound });
-        scheduleNotification(todoId, type, title, message, scheduledTime, hasSound);
+        
+        // 반복 알림인 경우 todo 객체도 함께 전달받아야 함
+        if (type.startsWith('repeat-')) {
+            scheduleRepeatNotification(todoId, type, title, message, scheduledTime, hasSound, todo);
+        } else {
+            scheduleNotification(todoId, type, title, message, scheduledTime, hasSound);
+        }
     } else if (event.data.type === 'CANCEL_NOTIFICATION') {
         console.log('[SW] 알림 취소 메시지 처리');
         const { todoId, type } = event.data;
@@ -66,40 +174,142 @@ self.addEventListener('message', (event) => {
 // 알림 스케줄링
 function scheduleNotification(todoId, type, title, message, scheduledTime, hasSound) {
     const timeoutKey = `${todoId}-${type}`;
-    const now = new Date().getTime();
-    const targetTime = new Date(scheduledTime).getTime();
-    const delay = Math.max(0, targetTime - now);
     
-    console.log(`[SW] 알림 예약: ${title} - ${delay}ms 후 (${delay/1000}초)`);
-    console.log(`[SW] 현재 시간: ${new Date(now).toISOString()}, 목표 시간: ${new Date(targetTime).toISOString()}`);
-    console.log(`[SW] 타이머 키: ${timeoutKey}`);
-    console.log(`[SW] 시간 차이: ${targetTime - now}ms (${(targetTime - now)/1000}초)`);
-    
-    // 기존 타이머가 있으면 취소
+    // 기존 타이머가 있다면 취소
     if (self.notificationTimers && self.notificationTimers[timeoutKey]) {
         clearTimeout(self.notificationTimers[timeoutKey]);
-        console.log(`[SW] 기존 타이머 취소: ${timeoutKey}`);
     }
     
-    // 타이머 설정
-    const timeoutId = setTimeout(() => {
-        console.log(`[SW] 타이머 콜백 실행 시작: ${title} - ${todoId}-${type}`);
-        console.log(`[SW] 타이머 실행 시간: ${new Date().toISOString()}`);
-        showNotification(title, message, hasSound, todoId, type);
-        // 타이머 정리
-        if (self.notificationTimers) {
-            console.log(`[SW] 타이머 실행 완료: ${title} - ${todoId}-${type}`);
-            delete self.notificationTimers[timeoutKey];
-        }
-    }, delay);
-    
-    // 타이머 저장
+    // notificationTimers 객체 초기화
     if (!self.notificationTimers) {
         self.notificationTimers = {};
     }
+    
+    const scheduledDate = new Date(scheduledTime);
+    const now = new Date();
+    const diff = scheduledDate.getTime() - now.getTime();
+    
+    if (diff <= 0) {
+        console.log(`[SW] 알림 시간이 이미 지남: ${scheduledDate}, 즉시 실행`);
+        showNotification(todoId, type, title, message, hasSound);
+        return;
+    }
+    
+    console.log(`[SW] 알림 예약: ${title} - ${scheduledDate}까지 ${Math.round(diff/1000)}초 남음`);
+    
+    const timeoutId = setTimeout(() => {
+        console.log(`[SW] 알림 트리거: ${title}`);
+        showNotification(todoId, type, title, message, hasSound);
+        
+        // 타이머 완료 후 정리
+        if (self.notificationTimers && self.notificationTimers[timeoutKey]) {
+            delete self.notificationTimers[timeoutKey];
+        }
+    }, diff);
+    
     self.notificationTimers[timeoutKey] = timeoutId;
-    console.log(`[SW] 타이머 저장됨: ${timeoutKey} = ${timeoutId}`);
-    console.log(`[SW] 현재 저장된 타이머들:`, Object.keys(self.notificationTimers));
+}
+
+// 반복 알림 스케줄링 (자체적으로 다음 알림 계산 및 예약)
+function scheduleRepeatNotification(todoId, type, title, message, scheduledTime, hasSound, todo) {
+    const timeoutKey = `${todoId}-${type}`;
+    
+    // 기존 타이머가 있다면 취소
+    if (self.notificationTimers && self.notificationTimers[timeoutKey]) {
+        clearTimeout(self.notificationTimers[timeoutKey]);
+    }
+    
+    // notificationTimers 객체 초기화
+    if (!self.notificationTimers) {
+        self.notificationTimers = {};
+    }
+    
+    const scheduledDate = new Date(scheduledTime);
+    const now = new Date();
+    const diff = scheduledDate.getTime() - now.getTime();
+    
+    if (diff <= 0) {
+        console.log(`[SW] 반복 알림 시간이 이미 지남: ${scheduledDate}, 즉시 실행`);
+        showNotification(todoId, type, title, message, hasSound);
+        
+        // 즉시 다음 반복 알림 예약
+        if (todo && todo.repeat && !todo.repeat[`${type.replace('repeat-', '')}Completed`]) {
+            scheduleNextRepeatNotification(todo, type.replace('repeat-', ''));
+        }
+        return;
+    }
+    
+    console.log(`[SW] 반복 알림 예약: ${title} - ${scheduledDate}까지 ${Math.round(diff/1000)}초 남음`);
+    
+    const timeoutId = setTimeout(() => {
+        console.log(`[SW] 반복 알림 트리거: ${title}`);
+        showNotification(todoId, type, title, message, hasSound);
+        
+        // 타이머 완료 후 정리
+        if (self.notificationTimers && self.notificationTimers[timeoutKey]) {
+            delete self.notificationTimers[timeoutKey];
+        }
+        
+        // 다음 반복 알림 즉시 예약
+        if (todo && todo.repeat && !todo.repeat[`${type.replace('repeat-', '')}Completed`]) {
+            scheduleNextRepeatNotification(todo, type.replace('repeat-', ''));
+        }
+    }, diff);
+    
+    self.notificationTimers[timeoutKey] = timeoutId;
+}
+
+// 다음 반복 알림 자동 예약 (Service Worker 내부에서 처리)
+function scheduleNextRepeatNotification(todo, type) {
+    try {
+        console.log(`[SW] 다음 반복 알림 자동 예약 시작: ${todo.text} (${type})`);
+        
+        const nextTime = getNextRepeatTime(todo, type);
+        if (!nextTime) {
+            console.log(`[SW] 다음 반복 시간 계산 실패: ${todo.text} (${type})`);
+            return;
+        }
+        
+        const now = new Date();
+        const diff = nextTime.getTime() - now.getTime();
+        
+        if (diff <= 0) {
+            console.log(`[SW] 계산된 다음 시간이 과거: ${nextTime}, 재계산`);
+            // 재귀적으로 다시 계산
+            setTimeout(() => scheduleNextRepeatNotification(todo, type), 100);
+            return;
+        }
+        
+        console.log(`[SW] 다음 반복 알림 예약: ${todo.text} (${type}) - ${nextTime}까지 ${Math.round(diff/1000)}초 남음`);
+        
+        const timeoutKey = `${todo.id}-repeat-${type}`;
+        const timeoutId = setTimeout(() => {
+            console.log(`[SW] 다음 반복 알림 트리거: ${todo.text} (${type})`);
+            
+            // 알림 표시
+            const title = type === 'start' ? '시작 알림' : '마감 알림';
+            const message = `'${todo.text}' (반복)`;
+            showNotification(todo.id, `repeat-${type}`, title, message, true);
+            
+            // 타이머 완료 후 정리
+            if (self.notificationTimers && self.notificationTimers[timeoutKey]) {
+                delete self.notificationTimers[timeoutKey];
+            }
+            
+            // 또 다시 다음 알림 예약 (무한 반복)
+            if (todo.repeat && !todo.repeat[`${type}Completed`]) {
+                scheduleNextRepeatNotification(todo, type);
+            }
+        }, diff);
+        
+        if (!self.notificationTimers) {
+            self.notificationTimers = {};
+        }
+        self.notificationTimers[timeoutKey] = timeoutId;
+        
+    } catch (error) {
+        console.error('[SW] 다음 반복 알림 예약 실패:', error);
+    }
 }
 
 // 알림 취소
@@ -125,7 +335,7 @@ function cancelAllNotifications() {
 }
 
 // 알림 표시
-async function showNotification(title, message, hasSound, todoId, type) {
+async function showNotification(todoId, type, title, message, hasSound) {
     console.log(`[SW] 알림 표시 시작: ${title} - ${message}`);
     console.log(`[SW] 알림 표시 시간: ${new Date().toISOString()}`);
     console.log(`[SW] 알림 권한 상태: ${Notification.permission}`);
@@ -254,14 +464,4 @@ function notifyMainScript(type, data) {
     }).catch(error => {
         console.error('[SW] 클라이언트 매칭 실패 (메시지 전송):', error);
     });
-}
-
-// 주기적 작업 (필요시)
-self.addEventListener('periodicsync', (event) => {
-    console.log('[SW] 주기적 동기화:', event);
-});
-
-// 백그라운드 동기화
-self.addEventListener('sync', (event) => {
-    console.log('[SW] 백그라운드 동기화:', event);
-}); 
+} 

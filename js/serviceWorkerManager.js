@@ -88,7 +88,7 @@ const serviceWorkerManager = (() => {
     };
 
     // Service Worker에 알림 예약 요청
-    const scheduleNotification = (todoId, type, title, message, scheduledTime, hasSound) => {
+    const scheduleNotification = (todoId, type, title, message, scheduledTime, hasSound, todo = null) => {
         console.log(`[SWManager] 알림 예약 시도: ${title} - ${scheduledTime}`);
         console.log(`[SWManager] Service Worker 상태: registration=${!!swRegistration}, active=${swRegistration ? !!swRegistration.active : false}`);
         
@@ -98,7 +98,7 @@ const serviceWorkerManager = (() => {
         }
 
         try {
-            swRegistration.active.postMessage({
+            const messageData = {
                 type: 'SCHEDULE_NOTIFICATION',
                 todoId,
                 type,
@@ -106,7 +106,15 @@ const serviceWorkerManager = (() => {
                 message,
                 scheduledTime,
                 hasSound
-            });
+            };
+            
+            // 반복 알림인 경우 todo 객체도 함께 전달
+            if (type.startsWith('repeat-') && todo) {
+                messageData.todo = todo;
+                console.log(`[SWManager] 반복 알림에 todo 객체 포함: ${todo.text}`);
+            }
+            
+            swRegistration.active.postMessage(messageData);
             console.log(`[SWManager] 알림 예약 요청 성공: ${title} - ${scheduledTime}`);
             return true;
         } catch (error) {

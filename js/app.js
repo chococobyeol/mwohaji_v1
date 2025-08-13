@@ -102,6 +102,32 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // Service Worker로부터 받은 메시지 처리
+    const handleServiceWorkerMessage = (event) => {
+        const { type, data } = event.data;
+        console.log('[App] Service Worker 메시지 수신:', type, data);
+        
+        switch (type) {
+            case 'NOTIFICATION_SHOWN':
+                handleNotificationShown(data);
+                break;
+            case 'PLAY_NOTIFICATION_SOUND':
+                handlePlayNotificationSound(data);
+                break;
+            default:
+                console.log('[App] 알 수 없는 Service Worker 메시지 타입:', type);
+        }
+    };
+
+    // 알림 소리 재생 처리
+    const handlePlayNotificationSound = (data) => {
+        console.log('[App] 알림 소리 재생 요청:', data);
+        
+        if (window.notificationScheduler && window.notificationScheduler.playNotificationSound) {
+            window.notificationScheduler.playNotificationSound();
+        }
+    };
+
     const handleNotificationClicked = (data) => {
         console.log('[App] Service Worker 알림 클릭됨:', data);
         // 브라우저 창/탭 포커스는 Service Worker에서 처리됨
@@ -2779,13 +2805,21 @@ document.addEventListener('DOMContentLoaded', () => {
                         handleNotificationClosed(data);
                         break;
                     case 'PLAY_NOTIFICATION_SOUND':
-                        console.log('[App] Service Worker에서 소리 재생 요청');
+                        console.log('[App] PLAY_NOTIFICATION_SOUND 처리 시작');
                         if (window.notificationScheduler && window.notificationScheduler.playNotificationSound) {
                             console.log('[App] notificationScheduler.playNotificationSound 호출');
                             window.notificationScheduler.playNotificationSound();
                         } else {
                             console.warn('[App] notificationScheduler.playNotificationSound를 찾을 수 없습니다');
                         }
+                        break;
+                    case 'SCHEDULE_NEXT_REPEAT':
+                        console.log('[App] SCHEDULE_NEXT_REPEAT 처리 시작');
+                        handleScheduleNextRepeat(data);
+                        break;
+                    case 'SYNC_REPEAT_NOTIFICATIONS':
+                        console.log('[App] SYNC_REPEAT_NOTIFICATIONS 처리 시작');
+                        handleSyncRepeatNotifications(data);
                         break;
                     default:
                         console.log('[App] 알 수 없는 Service Worker 메시지 타입:', type);

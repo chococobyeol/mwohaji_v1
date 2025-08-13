@@ -250,9 +250,14 @@ const notificationScheduler = (() => {
                 return base; // base 시간에 바로 알림
             }
             
-            // base 시간이 과거인 경우, 다음 반복 시간 계산
-            const pastIterations = Math.floor(timeDiff / intervalMs);
-            const nextTime = new Date(base.getTime() + (pastIterations + 1) * intervalMs);
+            // base 시간이 과거인 경우, 현재 시간 이후의 첫 번째 유효한 시간을 찾기
+            const pastIterations = Math.ceil(timeDiff / intervalMs);
+            const nextTime = new Date(base.getTime() + pastIterations * intervalMs);
+            
+            // nextTime이 여전히 현재 시간보다 과거인 경우 한 번 더 반복
+            if (nextTime <= now) {
+                nextTime.setTime(nextTime.getTime() + intervalMs);
+            }
             
             console.log(`[RepeatAlarm] daily 계산: base=${base.toLocaleString('ko-KR')}, now=${now.toLocaleString('ko-KR')}, pastIterations=${pastIterations}, nextTime=${nextTime.toLocaleString('ko-KR')}`);
             
@@ -353,12 +358,17 @@ const notificationScheduler = (() => {
                 return base; // base 시간에 바로 알림
             }
             
-            // base 시간이 과거인 경우, 다음 반복 시간 계산
-            const pastIterations = Math.floor(timeDiff / intervalMs);
-            const nextTime = new Date(base.getTime() + (pastIterations + 1) * intervalMs);
+            // base 시간이 과거인 경우, 현재 시간 이후의 첫 번째 유효한 시간을 찾기
+            const pastIterations = Math.ceil(timeDiff / intervalMs);
+            const nextTime = new Date(base.getTime() + pastIterations * intervalMs);
+            
+            // nextTime이 여전히 현재 시간보다 과거인 경우 한 번 더 반복
+            if (nextTime <= now) {
+                nextTime.setTime(nextTime.getTime() + intervalMs);
+            }
             
             // 반복 제한이 있는 경우 확인
-            if (limit && pastIterations + 1 > limit) {
+            if (limit && pastIterations > limit) {
                 console.log(`[RepeatAlarm] interval 반복 제한에 도달: ${limit}회`);
                 return null;
             }
@@ -416,24 +426,66 @@ const notificationScheduler = (() => {
         console.log(`[RepeatAlarm] 시간 차이 상세: nextTime=${nextTime.getTime()}, now=${now.getTime()}, diff=${diff}ms`);
         
         if (diff <= 0) { 
-            console.log(`[RepeatAlarm] nextTime이 과거 또는 현재(${nextTime}), 예약 스킵 - diff=${diff}ms`);
+            console.log(`[RepeatAlarm] nextTime이 과거 또는 현재(${nextTime}), 즉시 실행 - diff=${diff}ms`);
             if (diff < 0) {
                 console.log(`[RepeatAlarm] 현재 시간이 ${Math.abs(diff/1000/60)}분 더 늦음`);
             }
-            // 스킵된 경우에도 다음 알림을 재계산해보기 (최대 3회까지만)
-            const retryKey = `${todo.id}-${type}-retry`;
-            const retryCount = parseInt(sessionStorage.getItem(retryKey) || '0');
             
-            if (retryCount < 3) {
-                console.log(`[RepeatAlarm] 스킵된 알림에 대해 다음 알림 재계산 시도 (${retryCount + 1}/3)`);
-                sessionStorage.setItem(retryKey, (retryCount + 1).toString());
+            // 과거/현재 시간의 알림은 즉시 실행
+            console.log(`[RepeatAlarm] 누락된 알림 즉시 실행: ${todo.text} (${type})`);
+            
+            // 즉시 알림 실행
+            if (todo.schedule[modalProperty] !== false) {
+                showNotificationModal(titlePrefix, `'${todo.text}' (반복)`);
+            }
+            if (todo.schedule[notificationProperty]) {
+                playNotificationSound();
+            }
+            
+            // 반복 횟수 추적 (시간 간격 반복인 경우)
+            if (todo.repeat && todo.repeat.type === 'interval') {
+                const countKey = `${todo.id}-${type}`;
+                const currentCount = repeatCounts.get(countKey) || 0;
+                const newCount = currentCount + 1;
+                repeatCounts.set(countKey, newCount);
+                console.log(`[RepeatAlarm] 누락된 알림 반복 횟수 증가: ${todo.text} (${type}) - ${newCount}회`);
+                
+                // 반복 횟수를 localStorage에 즉시 저장
+                saveRepeatCounts();
+                
+                // 반복 제한에 도달했는지 확인
+                if (todo.repeat.limit && newCount >= todo.repeat.limit) {
+                    console.log(`[RepeatAlarm] 반복 제한에 도달: ${todo.text} (${type}) - ${todo.repeat.limit}회 완료`);
+                    
+                    if (type === 'start') {
+                        todo.repeat.startCompleted = true;
+                    } else if (type === 'due') {
+                        todo.repeat.dueCompleted = true;
+                    }
+                    
+                    // 할 일 데이터 저장
+                    if (window.todoManager) {
+                        window.todoManager.saveTodos();
+                    }
+                    
+                    return; // 반복 완료
+                }
+            }
+            
+            // UI 업데이트
+            if (window.app && window.app.renderTodos) {
+                console.log('[RepeatAlarm] 누락된 알림 실행 후 UI 즉시 업데이트');
+                window.app.renderTodos();
+            }
+            
+            // 다음 반복 알림을 즉시 스케줄링 (재귀 호출 방지를 위해 setTimeout 사용)
+            if (todo.repeat && !todo.repeat[`${type}Completed`]) {
+                console.log(`[RepeatAlarm] 누락된 알림 실행 후 다음 알림 즉시 스케줄링`);
                 setTimeout(() => {
                     scheduleRepeatNotification(todo, type);
-                }, 1000); // 1초 후 재시도
-            } else {
-                console.log(`[RepeatAlarm] 최대 재시도 횟수 초과, 알림 스킵`);
-                sessionStorage.removeItem(retryKey);
+                }, 100); // 100ms 후 다음 알림 스케줄링
             }
+            
             return; 
         }
         
@@ -456,7 +508,8 @@ const notificationScheduler = (() => {
                 title, 
                 message, 
                 nextTime.toISOString(), 
-                hasSound
+                hasSound,
+                todo  // todo 객체 추가
             );
             
             if (success) {
