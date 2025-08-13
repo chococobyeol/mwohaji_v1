@@ -133,7 +133,7 @@ body {
     border-radius: 6px; /* 둥근 사각형 유지 */
     background: white;
     cursor: pointer;
-    border: 1px solid #e5e7eb; /* 본문 보더와 동일 */
+    border: 0px solid #e5e7eb; /* 본문 보더와 동일 */
 }
 
 #audio-status-btn.ready {
