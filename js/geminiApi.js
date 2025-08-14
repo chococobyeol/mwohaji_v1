@@ -123,7 +123,7 @@ const geminiApi = (() => {
                 if (recentListed && recentListed[idx]) {
                     target = todos.find(t => t.id == recentListed[idx].id);
                     if (!target) return { ok: false, result: 'position 참조 실패: 목록과 데이터가 일치하지 않습니다.' };
-                } else {
+                        } else {
                     return { ok: false, result: 'position 참조를 위해 선행 list 액션이 필요합니다.' };
                 }
             }
@@ -144,7 +144,7 @@ const geminiApi = (() => {
                     if (completedIds.has(t.id)) {
                         todoManager.deleteCompletedRepeatTodo(t.id);
                         count++;
-                    } else {
+                } else {
                         todoManager.deleteTodo(t.id);
                         count++;
                     }
@@ -170,7 +170,7 @@ const geminiApi = (() => {
                                 todoManager.deleteCompletedRepeatTodo(t.id);
                                 count++;
                     }
-                } else {
+                        } else {
                             // 진행중 반복 할 일 삭제
                             todoManager.deleteTodo(t.id);
                             count++;
@@ -202,7 +202,7 @@ const geminiApi = (() => {
                         return { ok: false, result: 'targetCategoryName이 필요합니다.' };
                     }
                     todoManager.deleteCategoryAndMoveTodos(cat.id, targetCategoryName.trim());
-                } else {
+                            } else {
                     // keepTodos: 삭제 후 해당 할 일은 '일반'으로
                     todoManager.deleteCategory(cat.id);
                 }
@@ -229,6 +229,9 @@ const geminiApi = (() => {
                 }
             }
             if (!target && find?.text) target = todos.find(t => t.text.includes(find.text));
+            if (!target && find?.category) target = todos.find(t => t.category === find.category);
+            if (!target && find?.schedule?.startTime) target = todos.find(t => datesEqualByMinute(t.schedule?.startTime, find.schedule.startTime));
+            if (!target && find?.schedule?.dueTime) target = todos.find(t => datesEqualByMinute(t.schedule?.dueTime, find.schedule.dueTime));
             if (!target) return { ok: false, result: '수정할 할 일을 찾지 못했습니다.' };
 
             // 스케줄 정규화
@@ -285,6 +288,22 @@ const geminiApi = (() => {
         searchTodoContent: ({ query }) => {
             const todos = todoManager.getTodos().filter(t => t.text.includes(query || ''));
             return { ok: true, result: todos.map(t => ({ id: t.id, text: t.text })) };
+        },
+
+        listTodosByCategory: ({ name, includeCompleted = true }) => {
+            const all = todoManager.getTodos();
+            const result = all.filter(t => t.category === name && (includeCompleted || !t.completed)).map(t => ({
+                id: t.id,
+                text: t.text,
+                category: t.category,
+                schedule: {
+                    startTime: t.schedule?.startTime || null,
+                    dueTime: t.schedule?.dueTime || null
+                },
+                repeat: t.repeat || null,
+                completed: !!t.completed
+            }));
+            return { ok: true, result };
         }
     };
 
@@ -306,6 +325,15 @@ const geminiApi = (() => {
 - 시간은 반드시 ISO 8601 로컬 시간 문자열(예: 2025-08-13T17:00:00)로 출력
 - 반복 간격(interval)은 분 단위 정수
 - 반드시 유효한 JSON만 출력하고, 코드블록(백틱)과 추가 설명/머릿말/꼬릿말은 절대 포함하지 말 것
+- 사용자가 "뭐 있어/목록/보여줘" 등 목록을 요구하면, list 계열 관찰을 실행하더라도 최종 message 안에 실제 항목들을 불릿(•)으로 요약 포함할 것 (카테고리/시간 등 핵심 정보 함께)
+- 사용자가 "알림 말고", "전체", "다"와 같은 수식어를 사용하면, 예정/스케줄 여부와 무관하게 해당 조건의 전체 항목을 포함해 요약할 것
+- 수정/삭제 같이 특정 대상을 지칭하는 요청에서는 절차를 반드시 지킬 것:
+  1) 먼저 list 계열로 후보를 관찰
+  2) 바로 이어서 position 또는 todoId로 단일 대상을 특정
+  3) 그 다음 update/delete 실행
+  (여러 후보가 남으면 질문(message)로 명확화하고 actions는 비우거나 관찰만 포함)
+- 모든 액션의 args는 객체(Object)여야 합니다. 배열/포지셔널 인수는 절대 사용하지 말 것. 허용된 키만 사용하세요.
+- 수정 요청 시 새 항목을 만들지 말 것. 반드시 기존 항목을 찾아 수정만 수행
 - 지원 함수 목록과 시그니처:
   1) addCategory({ name })
   2) createTodo({ text, category?, schedule?, repeat? })
@@ -319,6 +347,7 @@ const geminiApi = (() => {
          8) searchTodoContent({ query })
          9) deleteRepeatTodos({ includeCompleted? })
          10) deleteCategory({ name, behavior?, targetCategoryName? })
+         11) listTodosByCategory({ name, includeCompleted? })
 
 출력 형식(JSON만):
 {
@@ -352,6 +381,27 @@ ${convo}
         return JSON.parse(cleaned);
     };
 
+    const logRaw = (label, raw) => {
+        try {
+            const snippet = typeof raw === 'string' ? raw.slice(0, 800) : (raw ? JSON.stringify(raw).slice(0, 800) : '');
+            console.log(`[GeminiAPI][RAW] ${label}:`, snippet);
+        } catch (e) {
+            console.log(`[GeminiAPI][RAW] ${label}: <unloggable>`);
+        }
+    };
+
+    const datesEqualByMinute = (a, b) => {
+        if (!a || !b) return false;
+        const da = (a instanceof Date) ? a : new Date(a);
+        const db = (b instanceof Date) ? b : new Date(b);
+        if (isNaN(da) || isNaN(db)) return false;
+        return da.getFullYear() === db.getFullYear() &&
+               da.getMonth() === db.getMonth() &&
+               da.getDate() === db.getDate() &&
+               da.getHours() === db.getHours() &&
+               da.getMinutes() === db.getMinutes();
+    };
+
     const ACTION_SPECS = {
         addCategory: { args: ['name'] },
         createTodo: { args: ['text','category','schedule','repeat'] },
@@ -362,7 +412,8 @@ ${convo}
         updateTodoByRecreate: { args: ['find','update'] },
         listTodos: { args: [] },
         listScheduledTodos: { args: ['includeCompleted'] },
-        searchTodoContent: { args: ['query'] }
+        searchTodoContent: { args: ['query'] },
+        listTodosByCategory: { args: ['name','includeCompleted'] }
     };
 
     const validateSchedule = (schedule, path, errors) => {
@@ -458,11 +509,26 @@ ${convo}
                     if (typeof args.update !== 'object' || args.update == null) { errors.push(`${p}.args.update는 object여야 합니다.`); break; }
                     // find
                     for (const k of Object.keys(args.find)) {
-                        if (!['todoId','text','position'].includes(k)) errors.push(`${p}.args.find.${k}는 허용되지 않은 키입니다.`);
+                        if (!['todoId','text','position','category','schedule'].includes(k)) errors.push(`${p}.args.find.${k}는 허용되지 않은 키입니다.`);
                     }
                     if (args.find.todoId != null && typeof args.find.todoId !== 'number') errors.push(`${p}.args.find.todoId는 숫자여야 합니다.`);
                     if (args.find.text != null && typeof args.find.text !== 'string') errors.push(`${p}.args.find.text는 문자열이어야 합니다.`);
                     if (args.find.position != null && !Number.isInteger(args.find.position)) errors.push(`${p}.args.find.position은 정수여야 합니다.`);
+                    if (args.find.category != null && typeof args.find.category !== 'string') errors.push(`${p}.args.find.category는 문자열이어야 합니다.`);
+                    if (args.find.schedule != null) {
+                        if (typeof args.find.schedule !== 'object' || args.find.schedule == null) {
+                            errors.push(`${p}.args.find.schedule은 object여야 합니다.`);
+                } else {
+                            const fsch = args.find.schedule;
+                            const allowed = ['startTime','dueTime'];
+                            for (const k of Object.keys(fsch)) {
+                                if (!allowed.includes(k)) errors.push(`${p}.args.find.schedule.${k}는 허용되지 않은 키입니다.`);
+                            }
+                            const isIso = (s) => typeof s === 'string' && !isNaN(new Date(s));
+                            if (fsch.startTime != null && !isIso(fsch.startTime)) errors.push(`${p}.args.find.schedule.startTime은 ISO 시간 문자열이어야 합니다.`);
+                            if (fsch.dueTime != null && !isIso(fsch.dueTime)) errors.push(`${p}.args.find.schedule.dueTime은 ISO 시간 문자열이어야 합니다.`);
+                        }
+                    }
                     // update
                     for (const k of Object.keys(args.update)) {
                         if (!['text','category','schedule','repeat'].includes(k)) errors.push(`${p}.args.update.${k}는 허용되지 않은 키입니다.`);
@@ -478,11 +544,63 @@ ${convo}
                 case 'searchTodoContent':
                     if (typeof args.query !== 'string') errors.push(`${p}.args.query는 문자열이어야 합니다.`);
                     break;
+                case 'listTodosByCategory':
+                    if (typeof args.name !== 'string' || !args.name.trim()) errors.push(`${p}.args.name은 필수 문자열입니다.`);
+                    if (args.includeCompleted != null && typeof args.includeCompleted !== 'boolean') errors.push(`${p}.args.includeCompleted는 boolean이어야 합니다.`);
+                    break;
                 default:
                     break;
             }
         });
         return { ok: errors.length === 0, errors };
+    };
+
+    const READ_ACTIONS = new Set(['listTodos','listScheduledTodos','searchTodoContent','listTodosByCategory']);
+
+    const summarizeObservationResults = (results) => {
+        try {
+            const compact = results.map(r => ({
+                function: r.function,
+                ok: r.ok,
+                result: Array.isArray(r.result)
+                    ? r.result.slice(0, 50).map(item => ({ id: item.id, text: item.text, category: item.category, startTime: item.startTime || item?.schedule?.startTime || null, dueTime: item.dueTime || item?.schedule?.dueTime || null, repeat: item.repeat || null, completed: item.completed || false }))
+                    : r.result
+            }));
+            return JSON.stringify(compact);
+        } catch {
+            return '[]';
+        }
+    };
+
+    const buildObservationFollowupPrompt = (userInput, context, observationResults, originalActions) => {
+        const nowISO = new Date().toISOString();
+        return `당신은 할 일 관리 앱 어시스턴트입니다. 먼저 관찰 함수 결과를 참고하여, 사용자 의도를 달성하기 위한 최종 actions만 JSON으로 출력하세요. 코드블록/설명 금지.
+
+현재시각: ${nowISO}
+사용자 입력: ${userInput}
+관찰 결과(JSON): ${observationResults}
+원래 계획(JSON): ${JSON.stringify(originalActions || [])}
+
+규칙:
+- 최종 출력은 JSON 하나: { "actions": [...], "message": "...", "success": true }
+- 지원 함수: addCategory, createTodo, deleteTodo, deleteAllTodos, updateTodoByRecreate, listTodos, listScheduledTodos, searchTodoContent, deleteRepeatTodos, deleteCategory, listTodosByCategory
+- 시간은 ISO 문자열, 숫자/불리언 타입 정확히
+`;
+    };
+
+    const buildForcedPlanPrompt = (userInput, context) => {
+        const nowISO = new Date().toISOString();
+        const categories = (context?.categories || []).join(', ');
+        return `역할: 당신은 할 일 관리 앱 어시스턴트입니다.
+요청: "${userInput}"
+규칙:
+- 반드시 유효한 JSON만 출력(코드블록/설명 금지)
+- 모호하거나 대상 확인이 필요하면 list 계열을 먼저 actions[0..n]에 배치하여 관찰하고, 곧바로 position 또는 todoId로 특정한 update/delete 액션을 이어서 작성하세요.
+- 시간은 ISO, 타입 정확히, message에는 요약 결과를 불릿으로 포함
+- 지원 함수: addCategory, createTodo, deleteTodo, deleteAllTodos, updateTodoByRecreate, listTodos, listScheduledTodos, searchTodoContent, deleteRepeatTodos, deleteCategory, listTodosByCategory
+출력(JSON): { "actions": [...], "message": "...", "success": true }
+현재시각: ${nowISO}
+카테고리: ${categories || '없음'}`;
     };
 
     const requestSchemaFix = async (userInput, context, rawOrParsed, errors, attempt = 1) => {
@@ -601,7 +719,7 @@ ${errors.map(e=>`- ${e}`).join('\n')}
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: { temperature: 0.3, topP: 0.9, maxOutputTokens: 1024, response_mime_type: 'application/json' }
+                    generationConfig: { temperature: 0.0, topP: 0.9, maxOutputTokens: 1024, response_mime_type: 'application/json' }
                 })
             });
 
@@ -619,9 +737,52 @@ ${errors.map(e=>`- ${e}`).join('\n')}
             try {
                 parsed = typeof raw === 'string' ? robustParseJson(raw) : JSON.parse(atob(raw || ''));
             } catch (e) {
-                // JSON 파싱 실패: 즉시 스키마 수정 요청(최대 2회) 후 재시도
-                const fixed1 = await requestSchemaFix(userInput, context, raw, ['JSON 파싱 실패: 유효한 JSON만 출력해야 합니다.'], 1);
-                if (!fixed1) return { success: false, error: 'AI 응답이 JSON 형식이 아닙니다.', message: `모델이 JSON을 반환하지 않았습니다. 원문 일부: ${String(raw||'').slice(0,160)}` };
+                // JSON 파싱 실패: 관찰 → 강제 계획 → 스키마 보정 순으로 재시도
+                // 0-a) 관찰 실행 후 관찰 기반 후속 프롬프트로 재유도
+                try {
+                    let readAction = { function: 'listTodos', args: {} };
+                    const wantsAlarms = /알림|알람/.test(userInput);
+                    if (wantsAlarms) readAction = { function: 'listScheduledTodos', args: {} };
+                    const catNames = Array.isArray(context?.categories) ? context.categories : [];
+                    const hitCat = catNames.find(n => n && userInput.includes(n));
+                    if (hitCat) readAction = { function: 'listTodosByCategory', args: { name: hitCat } };
+                    const obs = await runActions([readAction]);
+                    const obsJson = summarizeObservationResults(obs);
+                    const obsPrompt = buildObservationFollowupPrompt(userInput, context, obsJson, []);
+                    const oResp = await fetch(`${API_URL}?key=${apiKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: obsPrompt }] }],
+                            generationConfig: { temperature: 0.0, topP: 0.9, maxOutputTokens: 1024, response_mime_type: 'application/json' }
+                        })
+                    });
+                    if (oResp.ok) {
+                        const oData = await oResp.json();
+                        const oRaw = oData?.candidates?.[0]?.content?.parts?.[0]?.text || oData?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+                        try {
+                            const oParsed = typeof oRaw === 'string' ? robustParseJson(oRaw) : JSON.parse(atob(oRaw || ''));
+                            parsed = oParsed; // 관찰 기반 응답 채택
+                        } catch {}
+                    }
+                } catch {}
+                if (!parsed) {
+                // 0-b) 강제 계획 프롬프트로 재유도
+                const forcePlan = await fetch(`${API_URL}?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: buildForcedPlanPrompt(userInput, context) }] }],
+                        generationConfig: { temperature: 0.1, topP: 0.9, maxOutputTokens: 1024, response_mime_type: 'application/json' }
+                    })
+                }).then(r=>r.ok?r.json():null).catch(()=>null);
+                let fixed1 = null;
+                if (forcePlan) {
+                    const fr = forcePlan?.candidates?.[0]?.content?.parts?.[0]?.text || forcePlan?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+                    try { fixed1 = typeof fr === 'string' ? robustParseJson(fr) : JSON.parse(atob(fr || '')); } catch {}
+                }
+                if (!fixed1) fixed1 = await requestSchemaFix(userInput, context, raw, ['JSON 파싱 실패: 유효한 JSON만 출력해야 합니다.'], 1);
+                if (!fixed1) return { success: false, error: 'AI 응답이 JSON 형식이 아닙니다.', message: `모델이 JSON을 반환하지 않았습니다. 계속하려면 아래 중 하나를 말씀해주세요:\n- "목록 보여줘" (후속 수정에 사용할 대상 확인)\n- "몇 번째 항목을 수정"처럼 position 지정\n- 카테고리/시간을 더 구체적으로 지정 (예: "일반에서 다음주 수요일 09:00 항목을 '이기동 보기'로 수정")\n원문 일부: ${String(raw||'').slice(0,160)}` };
                 let candidate = fixed1;
                 // 1차 결과도 스키마 위반일 수 있으니 즉시 검증
                 const s1 = validateActions(candidate.actions || []);
@@ -632,10 +793,11 @@ ${errors.map(e=>`- ${e}`).join('\n')}
                 if (!s1.ok) s1Errors.push(...s1.errors);
                 if (s1Errors.length > 0) {
                     const fixed2 = await requestSchemaFix(userInput, context, candidate, s1Errors, 2);
-                    if (!fixed2) return { success: false, error: 'AI 응답 스키마 위반', message: `스키마 오류: ${s1Errors.join(', ')}` };
+                    if (!fixed2) return { success: false, error: 'AI 응답 스키마 위반', message: `스키마 오류: ${s1Errors.join(', ')}\n계속하려면:\n- 먼저 "목록 보여줘"로 대상을 확인한 뒤 position을 지정하거나\n- 카테고리/시간을 더 구체적으로 지시해주세요.` };
                     candidate = fixed2;
                 }
                 parsed = candidate;
+                }
             }
 
             // 스키마 검증 (엄격)
@@ -650,31 +812,109 @@ ${errors.map(e=>`- ${e}`).join('\n')}
                 }
                 if (schemaErrs.length > 0) {
                     const fixed = await requestSchemaFix(userInput, context, parsed, schemaErrs, 1);
-                    if (!fixed) return { success: false, error: 'AI 응답 스키마 위반', message: `스키마 오류: ${schemaErrs.join(', ')}` };
+                    if (!fixed) return { success: false, error: 'AI 응답 스키마 위반', message: `스키마 오류: ${schemaErrs.join(', ')}\n계속하려면:\n- "목록 보여줘"로 후보를 확인하고 position으로 지정하거나\n- 정확한 카테고리/시간을 포함해 다시 말씀해주세요.` };
                     parsed = fixed;
                 }
             }
 
-            // 액션 실행 후 사용자 메시지 반환 (함수 기반 고정 스키마)
+            // 액션 실행 전: 의도-액션 불일치 보정 (예: "수정" 의도인데 createTodo 제안)
             let actions = Array.isArray(parsed.actions) ? parsed.actions : [];
+            const intentModify = /수정|바꿔|변경|rename|update/i.test(userInput);
+            const hasCreate = actions.some(a => a.function === 'createTodo');
+            const hasModify = actions.some(a => a.function === 'updateTodoByRecreate' || a.function === 'deleteTodo');
+            if (intentModify && hasCreate && !hasModify) {
+                const mismatchPrompt = `의도-액션 불일치: 사용자 의도는 "수정"인데 createTodo가 포함되어 있습니다. 기존 항목을 찾아 updateTodoByRecreate로 수정하세요. 필요하면 list 계열로 먼저 관찰하고 바로 position/todoId로 특정하세요. JSON만 출력.
+
+원래 사용자 입력: ${userInput}
+기존 액션(JSON): ${JSON.stringify(actions)}`;
+                try {
+                    const mmResp = await fetch(`${API_URL}?key=${apiKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: mismatchPrompt }] }],
+                            generationConfig: { temperature: 0.0, topP: 0.9, maxOutputTokens: 1024, response_mime_type: 'application/json' }
+                        })
+                    });
+                    if (mmResp.ok) {
+                        const mmData = await mmResp.json();
+                        const mmRaw = mmData?.candidates?.[0]?.content?.parts?.[0]?.text || mmData?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+                        try {
+                            const mmParsed = typeof mmRaw === 'string' ? robustParseJson(mmRaw) : JSON.parse(atob(mmRaw || ''));
+                            const mmActs = Array.isArray(mmParsed.actions) ? mmParsed.actions : [];
+                            const vmm = validateActions(mmActs);
+                            if (vmm.ok) actions = mmActs;
+                        } catch {}
+                    }
+                } catch {}
+            }
+
+            // 액션 실행 후 사용자 메시지 반환 (함수 기반 고정 스키마)
             console.groupCollapsed('[GeminiAPI] 실행할 액션들');
             console.table(actions.map(a => ({ function: a.function, args: JSON.stringify(a.args || {}) })));
             console.groupEnd();
             // 모델 주도 원칙에 맞게 로컬 임의 처리 제거
 
-            const execResults = await runActions(actions);
+            // 1차 실행: 관찰(읽기) 액션과 변경(쓰기) 액션을 분리
+            const readActions = actions.filter(a => READ_ACTIONS.has(a.function));
+            const writeActions = actions.filter(a => !READ_ACTIONS.has(a.function));
+
+            const execRead = await runActions(readActions);
+            console.groupCollapsed('[GeminiAPI] 1차(관찰) 실행 결과');
+            console.table(execRead);
+            console.groupEnd();
+
+            let execResults = [];
+            if (writeActions.length === 0 && readActions.length > 0) {
+                // 관찰만 있었던 경우: 관찰 결과를 모델에 전달하여 최종 액션 유도
+                const observationJson = summarizeObservationResults(execRead);
+                const followup = buildObservationFollowupPrompt(userInput, context, observationJson, actions);
+                const fuResp = await fetch(`${API_URL}?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: followup }] }],
+                        generationConfig: { temperature: 0.0, topP: 0.9, maxOutputTokens: 1024, response_mime_type: 'application/json' }
+                    })
+                });
+                if (fuResp.ok) {
+                    const fuData = await fuResp.json();
+                    const fuRaw = fuData?.candidates?.[0]?.content?.parts?.[0]?.text || fuData?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+                    try {
+                        const fuParsed = typeof fuRaw === 'string' ? robustParseJson(fuRaw) : JSON.parse(atob(fuRaw || ''));
+                        const nextActs = Array.isArray(fuParsed.actions) ? fuParsed.actions : [];
+                        execResults = await runActions(nextActs);
+                        // 모델이 관찰 후에도 JSON을 안주거나 스키마 위반할 수 있어 추가 보정
+                        if (!Array.isArray(fuParsed.actions)) {
+                            const fixed = await requestSchemaFix(userInput, context, fuRaw, ['관찰 후 후속 응답이 JSON 스키마를 따르지 않음'], 2);
+                            if (fixed && Array.isArray(fixed.actions)) {
+                                execResults = await runActions(fixed.actions);
+                            }
+                        }
+                    } catch (e) {
+                        console.error('[GeminiAPI] 관찰 후 후속 응답 파싱 실패:', e);
+                        execResults = execRead;
+                    }
+                        } else {
+                    execResults = execRead;
+                }
+                        } else {
+                // 원래 계획대로 먼저 관찰이 있었다면 그다음 쓰기까지 모두 실행
+                const execWrite = await runActions(writeActions);
+                execResults = [...execRead, ...execWrite];
+            }
             console.groupCollapsed('[GeminiAPI] 1차 실행 결과');
             console.table(execResults);
             console.groupEnd();
 
             // 목록 결과를 사람이 읽기 쉬운 문자열로 합성
-            const listResult = execResults.find(r => r.ok && (r.function === 'listScheduledTodos' || r.function === 'listTodos'));
+            const listResult = execResults.find(r => r.ok && (r.function === 'listScheduledTodos' || r.function === 'listTodos' || r.function === 'listTodosByCategory'));
             let listMessage = '';
             if (listResult && Array.isArray(listResult.result)) {
                 const items = listResult.result;
                 if (items.length === 0) {
                     listMessage = '\n(예정된 항목이 없습니다)';
-                    } else {
+                        } else {
                     const lines = items.slice(0, 50).map(item => {
                         const s = item.startTime ? new Date(item.startTime) : (item.schedule?.startTime ? new Date(item.schedule.startTime) : null);
                         const d = item.dueTime ? new Date(item.dueTime) : (item.schedule?.dueTime ? new Date(item.schedule.dueTime) : null);
@@ -697,6 +937,12 @@ ${errors.map(e=>`- ${e}`).join('\n')}
                 console.error('[GeminiAPI] 액션 실행 실패 감지:', failed);
                 const feedbackPrompt = `이전 응답의 액션 중 일부가 실패했습니다. 아래 실패 정보와 원래 사용자 요청, 기존 액션과 최근 대화 일부를 참고하여 올바른 보정 액션 목록만 JSON으로 다시 제시하세요. 추가 설명 없이 JSON만 출력하세요. 실패 원인(예: '해당 텍스트와 일치하는 할 일을 찾지 못함', 'position 참조 누락', '시간 형식 오류')을 정확히 반영해 수정하세요.
 
+필수 시퀀스(수정/삭제 계열):
+1) 먼저 list 계열로 후보를 관찰(listTodos, listScheduledTodos, listTodosByCategory 중 택1)
+2) 관찰 직후 position 또는 todoId로 단일 대상을 특정
+3) 이어서 updateTodoByRecreate 또는 deleteTodo를 실행
+여러 후보가 남으면 actions는 관찰만 포함하고, message로 사용자에게 position을 질문하세요.
+
 원래 사용자 입력: ${userInput}
 실패 정보(JSON): ${JSON.stringify(failed)}
 기존 액션(JSON): ${JSON.stringify(actions)}
@@ -709,7 +955,7 @@ ${errors.map(e=>`- ${e}`).join('\n')}
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         contents: [{ parts: [{ text: feedbackPrompt }] }],
-                        generationConfig: { temperature: 0.2, topP: 0.9, maxOutputTokens: 1024, response_mime_type: 'application/json' }
+                        generationConfig: { temperature: 0.0, topP: 0.9, maxOutputTokens: 1024, response_mime_type: 'application/json' }
                     })
                 });
             if (fbResp.ok) {
@@ -733,7 +979,34 @@ ${errors.map(e=>`- ${e}`).join('\n')}
                         }
                     } catch (e) {
                         console.error('[GeminiAPI] 피드백 응답 파싱 실패:', e);
-                        finalMessage = `${finalMessage}\n(오류 세부: ${failed.map(f=>`${f.function}: ${f.result}`).join(', ')})`;
+                        // 최후 수단: 강제 계획 프롬프트로 한번 더 JSON 유도
+                        try {
+                            const force = await fetch(`${API_URL}?key=${apiKey}`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    contents: [{ parts: [{ text: buildForcedPlanPrompt(userInput, context) }] }],
+                                    generationConfig: { temperature: 0.0, topP: 0.9, maxOutputTokens: 1024, response_mime_type: 'application/json' }
+                    })
+                });
+                            if (force.ok) {
+                                const fd = await force.json();
+                                const fr = fd?.candidates?.[0]?.content?.parts?.[0]?.text || fd?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+                                try {
+                                    const fp = typeof fr === 'string' ? robustParseJson(fr) : JSON.parse(atob(fr || ''));
+                                    const fa = Array.isArray(fp.actions) ? fp.actions : [];
+                                    if (fa.length > 0) {
+                                        const frs = await runActions(fa);
+                                        const anyOk = frs.some(r=>r.ok);
+                                        finalSuccess = finalSuccess || anyOk;
+                                        finalMessage = `${finalMessage}\n오류 보정 경로로 재시도했습니다.` + (fp.message ? `\n${fp.message}` : '');
+                                    }
+                                } catch {}
+                            }
+                        } catch {}
+                        if (!finalMessage.includes('오류 보정 경로')) {
+                            finalMessage = `${finalMessage}\n(오류 세부: ${failed.map(f=>`${f.function}: ${f.result}`).join(', ')})`;
+                        }
                     }
                 } else {
                     console.error('[GeminiAPI] 피드백 요청 실패:', await fbResp.text().catch(() => ''));
