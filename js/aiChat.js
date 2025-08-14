@@ -142,7 +142,10 @@ const aiChat = (() => {
                 addMessage(response.message, 'ai');
                 updateStatus('대화 준비됨');
             } else {
-                addMessage(`오류가 발생했습니다: ${response.error}`, 'ai');
+                const err = response && response.error ? String(response.error) : '';
+                const msg = response && response.message ? String(response.message) : '';
+                const display = err ? `오류가 발생했습니다: ${err}${msg ? `\n${msg}` : ''}` : (msg || '오류가 발생했습니다.');
+                addMessage(display, 'ai');
                 updateStatus('오류 발생', 'error');
             }
         } catch (error) {
@@ -158,13 +161,19 @@ const aiChat = (() => {
     const getContext = () => {
         const todos = todoManager.getTodos();
         const categories = todoManager.getCategories();
+        const recentMessages = messages.slice(-10).map(m => ({
+            sender: m.sender,
+            text: m.text,
+            timestamp: m.timestamp instanceof Date ? m.timestamp.toISOString() : m.timestamp
+        }));
         
         return {
             todos: todos.filter(todo => !todo.completed).slice(0, 10), // 최근 10개 미완료 할 일
             categories: categories.map(cat => cat.name),
             totalTodos: todos.length,
             completedTodos: todos.filter(todo => todo.completed).length,
-            currentTime: new Date().toISOString()
+            currentTime: new Date().toISOString(),
+            conversation: recentMessages
         };
     };
 

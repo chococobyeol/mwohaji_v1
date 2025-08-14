@@ -101,7 +101,7 @@ const serviceWorkerManager = (() => {
             const messageData = {
                 type: 'SCHEDULE_NOTIFICATION',
                 todoId,
-                type,
+                notifType: type,
                 title,
                 message,
                 scheduledTime,
@@ -133,7 +133,7 @@ const serviceWorkerManager = (() => {
             swRegistration.active.postMessage({
                 type: 'CANCEL_NOTIFICATION',
                 todoId,
-                type
+                notifType: type
             });
             console.log(`[SWManager] 알림 취소 요청: ${todoId}-${type}`);
             return true;

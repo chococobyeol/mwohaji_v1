@@ -146,22 +146,25 @@ self.addEventListener('message', (event) => {
     if (event.data.type === 'SCHEDULE_NOTIFICATION' || event.data.type === 'test' || event.data.type === 'start' || event.data.type === 'due' || event.data.type === 'repeat-start' || event.data.type === 'repeat-due') {
         console.log('[SW] 알림 예약 메시지 처리 시작');
         console.log('[SW] 메시지 타입:', event.data.type);
-        const { todoId, type, title, message, scheduledTime, hasSound, todo } = event.data;
-        console.log('[SW] 알림 정보:', { todoId, type, title, message, scheduledTime, hasSound });
+        const { todoId, title, message, scheduledTime, hasSound, todo } = event.data;
+        // notifType(신규) 우선, 없으면 기존 type 사용
+        const notifType = event.data.notifType || event.data.type;
+        console.log('[SW] 알림 정보:', { todoId, notifType, title, message, scheduledTime, hasSound });
         
         // 반복 알림인 경우 todo 객체도 함께 전달받아야 함
-        if (type.startsWith('repeat-')) {
-            scheduleRepeatNotification(todoId, type, title, message, scheduledTime, hasSound, todo);
+        if (notifType && notifType.startsWith('repeat-')) {
+            scheduleRepeatNotification(todoId, notifType, title, message, scheduledTime, hasSound, todo);
         } else {
-            scheduleNotification(todoId, type, title, message, scheduledTime, hasSound);
+            scheduleNotification(todoId, notifType, title, message, scheduledTime, hasSound);
         }
     } else if (event.data.type === 'CANCEL_NOTIFICATION') {
         console.log('[SW] 알림 취소 메시지 처리');
-        const { todoId, type } = event.data;
-        cancelNotification(todoId, type);
+        const { todoId } = event.data;
+        const cancelType = event.data.notifType || event.data.type;
+        cancelNotification(todoId, cancelType);
         // 반복 알림도 함께 취소
-        if (type === 'start' || type === 'due') {
-            cancelNotification(todoId, `repeat-${type}`);
+        if (cancelType === 'start' || cancelType === 'due') {
+            cancelNotification(todoId, `repeat-${cancelType}`);
         }
     } else if (event.data.type === 'CANCEL_ALL_NOTIFICATIONS') {
         console.log('[SW] 모든 알림 취소 메시지 처리');

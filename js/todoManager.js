@@ -105,6 +105,7 @@ const todoManager = (() => {
         };
         categories.push(newCategory);
         storage.saveCategories(categories);
+        triggerChange();
         return newCategory;
     };
 

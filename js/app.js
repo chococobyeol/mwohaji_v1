@@ -762,7 +762,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeCategoryOrderModal = () => {
         categoryOrderModal.style.display = 'none';
         originalCategoryOrder = [];
-        draggedElement = null;
+        // 드래그 종료 시 참조 초기화
+        draggedItem = null;
     };
 
     const renderCategoryOrderList = () => {
@@ -3260,9 +3261,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     init();
     
-    // 전역으로 renderTodos 함수 노출 (notificationScheduler에서 UI 업데이트를 위해)
+    // 전역으로 렌더 함수 노출 (외부 모듈에서 UI 업데이트를 위해)
     window.app = {
         renderTodos: renderTodos,
+        renderCategories: () => { renderCategorySelector(); renderCategoryList(); },
         
         // Service Worker 알림 처리 함수들
         handleNotificationShown: (data) => {

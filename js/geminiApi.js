@@ -1,1400 +1,755 @@
 const geminiApi = (() => {
     let apiKey = null;
-    let conversationHistory = []; // 대화 히스토리 추가
-    
-    // 2025년 최신 Gemini API 모델들
-    const MODELS = [
-        'gemini-1.5-flash',
-        'gemini-1.5-pro', 
-        'gemini-1.0-pro',
-        'gemini-pro'
-    ];
-    
-    let currentModelIndex = 0;
-    
-    const getCurrentModel = () => {
-        return `https://generativelanguage.googleapis.com/v1beta/models/${MODELS[currentModelIndex]}:generateContent`;
-    };
+    const MODEL = 'gemini-2.5-flash';
+    const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 
-    // 대화 히스토리 관리
-    const addToHistory = (role, content) => {
-        conversationHistory.push({
-            role: role, // 'user' 또는 'assistant'
-            content: content,
-            timestamp: new Date().toISOString()
-        });
-        
-        // 히스토리가 너무 길어지면 오래된 것부터 제거 (최대 10개)
-        if (conversationHistory.length > 10) {
-            conversationHistory = conversationHistory.slice(-10);
-        }
-    };
+    // 최근 목록 캐시 (동일 요청 내에서 순번 참조용)
+    let recentListed = [];
 
-    const getConversationContext = () => {
-        return conversationHistory.map(msg => `${msg.role}: ${msg.content}`).join('\n');
-    };
+    // 스케줄 입력 정규화
+    const normalizeSchedule = (raw) => {
+        if (!raw || typeof raw !== 'object') return null;
+        const out = {};
+        const now = new Date();
+        const pick = (...keys) => keys.find(k => Object.prototype.hasOwnProperty.call(raw, k));
 
-    const clearHistory = () => {
-        conversationHistory = [];
-    };
+        const startKey = pick('startTime','start_time','startAt','scheduleTime');
+        const dueKey = pick('dueTime','due_time','dueAt');
 
-    // API 키 설정 및 유효성 검증
-    const setApiKey = async (key) => {
-        apiKey = key;
-        
-        // API 키가 설정된 경우 유효성 검증
-        if (key && key !== 'test') {
-            try {
-                console.log('[GeminiAPI] API 키 유효성 검증 시작');
-                const testContext = {
-                    todos: [],
-                    categories: [],
-                    currentTime: new Date().toISOString()
-                };
-                
-                // 간단한 테스트 요청으로 API 키 유효성 확인
-                const response = await fetch(`${getCurrentModel()}?key=${key}`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        contents: [{
-                            parts: [{
-                                text: 'Hello'
-                            }]
-                        }],
-                        generationConfig: {
-                            maxOutputTokens: 10,
-                        }
-                    })
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    console.error('[GeminiAPI] API 키 검증 실패:', errorData);
-                    apiKey = null;
-                    throw new Error(`API 키가 유효하지 않습니다: ${errorData.error?.message || response.statusText}`);
-                }
-
-                console.log('[GeminiAPI] API 키 유효성 검증 성공');
-            } catch (error) {
-                console.error('[GeminiAPI] API 키 검증 중 오류:', error);
-                apiKey = null;
-                throw error;
+        const toDate = (val) => {
+            if (val == null) return null;
+            if (val instanceof Date) return val;
+            if (typeof val === 'number' && isFinite(val)) {
+                return new Date(now.getTime() + val * 60 * 1000);
             }
+            if (typeof val === 'string') {
+                const m = val.trim().toLowerCase();
+                // "+10m" 또는 "10m" 형태
+                const mm = m.match(/^\+?(\d+)m(in)?$/);
+                if (mm) {
+                    const mins = parseInt(mm[1],10);
+                    return new Date(now.getTime() + mins * 60 * 1000);
+                }
+                const asDate = new Date(val);
+                if (!isNaN(asDate)) return asDate;
+            }
+            return null;
+        };
+
+        const sVal = startKey ? raw[startKey] : undefined;
+        const dVal = dueKey ? raw[dueKey] : undefined;
+        const offKey = pick('timeOffset','time_offset','offsetMinutes','minutes','minutesFromNow');
+        if (!sVal && !dVal && offKey) {
+            const mins = Number(raw[offKey]);
+            if (!isNaN(mins) && mins > 0) out.startTime = new Date(now.getTime() + mins * 60 * 1000);
+        }
+        const sDate = toDate(sVal);
+        const dDate = toDate(dVal);
+        if (sDate) out.startTime = sDate;
+        if (dDate) out.dueTime = dDate;
+
+        // 옵션 플래그
+        const pickBool = (a,b, def) => (raw[a] ?? raw[b] ?? def);
+        if ('startModal' in raw || 'start_modal' in raw) out.startModal = pickBool('startModal','start_modal', true);
+        if ('startNotification' in raw || 'start_notification' in raw) out.startNotification = pickBool('startNotification','start_notification', true);
+        if ('dueModal' in raw || 'due_modal' in raw) out.dueModal = pickBool('dueModal','due_modal', true);
+        if ('dueNotification' in raw || 'due_notification' in raw) out.dueNotification = pickBool('dueNotification','due_notification', true);
+
+        return Object.keys(out).length ? out : null;
+    };
+
+    // 액션 구현체: 사용자 요구를 직접 실행하는 간단한 함수 집합
+    const actionsImpl = {
+        addCategory: ({ name }) => {
+            if (!name || !name.trim()) return { ok: false, result: '카테고리 이름이 필요합니다.' };
+            const created = todoManager.addCategory(name.trim());
+            if (created) {
+                if (window.app && window.app.renderCategories) window.app.renderCategories();
+                return { ok: true, result: `카테고리 "${created.name}" 추가` };
+            }
+            return { ok: false, result: '카테고리 추가 실패(중복 등)' };
+        },
+
+        createTodo: ({ text, category, schedule, repeat }) => {
+            if (!text || !text.trim()) return { ok: false, result: '할 일 내용이 필요합니다.' };
+            // 카테고리 확인/생성
+            let categoryId = 'default';
+            if (category && category.trim()) {
+                const existing = todoManager.getCategories().find(c => c.name === category.trim());
+                if (existing) {
+                    categoryId = existing.id;
+                } else {
+                    const newCat = todoManager.addCategory(category.trim());
+                    if (newCat) categoryId = newCat.id;
+                }
+            }
+
+            // 반복 설정 정규화
+            let normalizedRepeat = null;
+            if (repeat && typeof repeat === 'object') {
+                normalizedRepeat = { ...repeat };
+                if (normalizedRepeat.type === 'interval') {
+                    const n = Number(normalizedRepeat.interval);
+                    normalizedRepeat.interval = !isNaN(n) && n > 0 ? n : 30;
+                }
+            }
+
+            const newTodo = todoManager.addTodo(text.trim(), categoryId, normalizedRepeat);
+            if (!newTodo) return { ok: false, result: '할 일 생성 실패' };
+
+            // 일정 설정 (유연한 키 정규화)
+            if (schedule && typeof schedule === 'object') {
+                const scheduleData = normalizeSchedule(schedule);
+                if (scheduleData) {
+                    todoManager.updateTodoSchedule(newTodo.id, scheduleData);
+                }
+            }
+                    
+                    if (window.notificationScheduler) {
+                        window.notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
+                    }
+            if (window.app && window.app.renderTodos) window.app.renderTodos();
+            if (window.app && window.app.renderCategories) window.app.renderCategories();
+            return { ok: true, result: `"${newTodo.text}" 생성` };
+        },
+
+        deleteTodo: ({ todoId, text, position }) => {
+            const todos = todoManager.getTodos();
+            let target = null;
+            if (todoId != null) target = todos.find(t => t.id == todoId);
+            // 순번 기반 참조(동일 요청 내 선행 list 액션 필요)
+            if (!target && position != null) {
+                const idx = Number(position) - 1;
+                if (recentListed && recentListed[idx]) {
+                    target = todos.find(t => t.id == recentListed[idx].id);
+                    if (!target) return { ok: false, result: 'position 참조 실패: 목록과 데이터가 일치하지 않습니다.' };
+                } else {
+                    return { ok: false, result: 'position 참조를 위해 선행 list 액션이 필요합니다.' };
+                }
+            }
+            if (!target && text) target = todos.find(t => t.text.includes(text));
+            if (!target) return { ok: false, result: '삭제할 할 일을 찾지 못했습니다.' };
+            todoManager.deleteTodo(target.id);
+            if (window.app && window.app.renderTodos) window.app.renderTodos();
+            return { ok: true, result: `"${target.text}" 삭제` };
+        },
+
+        deleteAllTodos: () => {
+            try {
+                const all = todoManager.getTodos();
+                const completedRepeat = (todoManager.getCompletedRepeatTodos && todoManager.getCompletedRepeatTodos()) || [];
+                const completedIds = new Set(completedRepeat.map(t => t.id));
+                let count = 0;
+                all.forEach(t => {
+                    if (completedIds.has(t.id)) {
+                        todoManager.deleteCompletedRepeatTodo(t.id);
+                        count++;
+                    } else {
+                        todoManager.deleteTodo(t.id);
+                        count++;
+                    }
+                });
+                if (window.app && window.app.renderTodos) window.app.renderTodos();
+                return { ok: true, result: `${count}개 삭제` };
+            } catch (e) {
+                return { ok: false, result: e?.message || '전체 삭제 실패' };
+            }
+        },
+
+        // 반복 알림(완료 기록 포함) 일괄 삭제
+        deleteRepeatTodos: ({ includeCompleted = true } = {}) => {
+            try {
+                const all = todoManager.getTodos();
+                let count = 0;
+                all.forEach(t => {
+                    // 반복 여부는 t.repeat 존재로 판정
+                    if (t.repeat) {
+                        if (t.completed) {
+                            // 완료된 반복 항목(기록) 삭제
+                            if (todoManager.deleteCompletedRepeatTodo) {
+                                todoManager.deleteCompletedRepeatTodo(t.id);
+                                count++;
+                    }
+                } else {
+                            // 진행중 반복 할 일 삭제
+                            todoManager.deleteTodo(t.id);
+                            count++;
+                        }
+                    }
+                });
+                if (!includeCompleted) {
+                    // 이미 위 루프에서 completed도 삭제했으므로, 옵션을 반영하려면 completed를 유지해야 함
+                    // 간단히: includeCompleted=false면 완료 기록은 복원 불가하므로, 앞으로의 호출에서만 사용 권장
+                }
+                if (window.app && window.app.renderTodos) window.app.renderTodos();
+                return { ok: true, result: `${count}개 반복 알림 삭제` };
+            } catch (e) {
+                return { ok: false, result: e?.message || '반복 알림 삭제 실패' };
+            }
+        },
+
+        // 카테고리 삭제: behavior에 따라 처리
+        // behavior: 'keepTodos' | 'deleteTodos' | 'moveTo'
+        deleteCategory: ({ name, behavior = 'keepTodos', targetCategoryName }) => {
+            const cats = todoManager.getCategories();
+            const cat = cats.find(c => c.name === name);
+            if (!cat) return { ok: false, result: '카테고리를 찾지 못했습니다.' };
+            try {
+                if (behavior === 'deleteTodos') {
+                    todoManager.deleteCategoryAndTodos(cat.id);
+                } else if (behavior === 'moveTo') {
+                    if (!targetCategoryName || !targetCategoryName.trim()) {
+                        return { ok: false, result: 'targetCategoryName이 필요합니다.' };
+                    }
+                    todoManager.deleteCategoryAndMoveTodos(cat.id, targetCategoryName.trim());
+                } else {
+                    // keepTodos: 삭제 후 해당 할 일은 '일반'으로
+                    todoManager.deleteCategory(cat.id);
+                }
+                if (window.app && window.app.renderTodos) window.app.renderTodos();
+                if (window.app && window.app.renderCategories) window.app.renderCategories();
+                return { ok: true, result: `카테고리 "${name}" 삭제 (${behavior})` };
+            } catch (e) {
+                return { ok: false, result: e?.message || '카테고리 삭제 실패' };
+            }
+        },
+
+        updateTodoByRecreate: ({ find, update }) => {
+            const todos = todoManager.getTodos();
+            let target = null;
+            if (find?.todoId != null) target = todos.find(t => t.id == find.todoId);
+            // 순번 기반 참조(동일 요청 내 선행 list 액션 필요)
+            if (!target && find?.position != null) {
+                const idx = Number(find.position) - 1;
+                if (recentListed && recentListed[idx]) {
+                    target = todos.find(t => t.id == recentListed[idx].id);
+                    if (!target) return { ok: false, result: 'position 참조 실패: 목록과 데이터가 일치하지 않습니다.' };
+                } else {
+                    return { ok: false, result: 'position 참조를 위해 선행 list 액션이 필요합니다.' };
+                }
+            }
+            if (!target && find?.text) target = todos.find(t => t.text.includes(find.text));
+            if (!target) return { ok: false, result: '수정할 할 일을 찾지 못했습니다.' };
+
+            // 스케줄 정규화
+            const normalizedSchedule = normalizeSchedule(update?.schedule) || {
+                startTime: target.schedule?.startTime || null,
+                dueTime: target.schedule?.dueTime || null,
+                startModal: target.schedule?.startModal !== false,
+                startNotification: !!target.schedule?.startNotification,
+                dueModal: target.schedule?.dueModal !== false,
+                dueNotification: !!target.schedule?.dueNotification
+            };
+
+            const next = {
+                text: update?.text || target.text,
+                category: update?.category || target.category,
+                schedule: normalizedSchedule,
+                repeat: update?.repeat || target.repeat || null
+            };
+
+            todoManager.deleteTodo(target.id);
+            const created = actionsImpl.createTodo(next);
+            if (!created.ok) return { ok: false, result: `수정 실패: ${created.result}` };
+            return { ok: true, result: `"${target.text}" → "${next.text}" 수정` };
+        },
+
+        listTodos: () => {
+            const todos = todoManager.getTodos();
+            return { ok: true, result: todos.map(t => ({
+                id: t.id,
+                text: t.text,
+                category: t.category,
+                schedule: {
+                    startTime: t.schedule?.startTime || null,
+                    dueTime: t.schedule?.dueTime || null
+                },
+                repeat: t.repeat || null,
+                completed: !!t.completed
+            })) };
+        },
+
+        listScheduledTodos: ({ includeCompleted = false } = {}) => {
+            const all = todoManager.getTodos();
+            const scheduled = all.filter(t => (includeCompleted || !t.completed) && (t.schedule?.startTime || t.schedule?.dueTime));
+            return { ok: true, result: scheduled.map(t => ({
+                id: t.id,
+                text: t.text,
+                category: t.category,
+                startTime: t.schedule?.startTime || null,
+                dueTime: t.schedule?.dueTime || null,
+                repeat: t.repeat || null
+            })) };
+        },
+
+        searchTodoContent: ({ query }) => {
+            const todos = todoManager.getTodos().filter(t => t.text.includes(query || ''));
+            return { ok: true, result: todos.map(t => ({ id: t.id, text: t.text })) };
         }
     };
 
-    // API 키 초기화
-    const clearApiKey = () => {
-        apiKey = null;
-    };
+    // 프롬프트 구성: 함수 호출 목록(actions) + 대화 메시지(message)
+    const buildPrompt = (userInput, context) => {
+        const nowISO = new Date().toISOString();
+        const categories = (context?.categories || []).join(', ');
+        const todosBrief = (context?.todos || [])
+            .map(t => `- ${t.text} [${t.category}]${t.schedule?.startTime ? ` 시작:${new Date(t.schedule.startTime).toLocaleString('ko-KR')}` : ''}${t.schedule?.dueTime ? ` 마감:${new Date(t.schedule.dueTime).toLocaleString('ko-KR')}` : ''}`)
+            .slice(0, 15)
+            .join('\n');
+        const convo = Array.isArray(context?.conversation) && context.conversation.length
+            ? `이전 대화(최신 10개):\n${context.conversation.map(m => `${m.sender}: ${m.text}`).join('\n')}`
+            : '';
 
-    // 프롬프트 생성
-    const createPrompt = (userInput, context) => {
-        const conversationContext = getConversationContext();
-        
-        return `당신은 할 일 관리 앱의 AI 어시스턴트입니다. 사용자의 자연어 입력을 분석하여 할 일 관리 작업을 수행하도록 도와주세요.
+        return `역할: 당신은 할 일 관리 앱 어시스턴트입니다. 자연어 명령을 분석해 "함수 호출 목록(actions)"을 생성하고, 사용자에게 보여줄 한국어 메시지(message)도 함께 제공합니다.
 
-현재 앱 상태:
-- 할 일 목록: ${context.todos.length}개 (미완료: ${context.todos.filter(t => !t.completed).length}개)
-- 카테고리: ${context.categories.join(', ') || '없음'}
-- 현재 시간: ${new Date(context.currentTime).toLocaleString('ko-KR')}
+중요 규칙:
+- 시간은 반드시 ISO 8601 로컬 시간 문자열(예: 2025-08-13T17:00:00)로 출력
+- 반복 간격(interval)은 분 단위 정수
+- 반드시 유효한 JSON만 출력하고, 코드블록(백틱)과 추가 설명/머릿말/꼬릿말은 절대 포함하지 말 것
+- 지원 함수 목록과 시그니처:
+  1) addCategory({ name })
+  2) createTodo({ text, category?, schedule?, repeat? })
+     - schedule: { startTime?, dueTime?, startModal?, startNotification?, dueModal?, dueNotification? }
+     - repeat: { type: 'interval'|'daily'|'weekly'|'monthly', interval?, limit?, days?, dates? }
+       3) deleteTodo({ todoId?, text?, position? })
+      4) deleteAllTodos()
+  5) updateTodoByRecreate({ find: { todoId?, text? }, update: { text?, category?, schedule?, repeat? } })
+         6) listTodos()
+         7) listScheduledTodos({ includeCompleted? })
+         8) searchTodoContent({ query })
+         9) deleteRepeatTodos({ includeCompleted? })
+         10) deleteCategory({ name, behavior?, targetCategoryName? })
 
-${context.todos.length > 0 ? `현재 할 일 목록:
-${context.todos.map((todo, index) => {
-    const scheduleInfo = todo.schedule ? 
-        (todo.schedule.startTime ? ` (시작: ${new Date(todo.schedule.startTime).toLocaleString('ko-KR')})` :
-         todo.schedule.dueTime ? ` (마감: ${new Date(todo.schedule.dueTime).toLocaleString('ko-KR')})` : '') : '';
-    return `${index + 1}. "${todo.text}" - ${todo.category}${scheduleInfo}${todo.completed ? ' (완료)' : ''}`;
-}).join('\n')}` : '현재 설정된 할 일이 없습니다.'}
+출력 형식(JSON만):
+{
+  "actions": [ { "function": "createTodo", "args": { ... } }, ... ],
+  "message": "사용자에게 보여줄 한국어 문장",
+  "success": true
+}
 
-${conversationContext ? `이전 대화 내용:
-${conversationContext}
+앱 상태:
+- 현재시각: ${nowISO}
+- 카테고리: ${categories || '없음'}
+- 미완료 할 일 미리보기:\n${todosBrief || '없음'}
 
-위 대화 내용을 참고하여 맥락을 이해하고 응답해주세요.` : ''}
-
-앱의 주요 기능:
-1. 할 일 관리: 할 일 추가, 수정, 삭제, 완료 처리
-2. 카테고리 관리: 카테고리 추가, 수정, 삭제 (없는 카테고리는 자동 생성)
-3. 일정 설정: 시작 시간, 마감 시간 설정
-4. 알림 기능: 설정된 시간에 모달 알림과 소리 알림
-5. 반복 기능: 매일, 매주, 매월 반복 설정
-
-시간 해석 규칙 (매우 중요):
-- "1시", "2시" 등은 기본적으로 오전(AM)으로 해석
-- "오후 1시", "PM 1시", "13시" 등은 오후(PM)로 해석
-- "내일 1시" = 내일 오전 1시 (01:00)
-- "내일 오후 1시" = 내일 오후 1시 (13:00)
-- "오늘 3시" = 오늘 오전 3시 (03:00)
-- "오늘 오후 3시" = 오늘 오후 3시 (15:00)
-
-알림 타입 구분:
-- 시작 알림 (startTime): "지금 시작하라", "X분 후에 시작", "지금 알림" → 시작 알림
-- 마감 알림 (dueTime): "X시까지", "마감", "기한", "데드라인" → 마감 알림
-
-사용 가능한 작업:
-1. 할 일 추가: "할 일 추가: [내용] [카테고리]" (카테고리가 없으면 자동 생성)
-2. 알림 설정: "알림 설정: [시간]" 또는 "X분 후 알림"
-3. 알림 수정: "기존 알림을 [새시간]으로 수정" 또는 "오후 3시 알림을 오전 3시로 수정"
-4. 카테고리 관리: "카테고리 추가/수정/삭제"
-5. 할 일 완료/삭제: "할 일 완료/삭제: [할일ID]"
-6. 할 일 카테고리 변경: "할 일 카테고리 변경: [할일ID] [새카테고리]" (카테고리가 없으면 자동 생성)
-7. 정보 조회: "할 일 목록 보기", "카테고리별 할 일 보기"
+${convo}
 
 사용자 입력: "${userInput}"
 
-다음 JSON 형식으로만 응답해주세요 (코드 블록 없이, 순수 JSON만):
-
-{
-    "action": "명령 타입 (ADD_TODO, SET_SCHEDULE, ADD_CATEGORY, COMPLETE_TODO, DELETE_TODO, SHOW_INFO, CHAT)",
-    "data": {
-        // 명령에 필요한 데이터
-        // SET_SCHEDULE의 경우: {"scheduleTime": "2025-07-28T01:00:00", "text": "알림 내용"}
-        // ADD_TODO의 경우: {"text": "할 일 내용", "categoryId": "카테고리ID"}
-        // UPDATE_TODO_CATEGORY의 경우: {"todoId": 할일ID, "newCategory": "새카테고리명"}
-    },
-    "message": "사용자에게 보여줄 친근한 메시지",
-    "success": true/false
-}
-
-만약 명령을 실행할 수 없다면 action을 "CHAT"으로 하고 친근하게 대화해주세요.
-
-예시 응답:
-- "오늘 3시에 회의 준비 알림 설정" → ADD_TODO + SET_SCHEDULE (오전 3시)
-- "업무 카테고리에 보고서 작성 추가" → ADD_TODO
-- "새 카테고리 만들기: 건강관리" → ADD_CATEGORY
-- "설거지 카테고리를 업무로 변경" → UPDATE_TODO_CATEGORY
-- "2분후에 알림 추가해줘" → SET_SCHEDULE {"timeOffset": 2, "text": "알림"}
-- "5분 후 알림" → SET_SCHEDULE {"timeOffset": 5, "text": "알림"}
-- "내일 1시에 알림" → SET_SCHEDULE {"scheduleTime": "2025-07-28T01:00:00", "text": "알림"} (오전 1시)
-- "내일 오후 1시에 알림" → SET_SCHEDULE {"scheduleTime": "2025-07-28T13:00:00", "text": "알림"} (오후 1시)
-- "오후 3시 알림을 오전 3시로 수정" → UPDATE_SCHEDULE {"oldTime": "15:00", "newTime": "03:00", "text": "알림"}
-- "할 일 삭제" → DELETE_TODO {"todoId": "할일ID"}
-- "전부 다 삭제" → DELETE_TODO {"deleteAll": true}
-- "특정 할 일들 삭제" → DELETE_TODO {"todoIds": ["할일ID1", "할일ID2"]}
-
-중요: 반드시 유효한 JSON 형식으로만 응답하세요. 코드 블록이나 추가 텍스트 없이 JSON만 보내주세요.`;
+예시:
+- "5시에 알람 추가해줘" ⇒ { actions: [{ function: "createTodo", args: { text: "알림", schedule: { startTime: "2025-08-13T17:00:00" } }}], message: "오늘 17:00에 시작 알림을 추가했어요.", success: true }
+- "매 10분마다 5회 반복 알림" ⇒ { actions: [{ function: "createTodo", args: { text: "알림", repeat: { type: "interval", interval: 10, limit: 5 }}}], message: "10분 간격으로 5회 반복 알림을 만들었어요.", success: true }`;
     };
 
-    // API 호출
+    const robustParseJson = (text) => {
+        if (!text) throw new Error('빈 응답');
+        const fenced = text.replace(/```json\s*([\s\S]*?)```/i, '$1');
+        const match = fenced.match(/\{[\s\S]*\}/);
+        if (!match) throw new Error('JSON 블록을 찾지 못함');
+        const cleaned = match[0]
+            .replace(/[\u2018\u2019]/g, "'")
+            .replace(/[\u201C\u201D]/g, '"');
+        return JSON.parse(cleaned);
+    };
+
+    const ACTION_SPECS = {
+        addCategory: { args: ['name'] },
+        createTodo: { args: ['text','category','schedule','repeat'] },
+        deleteTodo: { args: ['todoId','text','position'] },
+        deleteAllTodos: { args: [] },
+        deleteRepeatTodos: { args: ['includeCompleted'] },
+        deleteCategory: { args: ['name','behavior','targetCategoryName'] },
+        updateTodoByRecreate: { args: ['find','update'] },
+        listTodos: { args: [] },
+        listScheduledTodos: { args: ['includeCompleted'] },
+        searchTodoContent: { args: ['query'] }
+    };
+
+    const validateSchedule = (schedule, path, errors) => {
+        const allowed = ['startTime','dueTime','startModal','startNotification','dueModal','dueNotification'];
+        if (typeof schedule !== 'object' || schedule === null) {
+            errors.push(`${path}는 object 여야 합니다.`);
+            return;
+        }
+        for (const k of Object.keys(schedule)) {
+            if (!allowed.includes(k)) errors.push(`${path}.${k}는 허용되지 않은 키입니다.`);
+        }
+        const isIso = (s) => typeof s === 'string' && !isNaN(new Date(s));
+        if (schedule.startTime != null && !isIso(schedule.startTime)) errors.push(`${path}.startTime은 ISO 시간 문자열이어야 합니다.`);
+        if (schedule.dueTime != null && !isIso(schedule.dueTime)) errors.push(`${path}.dueTime은 ISO 시간 문자열이어야 합니다.`);
+        const bools = ['startModal','startNotification','dueModal','dueNotification'];
+        for (const b of bools) {
+            if (schedule[b] != null && typeof schedule[b] !== 'boolean') errors.push(`${path}.${b}는 boolean 이어야 합니다.`);
+        }
+    };
+
+    const validateRepeat = (repeat, path, errors) => {
+        const allowed = ['type','interval','limit','days','dates'];
+        if (typeof repeat !== 'object' || repeat === null) {
+            errors.push(`${path}는 object 여야 합니다.`);
+            return;
+        }
+        for (const k of Object.keys(repeat)) {
+            if (!allowed.includes(k)) errors.push(`${path}.${k}는 허용되지 않은 키입니다.`);
+        }
+        const types = ['interval','daily','weekly','monthly'];
+        if (repeat.type != null && !types.includes(repeat.type)) errors.push(`${path}.type은 ${types.join('|')} 중 하나여야 합니다.`);
+        if (repeat.interval != null && (!Number.isInteger(repeat.interval) || repeat.interval <= 0)) errors.push(`${path}.interval은 양의 정수(분)이어야 합니다.`);
+        if (repeat.limit != null && (!Number.isInteger(repeat.limit) || repeat.limit <= 0)) errors.push(`${path}.limit은 양의 정수여야 합니다.`);
+        if (repeat.days != null && !Array.isArray(repeat.days)) errors.push(`${path}.days는 배열이어야 합니다.`);
+        if (repeat.dates != null && !Array.isArray(repeat.dates)) errors.push(`${path}.dates는 배열이어야 합니다.`);
+    };
+
+    const validateActions = (actions) => {
+        const errors = [];
+        if (!Array.isArray(actions)) {
+            return { ok: false, errors: ['actions는 배열이어야 합니다.'] };
+        }
+        actions.forEach((act, idx) => {
+            const p = `actions[${idx}]`;
+            if (!act || typeof act !== 'object') {
+                errors.push(`${p}는 object 여야 합니다.`);
+                return;
+            }
+            if (typeof act.function !== 'string') {
+                errors.push(`${p}.function은 문자열이어야 합니다.`);
+                return;
+            }
+            const spec = ACTION_SPECS[act.function];
+            if (!spec) {
+                errors.push(`${p}.function '${act.function}'는 허용되지 않습니다.`);
+                return;
+            }
+            const args = act.args ?? {};
+            if (typeof args !== 'object') {
+                errors.push(`${p}.args는 object 여야 합니다.`);
+                return;
+            }
+            // 추가 키 금지
+            for (const k of Object.keys(args)) {
+                if (!spec.args.includes(k)) errors.push(`${p}.args.${k}는 허용되지 않은 키입니다.`);
+            }
+            // 필드별 간단 타입 검증
+            switch (act.function) {
+                case 'addCategory':
+                    if (args.name != null && typeof args.name !== 'string') errors.push(`${p}.args.name은 문자열이어야 합니다.`);
+                    break;
+                case 'createTodo':
+                    if (typeof args.text !== 'string') errors.push(`${p}.args.text는 필수 문자열입니다.`);
+                    if (args.category != null && typeof args.category !== 'string') errors.push(`${p}.args.category는 문자열이어야 합니다.`);
+                    if (args.schedule != null) validateSchedule(args.schedule, `${p}.args.schedule`, errors);
+                    if (args.repeat != null) validateRepeat(args.repeat, `${p}.args.repeat`, errors);
+                    break;
+                case 'deleteRepeatTodos':
+                    if (args.includeCompleted != null && typeof args.includeCompleted !== 'boolean') errors.push(`${p}.args.includeCompleted는 boolean이어야 합니다.`);
+                    break;
+                case 'deleteCategory':
+                    if (typeof args.name !== 'string' || !args.name.trim()) errors.push(`${p}.args.name은 필수 문자열입니다.`);
+                    if (args.behavior != null && !['keepTodos','deleteTodos','moveTo'].includes(args.behavior)) errors.push(`${p}.args.behavior는 keepTodos|deleteTodos|moveTo 중 하나여야 합니다.`);
+                    if (args.behavior === 'moveTo' && (typeof args.targetCategoryName !== 'string' || !args.targetCategoryName.trim())) errors.push(`${p}.args.targetCategoryName은 behavior가 moveTo일 때 필수 문자열입니다.`);
+                    break;
+                case 'deleteTodo':
+                    if (args.todoId != null && typeof args.todoId !== 'number') errors.push(`${p}.args.todoId는 숫자여야 합니다.`);
+                    if (args.text != null && typeof args.text !== 'string') errors.push(`${p}.args.text는 문자열이어야 합니다.`);
+                    if (args.position != null && !Number.isInteger(args.position)) errors.push(`${p}.args.position은 정수여야 합니다.`);
+                    break;
+                case 'updateTodoByRecreate':
+                    if (typeof args.find !== 'object' || args.find == null) { errors.push(`${p}.args.find는 object여야 합니다.`); break; }
+                    if (typeof args.update !== 'object' || args.update == null) { errors.push(`${p}.args.update는 object여야 합니다.`); break; }
+                    // find
+                    for (const k of Object.keys(args.find)) {
+                        if (!['todoId','text','position'].includes(k)) errors.push(`${p}.args.find.${k}는 허용되지 않은 키입니다.`);
+                    }
+                    if (args.find.todoId != null && typeof args.find.todoId !== 'number') errors.push(`${p}.args.find.todoId는 숫자여야 합니다.`);
+                    if (args.find.text != null && typeof args.find.text !== 'string') errors.push(`${p}.args.find.text는 문자열이어야 합니다.`);
+                    if (args.find.position != null && !Number.isInteger(args.find.position)) errors.push(`${p}.args.find.position은 정수여야 합니다.`);
+                    // update
+                    for (const k of Object.keys(args.update)) {
+                        if (!['text','category','schedule','repeat'].includes(k)) errors.push(`${p}.args.update.${k}는 허용되지 않은 키입니다.`);
+                    }
+                    if (args.update.text != null && typeof args.update.text !== 'string') errors.push(`${p}.args.update.text는 문자열이어야 합니다.`);
+                    if (args.update.category != null && typeof args.update.category !== 'string') errors.push(`${p}.args.update.category는 문자열이어야 합니다.`);
+                    if (args.update.schedule != null) validateSchedule(args.update.schedule, `${p}.args.update.schedule`, errors);
+                    if (args.update.repeat != null) validateRepeat(args.update.repeat, `${p}.args.update.repeat`, errors);
+                    break;
+                case 'listScheduledTodos':
+                    if (args.includeCompleted != null && typeof args.includeCompleted !== 'boolean') errors.push(`${p}.args.includeCompleted는 boolean이어야 합니다.`);
+                    break;
+                case 'searchTodoContent':
+                    if (typeof args.query !== 'string') errors.push(`${p}.args.query는 문자열이어야 합니다.`);
+                    break;
+                default:
+                    break;
+            }
+        });
+        return { ok: errors.length === 0, errors };
+    };
+
+    const requestSchemaFix = async (userInput, context, rawOrParsed, errors, attempt = 1) => {
+        const convo = Array.isArray(context?.conversation) ? context.conversation.slice(-5) : [];
+        const todosPreview = (context?.todos || []).slice(0, 10).map(t => ({
+            id: t.id, text: t.text, category: t.category,
+            startTime: t.schedule?.startTime || null,
+            dueTime: t.schedule?.dueTime || null
+        }));
+        const advice = `이전 응답이 스키마를 위반했습니다. 아래 오류를 모두 수정하여 JSON만 다시 출력하세요. 추가 텍스트 금지.
+
+스키마 오류:
+${errors.map(e=>`- ${e}`).join('\n')}
+
+지원 함수와 정확한 키는 다음과 같습니다:
+- addCategory({ name })
+- createTodo({ text, category?, schedule?, repeat? })
+  schedule: { startTime?, dueTime?, startModal?, startNotification?, dueModal?, dueNotification? }
+  repeat: { type, interval?, limit?, days?, dates? }
+- deleteTodo({ todoId?, text?, position? })
+- deleteAllTodos()
+- updateTodoByRecreate({ find: { todoId?, text?, position? }, update: { text?, category?, schedule?, repeat? } })
+- listTodos()
+- listScheduledTodos({ includeCompleted? })
+- searchTodoContent({ query })
+
+사용자 입력: ${userInput}
+이전 응답(JSON 또는 텍스트): ${typeof rawOrParsed === 'string' ? rawOrParsed : JSON.stringify(rawOrParsed)}
+최근 대화(최신 5개): ${JSON.stringify(convo)}
+현재 미완료 할 일 프리뷰(최대 10개): ${JSON.stringify(todosPreview)}
+
+출력 형식(JSON): { "actions": [ { "function": "...", "args": { ... } } ], "message": "...", "success": true }`;
+
+        const resp = await fetch(`${API_URL}?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: advice }] }],
+                generationConfig: {
+                    temperature: attempt > 1 ? 0.0 : 0.2,
+                    topP: 0.9,
+                    maxOutputTokens: 1024,
+                    response_mime_type: 'application/json'
+                }
+            })
+        });
+        if (!resp.ok) return null;
+        const data = await resp.json().catch(()=>null);
+        const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || data?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+        try {
+            return typeof raw === 'string' ? robustParseJson(raw) : JSON.parse(atob(raw || ''));
+        } catch {
+            return null;
+        }
+    };
+
+    const runActions = async (actions) => {
+        const results = [];
+        if (!Array.isArray(actions)) return results;
+        recentListed = [];
+        for (const act of actions) {
+            const fn = act?.function;
+            const args = act?.args || {};
+            if (typeof actionsImpl[fn] === 'function') {
+                try {
+                    const r = await actionsImpl[fn](args);
+                    results.push({ function: fn, ok: !!r?.ok, result: r?.result });
+                    if ((fn === 'listTodos' || fn === 'listScheduledTodos' || fn === 'searchTodoContent') && Array.isArray(r?.result)) {
+                        recentListed = r.result.map(item => ({ id: item.id, text: item.text, category: item.category }));
+                    }
+                } catch (e) {
+                    console.error('[GeminiAPI] 액션 실행 실패:', fn, e);
+                    results.push({ function: fn, ok: false, result: e.message });
+                }
+                    } else {
+                results.push({ function: fn, ok: false, result: '정의되지 않은 함수' });
+            }
+        }
+        return results;
+    };
+
+    // (의도 기반 로컬 보정/추론 로직 제거: AI가 모든 결정을 내리도록 단순화)
+
+    const setApiKey = async (key) => {
+        apiKey = key;
+        if (!key || key === 'test') return;
+        const resp = await fetch(`${API_URL}?key=${key}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: 'ping' }] }], generationConfig: { maxOutputTokens: 5 } })
+        });
+        if (!resp.ok) {
+            const data = await resp.json().catch(() => ({}));
+            apiKey = null;
+            throw new Error(data?.error?.message || 'API 키 검증 실패');
+        }
+    };
+
+    const clearApiKey = () => { apiKey = null; };
+
     const sendMessage = async (userInput, context) => {
         if (!apiKey) {
-            return {
-                success: false,
-                error: 'API 키가 설정되지 않았습니다. 설정에서 API 키를 입력해주세요.'
-            };
+            return { success: false, error: 'API 키가 설정되지 않았습니다. 설정에서 API 키를 입력해주세요.' };
         }
-
-        // 로컬 테스트 모드 (API 키가 'test'인 경우)
         if (apiKey === 'test') {
-            console.log('[GeminiAPI] 로컬 테스트 모드 실행:', userInput);
-            return await handleLocalTest(userInput, context);
+            const in5 = new Date(Date.now() + 5 * 60000).toISOString().slice(0, 19);
+            const actions = [{ function: 'createTodo', args: { text: '테스트 알림', schedule: { startTime: in5 } } }];
+            await runActions(actions);
+            return { success: true, message: `테스트 모드: ${new Date(in5).toLocaleString('ko-KR')} 시작 알림 생성` };
         }
-
-        // 사용자 입력을 히스토리에 추가
-        addToHistory('user', userInput);
-        console.log('[GeminiAPI] 사용자 입력 히스토리에 추가:', userInput);
-        console.log('[GeminiAPI] 현재 대화 히스토리:', getConversationContext());
 
         try {
-            const prompt = createPrompt(userInput, context);
-            
-            const response = await fetch(`${getCurrentModel()}?key=${apiKey}`, {
+            const prompt = buildPrompt(userInput, context);
+            const resp = await fetch(`${API_URL}?key=${apiKey}`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    contents: [{
-                        parts: [{
-                            text: prompt
-                        }]
-                    }],
-                    generationConfig: {
-                        temperature: 0.7,
-                        topK: 40,
-                        topP: 0.95,
-                        maxOutputTokens: 1024,
-                    }
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: { temperature: 0.3, topP: 0.9, maxOutputTokens: 1024, response_mime_type: 'application/json' }
                 })
             });
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                console.error('API 응답 오류:', errorData);
-                
-                // 모델을 찾을 수 없는 경우 다음 모델 시도
-                if (errorData.error?.message?.includes('not found') && currentModelIndex < MODELS.length - 1) {
-                    currentModelIndex++;
-                    console.log(`모델 변경 시도: ${MODELS[currentModelIndex]}`);
-                    return await sendMessage(userInput, context); // 재귀 호출
-                }
-                
-                throw new Error(`API 오류: ${errorData.error?.message || response.statusText}`);
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({}));
+                throw new Error(err?.error?.message || resp.statusText);
             }
 
-            const data = await response.json();
-            
-            if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-                throw new Error('API 응답 형식이 올바르지 않습니다.');
-            }
+            const data = await resp.json();
+            // response_mime_type 설정 시, text 대신 JSON으로 반환될 수 있음
+            const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || data?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
 
-            const aiResponse = data.candidates[0].content.parts[0].text;
-            console.log('[GeminiAPI] AI 응답:', aiResponse);
-            
-            // JSON 응답 파싱 시도
+            // 모델이 JSON이 아니어도 대화로 응답할 수 있도록 폴백
+            let parsed = null;
             try {
-                // AI 응답에서 JSON 부분만 추출
-                const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
-                if (!jsonMatch) {
-                    throw new Error('JSON을 찾을 수 없습니다.');
+                parsed = typeof raw === 'string' ? robustParseJson(raw) : JSON.parse(atob(raw || ''));
+            } catch (e) {
+                // JSON 파싱 실패: 즉시 스키마 수정 요청(최대 2회) 후 재시도
+                const fixed1 = await requestSchemaFix(userInput, context, raw, ['JSON 파싱 실패: 유효한 JSON만 출력해야 합니다.'], 1);
+                if (!fixed1) return { success: false, error: 'AI 응답이 JSON 형식이 아닙니다.', message: `모델이 JSON을 반환하지 않았습니다. 원문 일부: ${String(raw||'').slice(0,160)}` };
+                let candidate = fixed1;
+                // 1차 결과도 스키마 위반일 수 있으니 즉시 검증
+                const s1 = validateActions(candidate.actions || []);
+                const s1Errors = [];
+                if (!('actions' in candidate)) s1Errors.push('필드 누락: actions');
+                if (!('message' in candidate)) s1Errors.push('필드 누락: message');
+                if (!('success' in candidate)) s1Errors.push('필드 누락: success');
+                if (!s1.ok) s1Errors.push(...s1.errors);
+                if (s1Errors.length > 0) {
+                    const fixed2 = await requestSchemaFix(userInput, context, candidate, s1Errors, 2);
+                    if (!fixed2) return { success: false, error: 'AI 응답 스키마 위반', message: `스키마 오류: ${s1Errors.join(', ')}` };
+                    candidate = fixed2;
                 }
-                
-                let jsonString = jsonMatch[0];
-                
-                // JSON 문자열 정리 (불필요한 문자 제거)
-                jsonString = jsonString.replace(/[\u2018\u2019]/g, "'"); // 스마트 따옴표를 일반 따옴표로
-                jsonString = jsonString.replace(/[\u201C\u201D]/g, '"'); // 스마트 따옴표를 일반 따옴표로
-                
-                console.log('[GeminiAPI] 정리된 JSON 문자열:', jsonString);
-                
-                const parsedResponse = JSON.parse(jsonString);
-                console.log('[GeminiAPI] 파싱된 JSON:', parsedResponse);
-                console.log('[GeminiAPI] 파싱된 data 객체:', parsedResponse.data);
-                
-                // AI 응답을 히스토리에 추가
-                addToHistory('assistant', parsedResponse.message || aiResponse);
-                
-                // 명령 실행
-                if (parsedResponse.success && parsedResponse.action !== 'CHAT') {
-                    console.log('[GeminiAPI] 명령 실행 시작:', parsedResponse.action, parsedResponse.data);
-                    const result = await executeCommand(parsedResponse.action, parsedResponse.data);
-                    console.log('[GeminiAPI] 명령 실행 결과:', result);
-                    return {
-                        success: true,
-                        message: result.message || parsedResponse.message
-                    };
-                } else {
-                    console.log('[GeminiAPI] CHAT 모드 또는 success가 false');
-                    return {
-                        success: true,
-                        message: parsedResponse.message || aiResponse
-                    };
-                }
-            } catch (parseError) {
-                console.error('[GeminiAPI] JSON 파싱 실패:', parseError);
-                
-                // 더 강력한 JSON 정리 시도
-                try {
-                    console.log('[GeminiAPI] 강력한 JSON 정리 시도');
-                    let cleanedResponse = aiResponse;
-                    
-                    // 코드 블록 마커 제거
-                    cleanedResponse = cleanedResponse.replace(/```json\s*/g, '').replace(/```\s*/g, '');
-                    
-                    // JSON 객체 찾기
-                    const jsonMatch = cleanedResponse.match(/\{[\s\S]*\}/);
-                    if (jsonMatch) {
-                        let jsonString = jsonMatch[0];
-                        
-                        // 특수 문자 정리
-                        jsonString = jsonString.replace(/[\u2018\u2019]/g, "'");
-                        jsonString = jsonString.replace(/[\u201C\u201D]/g, '"');
-                        jsonString = jsonString.replace(/[\n\r\t]/g, ' ');
-                        jsonString = jsonString.replace(/\s+/g, ' ');
-                        
-                        console.log('[GeminiAPI] 강력 정리 후 JSON:', jsonString);
-                        
-                        const parsedResponse = JSON.parse(jsonString);
-                        console.log('[GeminiAPI] 강력 정리 후 파싱 성공:', parsedResponse);
-                        
-                        // AI 응답을 히스토리에 추가
-                        addToHistory('assistant', parsedResponse.message || aiResponse);
-                        
-                        // 명령 실행
-                        if (parsedResponse.success && parsedResponse.action !== 'CHAT') {
-                            console.log('[GeminiAPI] 명령 실행 시작:', parsedResponse.action, parsedResponse.data);
-                            const result = await executeCommand(parsedResponse.action, parsedResponse.data);
-                            console.log('[GeminiAPI] 명령 실행 결과:', result);
-                            return {
-                                success: true,
-                                message: result.message || parsedResponse.message
-                            };
-                        } else {
-                            console.log('[GeminiAPI] CHAT 모드 또는 success가 false');
-                            return {
-                                success: true,
-                                message: parsedResponse.message || aiResponse
-                            };
-                        }
-                    }
-                } catch (secondParseError) {
-                    console.error('[GeminiAPI] 강력 정리 후에도 파싱 실패:', secondParseError);
-                }
-                
-                // JSON 파싱 실패 시 일반 대화로 처리
-                return {
-                    success: true,
-                    message: aiResponse
-                };
+                parsed = candidate;
             }
 
-        } catch (error) {
-            console.error('Gemini API 오류:', error);
-            
-            // 오류 상황을 AI에게 재전달하여 해결책 요청
-            try {
-                const errorContext = {
-                    ...context,
-                    error: error.message,
-                    originalInput: userInput
-                };
-                
-                const errorPrompt = `오류가 발생했습니다. 사용자의 원래 요청과 오류 상황을 분석하여 적절한 해결책을 제시해주세요.
+            // 스키마 검증 (엄격)
+            if (parsed && typeof parsed === 'object') {
+                const schemaErrs = [];
+                if (!('actions' in parsed)) schemaErrs.push('필드 누락: actions');
+                if (!('message' in parsed)) schemaErrs.push('필드 누락: message');
+                if (!('success' in parsed)) schemaErrs.push('필드 누락: success');
+                if (schemaErrs.length === 0) {
+                    const v = validateActions(parsed.actions);
+                    if (!v.ok) schemaErrs.push(...v.errors);
+                }
+                if (schemaErrs.length > 0) {
+                    const fixed = await requestSchemaFix(userInput, context, parsed, schemaErrs, 1);
+                    if (!fixed) return { success: false, error: 'AI 응답 스키마 위반', message: `스키마 오류: ${schemaErrs.join(', ')}` };
+                    parsed = fixed;
+                }
+            }
 
-원래 사용자 요청: "${userInput}"
-발생한 오류: ${error.message}
+            // 액션 실행 후 사용자 메시지 반환 (함수 기반 고정 스키마)
+            let actions = Array.isArray(parsed.actions) ? parsed.actions : [];
+            console.groupCollapsed('[GeminiAPI] 실행할 액션들');
+            console.table(actions.map(a => ({ function: a.function, args: JSON.stringify(a.args || {}) })));
+            console.groupEnd();
+            // 모델 주도 원칙에 맞게 로컬 임의 처리 제거
 
-현재 앱 상태:
-- 할 일 목록: ${context.todos.length}개
-- 카테고리: ${context.categories.join(', ') || '없음'}
+            const execResults = await runActions(actions);
+            console.groupCollapsed('[GeminiAPI] 1차 실행 결과');
+            console.table(execResults);
+            console.groupEnd();
 
-다음 중 하나로 응답해주세요:
-1. 오류를 수정한 명령 (JSON 형식)
-2. 대안 제안 (CHAT 형식)
-3. 사용자에게 추가 정보 요청 (CHAT 형식)
+            // 목록 결과를 사람이 읽기 쉬운 문자열로 합성
+            const listResult = execResults.find(r => r.ok && (r.function === 'listScheduledTodos' || r.function === 'listTodos'));
+            let listMessage = '';
+            if (listResult && Array.isArray(listResult.result)) {
+                const items = listResult.result;
+                if (items.length === 0) {
+                    listMessage = '\n(예정된 항목이 없습니다)';
+                    } else {
+                    const lines = items.slice(0, 50).map(item => {
+                        const s = item.startTime ? new Date(item.startTime) : (item.schedule?.startTime ? new Date(item.schedule.startTime) : null);
+                        const d = item.dueTime ? new Date(item.dueTime) : (item.schedule?.dueTime ? new Date(item.schedule.dueTime) : null);
+                        const sTxt = s && !isNaN(s) ? s.toLocaleString('ko-KR') : '';
+                        const dTxt = d && !isNaN(d) ? d.toLocaleString('ko-KR') : '';
+                        const times = [sTxt && `시작:${sTxt}`, dTxt && `마감:${dTxt}`].filter(Boolean).join(', ');
+                        return `• [${item.category}] ${item.text}${times ? ` (${times})` : ''}`;
+                    });
+                    listMessage = `\n${lines.join('\n')}`;
+                }
+            }
 
-JSON 응답 형식:
-{
-    "action": "명령 타입",
-    "data": { ... },
-    "message": "사용자에게 보여줄 메시지",
-    "success": true
-}`;
+            let finalSuccess = parsed.success === undefined ? true : !!parsed.success;
+            let finalMessage = parsed.message || (actions.length ? '작업을 완료했습니다.' : '요청을 처리했습니다.');
+            if (listMessage) finalMessage = `${finalMessage}${listMessage}`;
 
-                const errorResponse = await fetch(`${getCurrentModel()}?key=${apiKey}`, {
+            // 실패한 액션이 있으면 에러 피드백 루프 1회 시도 (AI가 전적으로 보정 결정)
+            const failed = execResults.filter(r => !r.ok);
+            if (failed.length > 0) {
+                console.error('[GeminiAPI] 액션 실행 실패 감지:', failed);
+                const feedbackPrompt = `이전 응답의 액션 중 일부가 실패했습니다. 아래 실패 정보와 원래 사용자 요청, 기존 액션과 최근 대화 일부를 참고하여 올바른 보정 액션 목록만 JSON으로 다시 제시하세요. 추가 설명 없이 JSON만 출력하세요. 실패 원인(예: '해당 텍스트와 일치하는 할 일을 찾지 못함', 'position 참조 누락', '시간 형식 오류')을 정확히 반영해 수정하세요.
+
+원래 사용자 입력: ${userInput}
+실패 정보(JSON): ${JSON.stringify(failed)}
+기존 액션(JSON): ${JSON.stringify(actions)}
+최근 대화(최신 5개): ${JSON.stringify((context?.conversation||[]).slice(-5))}
+
+출력 형식(JSON): { "actions": [ { "function": "...", "args": { ... } } ], "message": "사용자에게 보여줄 한국어 문장", "success": true }`;
+
+                const fbResp = await fetch(`${API_URL}?key=${apiKey}`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        contents: [{
-                            parts: [{
-                                text: errorPrompt
-                            }]
-                        }],
-                        generationConfig: {
-                            temperature: 0.7,
-                            topK: 40,
-                            topP: 0.95,
-                            maxOutputTokens: 1024,
-                        }
+                        contents: [{ parts: [{ text: feedbackPrompt }] }],
+                        generationConfig: { temperature: 0.2, topP: 0.9, maxOutputTokens: 1024, response_mime_type: 'application/json' }
                     })
                 });
-
-                if (errorResponse.ok) {
-                    const errorData = await errorResponse.json();
-                    if (errorData.candidates && errorData.candidates[0] && errorData.candidates[0].content) {
-                        const aiErrorResponse = errorData.candidates[0].content.parts[0].text;
-                        
-                        try {
-                            const parsedErrorResponse = JSON.parse(aiErrorResponse);
-                            if (parsedErrorResponse.success && parsedErrorResponse.action !== 'CHAT') {
-                                // 오류 수정 명령 실행
-                                const result = await executeCommand(parsedErrorResponse.action, parsedErrorResponse.data);
-                                return {
-                                    success: true,
-                                    message: result.message || parsedErrorResponse.message
-                                };
-                            } else {
-                                // 대안 제안 또는 추가 정보 요청
-                                return {
-                                    success: true,
-                                    message: parsedErrorResponse.message || aiErrorResponse
-                                };
-                            }
-                        } catch (parseError) {
-                            // JSON 파싱 실패 시 일반 대화로 처리
-                            return {
-                                success: true,
-                                message: aiErrorResponse
-                            };
+            if (fbResp.ok) {
+                    const fbData = await fbResp.json();
+                    const fbRaw = fbData?.candidates?.[0]?.content?.parts?.[0]?.text || fbData?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+                    try {
+                        const fbParsed = typeof fbRaw === 'string' ? robustParseJson(fbRaw) : JSON.parse(atob(fbRaw || ''));
+                    const fbActions = Array.isArray(fbParsed.actions) ? fbParsed.actions : [];
+                    // 보정 액션에 position 참조가 있으면 직전 list 결과를 활용할 수 있도록 안내는 프롬프트에서 이미 수행함
+                        if (fbActions.length > 0) {
+                            console.groupCollapsed('[GeminiAPI] 피드백 액션들');
+                            console.table(fbActions.map(a => ({ function: a.function, args: JSON.stringify(a.args || {}) })));
+                            console.groupEnd();
+                            const fbResults = await runActions(fbActions);
+                            console.groupCollapsed('[GeminiAPI] 피드백 실행 결과');
+                            console.table(fbResults);
+                            console.groupEnd();
+                            const anyFixed = fbResults.some(r => r.ok);
+                            finalSuccess = finalSuccess || anyFixed;
+                            finalMessage = `${finalMessage}\n오류를 감지하여 자동으로 수정 시도했습니다.` + (fbParsed.message ? `\n${fbParsed.message}` : '');
                         }
+                    } catch (e) {
+                        console.error('[GeminiAPI] 피드백 응답 파싱 실패:', e);
+                        finalMessage = `${finalMessage}\n(오류 세부: ${failed.map(f=>`${f.function}: ${f.result}`).join(', ')})`;
                     }
+                } else {
+                    console.error('[GeminiAPI] 피드백 요청 실패:', await fbResp.text().catch(() => ''));
+                    finalMessage = `${finalMessage}\n(오류 세부: ${failed.map(f=>`${f.function}: ${f.result}`).join(', ')})`;
                 }
-            } catch (retryError) {
-                console.error('오류 재처리 실패:', retryError);
             }
-            
-            // 모든 재처리 실패 시 원래 오류 반환
-            return {
-                success: false,
-                error: error.message
-            };
+            return { success: finalSuccess, message: finalMessage };
+        } catch (e) {
+            console.error('[GeminiAPI] 오류:', e);
+            const msg = e && e.message ? e.message : '알 수 없는 오류가 발생했습니다';
+            return { success: false, error: msg };
         }
     };
 
-    // 로컬 테스트 모드 (API 없이 테스트)
-    const handleLocalTest = async (userInput, context) => {
-        const lowerInput = userInput.toLowerCase();
-        
-        // 시간 기반 알람 설정 (예: "내일 1시", "오늘 3시", "내일 오후 2시")
-        if (lowerInput.includes('시') && (lowerInput.includes('내일') || lowerInput.includes('오늘'))) {
-            const now = new Date();
-            let targetDate = new Date(now);
-            
-            // 내일인지 오늘인지 확인
-            if (lowerInput.includes('내일')) {
-                targetDate.setDate(targetDate.getDate() + 1);
-            }
-            
-            // 시간 추출 및 AM/PM 해석
-            const timeMatch = userInput.match(/(\d+)시/);
-            if (timeMatch) {
-                let hour = parseInt(timeMatch[1]);
-                
-                // 오후/PM 키워드가 있으면 오후로 설정
-                if (lowerInput.includes('오후') || lowerInput.includes('pm') || lowerInput.includes('p.m')) {
-                    if (hour !== 12) hour += 12; // 12시는 그대로 유지
-                } else if (lowerInput.includes('오전') || lowerInput.includes('am') || lowerInput.includes('a.m')) {
-                    // 오전은 그대로 유지 (0-11시)
-                } else {
-                    // 키워드가 없으면 기본적으로 오전으로 해석 (1-12시)
-                    if (hour === 12) hour = 0; // 12시는 오전 12시 (00:00)
-                }
-                
-                targetDate.setHours(hour, 0, 0, 0);
-                
-                // 알림 타입 결정 (현재 시간과의 차이로 판단)
-                const timeDiff = targetDate.getTime() - now.getTime();
-                const hoursDiff = timeDiff / (1000 * 60 * 60);
-                const isStartNotification = hoursDiff <= 0.5; // 30분 이하는 시작 알림
-                
-                // 할 일 텍스트 추출 (예: "내일 1시 알람" → "알람")
-                const todoText = userInput.replace(/내일|오늘|시|오전|오후|pm|am|p\.m|a\.m|알람|해줘/g, '').trim() || '알림';
-                
-                // 임시 할 일 생성
-                const tempTodo = todoManager.addTodo(todoText, 'default');
-                
-                if (tempTodo) {
-                    const scheduleData = isStartNotification ? {
-                        startTime: targetDate,
-                        startModal: true,
-                        startNotification: true
-                    } : {
-                        dueTime: targetDate,
-                        dueModal: true,
-                        dueNotification: true
-                    };
-                    
-                    todoManager.updateTodoSchedule(tempTodo.id, scheduleData);
-                    
-                    if (window.notificationScheduler) {
-                        window.notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
-                    }
-                    
-                    if (window.app && window.app.renderTodos) {
-                        window.app.renderTodos();
-                    }
-                    
-                    const notificationType = isStartNotification ? '시작' : '마감';
-                    return {
-                        success: true,
-                        message: `테스트 모드: ${targetDate.toLocaleString('ko-KR')}에 ${notificationType} 알림을 설정했습니다.`
-                    };
-                }
-            }
-        }
-        
-        // "내일 1시 알람" 같은 패턴 특별 처리
-        if (lowerInput.includes('내일') && lowerInput.includes('시') && (lowerInput.includes('알람') || lowerInput.includes('알림'))) {
-            console.log('[GeminiAPI] 테스트 모드 - 내일 시 알람 패턴 감지:', userInput);
-            
-            const now = new Date();
-            const tomorrow = new Date(now);
-            tomorrow.setDate(tomorrow.getDate() + 1);
-            
-            // 시간 추출
-            const timeMatch = userInput.match(/(\d+)시/);
-            if (timeMatch) {
-                let hour = parseInt(timeMatch[1]);
-                
-                // 오후 키워드가 없으면 오전으로 해석
-                if (!lowerInput.includes('오후') && !lowerInput.includes('pm') && !lowerInput.includes('p.m')) {
-                    if (hour === 12) hour = 0; // 12시는 오전 12시
-                } else {
-                    if (hour !== 12) hour += 12; // 오후로 변환
-                }
-                
-                tomorrow.setHours(hour, 0, 0, 0);
-                
-                // 할 일 텍스트 추출
-                const todoText = userInput.replace(/내일|시|알람|해줘/g, '').trim() || '알림';
-                
-                const tempTodo = todoManager.addTodo(todoText, 'default');
-                if (tempTodo) {
-                    const scheduleData = {
-                        startTime: tomorrow,
-                        startModal: true,
-                        startNotification: true
-                    };
-                    
-                    todoManager.updateTodoSchedule(tempTodo.id, scheduleData);
-                    
-                    if (window.notificationScheduler) {
-                        window.notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
-                    }
-                    
-                    if (window.app && window.app.renderTodos) {
-                        window.app.renderTodos();
-                    }
-                    
-                    return {
-                        success: true,
-                        message: `테스트 모드: ${tomorrow.toLocaleString('ko-KR')}에 시작 알림을 설정했습니다.`
-                    };
-                }
-            }
-        }
-        
-        // 분 단위 알람 설정 (예: "5분 후", "10분 뒤")
-        if (lowerInput.includes('분') && (lowerInput.includes('후') || lowerInput.includes('뒤'))) {
-            const match = userInput.match(/(\d+)분\s*(후|뒤)/);
-            if (match) {
-                const minutes = parseInt(match[1]);
-                const now = new Date();
-                const scheduleTime = new Date(now.getTime() + minutes * 60 * 1000);
-                
-                // 알림 타입 결정 (30분 이하는 시작 알림, 그 이상은 마감 알림)
-                const isStartNotification = minutes <= 30;
-                const notificationType = isStartNotification ? '시작' : '마감';
-                
-                // 할 일 텍스트 추출 (예: "설거지 5분 후 알림" → "설거지")
-                const todoText = userInput.replace(/\d+분\s*(후|뒤).*/, '').trim() || `${minutes}분 후 알림`;
-                
-                // 임시 할 일 생성
-                const tempTodo = todoManager.addTodo(todoText, 'default');
-                
-                if (tempTodo) {
-                    // 기존 앱 구조에 맞는 schedule 데이터 생성
-                    const scheduleData = isStartNotification ? {
-                        startTime: scheduleTime,
-                        startModal: true,
-                        startNotification: true
-                    } : {
-                        dueTime: scheduleTime,
-                        dueModal: true,
-                        dueNotification: true
-                    };
-                    
-                    // todoManager의 updateTodoSchedule 함수 사용
-                    todoManager.updateTodoSchedule(tempTodo.id, scheduleData);
-                    
-                    // 알림 스케줄러 재초기화
-                    if (window.notificationScheduler) {
-                        window.notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
-                    }
-                    
-                    // UI 업데이트
-                    if (window.app && window.app.renderTodos) {
-                        window.app.renderTodos();
-                    }
-                    
-                    return {
-                        success: true,
-                        message: `테스트 모드: ${scheduleTime.toLocaleString('ko-KR')}에 ${notificationType} 알림을 설정했습니다.`
-                    };
-                }
-            }
-        }
-        
-        // 할 일 추가 키워드 감지
-        if (lowerInput.includes('추가') || lowerInput.includes('만들어') || lowerInput.includes('생성')) {
-            const text = userInput.replace(/추가|만들어|생성|해줘/g, '').trim();
-            if (text) {
-                // 카테고리 추출 시도 (예: "업무 카테고리에 보고서 작성 추가")
-                const categoryMatch = userInput.match(/(.+?)\s*카테고리에\s*(.+?)\s*(추가|만들어|생성)/);
-                let categoryId = 'default';
-                let categoryName = null;
-                
-                if (categoryMatch) {
-                    categoryName = categoryMatch[1].trim();
-                    const todoText = categoryMatch[2].trim();
-                    
-                    // 카테고리가 존재하는지 확인
-                    const existingCategories = todoManager.getCategories();
-                    const category = existingCategories.find(cat => cat.name === categoryName);
-                    
-                    if (category) {
-                        categoryId = category.id;
-                    } else {
-                        // 카테고리가 없으면 자동 생성
-                        console.log('[GeminiAPI] 테스트 모드 - 카테고리가 없어서 자동 생성:', categoryName);
-                        const newCategory = todoManager.addCategory(categoryName);
-                        if (newCategory) {
-                            categoryId = newCategory.id;
-                        }
-                    }
-                    
-                    const newTodo = todoManager.addTodo(todoText, categoryId);
-                    if (newTodo) {
-                        if (window.app && window.app.renderTodos) {
-                            window.app.renderTodos();
-                        }
-                        const categoryMessage = category ? '' : ` (새로 생성된 카테고리)`;
-                        return {
-                            success: true,
-                            message: `테스트 모드: "${todoText}" 할 일을 ${categoryName} 카테고리에 추가했습니다.${categoryMessage}`
-                        };
-                    }
-                } else {
-                    // 일반 할 일 추가
-                    const newTodo = todoManager.addTodo(text, 'default');
-                    if (newTodo) {
-                        if (window.app && window.app.renderTodos) {
-                            window.app.renderTodos();
-                        }
-                        return {
-                            success: true,
-                            message: `테스트 모드: "${text}" 할 일을 추가했습니다.`
-                        };
-                    }
-                }
-            }
-        }
-        
-        // 카테고리 추가 키워드 감지
-        if (lowerInput.includes('카테고리') && lowerInput.includes('만들')) {
-            const match = userInput.match(/카테고리\s*만들[어]*\s*:\s*(.+)/);
-            if (match) {
-                const categoryName = match[1].trim();
-                const newCategory = todoManager.addCategory(categoryName);
-                if (newCategory) {
-                    if (window.app && window.app.renderTodos) {
-                        window.app.renderTodos();
-                    }
-                    return {
-                        success: true,
-                        message: `테스트 모드: "${categoryName}" 카테고리를 추가했습니다.`
-                    };
-                } else {
-                    return handleLocalTestError(userInput, '카테고리 생성 실패');
-                }
-            }
-        }
-        
-        // 알림 수정 키워드 감지 (예: "오후 3시 알림을 오전 3시로 수정")
-        if (lowerInput.includes('수정') && (lowerInput.includes('시') || lowerInput.includes('시간'))) {
-            console.log('[GeminiAPI] 테스트 모드 - 알림 수정 패턴 감지:', userInput);
-            
-            // 기존 시간과 새 시간 추출
-            const timeMatch = userInput.match(/(\d+)시.*?(\d+)시.*?수정/);
-            if (timeMatch) {
-                const oldHour = parseInt(timeMatch[1]);
-                const newHour = parseInt(timeMatch[2]);
-                
-                // 오후/오전 키워드 확인
-                const isOldPM = lowerInput.includes('오후') || lowerInput.includes('pm');
-                const isNewPM = lowerInput.includes('새로운') && (lowerInput.includes('오후') || lowerInput.includes('pm'));
-                
-                const oldTime = isOldPM && oldHour !== 12 ? oldHour + 12 : oldHour;
-                const newTime = isNewPM && newHour !== 12 ? newHour + 12 : newHour;
-                
-                // 기존 알림 찾기
-                const allTodos = todoManager.getTodos();
-                const targetTodo = allTodos.find(todo => {
-                    if (todo.schedule) {
-                        if (todo.schedule.startTime) {
-                            const startHour = new Date(todo.schedule.startTime).getHours();
-                            return startHour === oldTime;
-                        }
-                        if (todo.schedule.dueTime) {
-                            const dueHour = new Date(todo.schedule.dueTime).getHours();
-                            return dueHour === oldTime;
-                        }
-                    }
-                    return false;
-                });
-                
-                if (targetTodo) {
-                    // 새 시간 설정
-                    const newScheduleTime = new Date();
-                    newScheduleTime.setHours(newTime, 0, 0, 0);
-                    
-                    // 내일로 설정하는 경우
-                    if (lowerInput.includes('내일')) {
-                        newScheduleTime.setDate(newScheduleTime.getDate() + 1);
-                    }
-                    
-                    // 알림 타입 결정 (기존 알림 타입 유지)
-                    const isStartNotification = targetTodo.schedule && targetTodo.schedule.startTime;
-                    
-                    const scheduleData = isStartNotification ? {
-                        startTime: newScheduleTime,
-                        startModal: true,
-                        startNotification: true
-                    } : {
-                        dueTime: newScheduleTime,
-                        dueModal: true,
-                        dueNotification: true
-                    };
-                    
-                    // 기존 스케줄 업데이트
-                    todoManager.updateTodoSchedule(targetTodo.id, scheduleData);
-                    
-                    // 반복 설정이 있다면 반복 시작 시간도 업데이트
-                    if (targetTodo.repeat) {
-                        targetTodo.repeat.startTime = newScheduleTime.toISOString();
-                        targetTodo.repeat.lastModified = new Date().toISOString();
-                        console.log(`[GeminiAPI] 반복 시작 시간 업데이트: ${targetTodo.repeat.startTime}`);
-                    }
-                    
-                    // 알림 스케줄러 재초기화
-                    if (window.notificationScheduler) {
-                        window.notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
-                    }
-                    
-                    // UI 업데이트
-                    if (window.app && window.app.renderTodos) {
-                        window.app.renderTodos();
-                    }
-                    
-                    const notificationType = isStartNotification ? '시작 알림' : '마감 알림';
-                    return {
-                        success: true,
-                        message: `테스트 모드: "${targetTodo.text}" ${notificationType}을 ${newScheduleTime.toLocaleString('ko-KR')}로 수정했습니다.`
-                    };
-                } else {
-                    return handleLocalTestError(userInput, '수정할 알림을 찾을 수 없음');
-                }
-            }
-        }
-        
-        // 삭제 키워드 감지
-        if (lowerInput.includes('삭제') || lowerInput.includes('지워')) {
-            console.log('[GeminiAPI] 테스트 모드 - 삭제 패턴 감지:', userInput);
-            
-            // 전체 삭제
-            if (lowerInput.includes('전부') || lowerInput.includes('모두') || lowerInput.includes('다')) {
-                const allTodos = todoManager.getTodos();
-                const deletedCount = allTodos.length;
-                
-                // 모든 할 일 삭제
-                allTodos.forEach(todo => {
-                    todoManager.deleteTodo(todo.id);
-                });
-                
-                // UI 업데이트
-                if (window.app && window.app.renderTodos) {
-                    window.app.renderTodos();
-                }
-                
-                return {
-                    success: true,
-                    message: `테스트 모드: 모든 할 일(${deletedCount}개)을 삭제했습니다.`
-                };
-            }
-            
-            // 특정 할 일 삭제 (텍스트로 찾기)
-            const allTodos = todoManager.getTodos();
-            const targetTodo = allTodos.find(todo => 
-                userInput.includes(todo.text) || todo.text.includes(userInput.replace(/삭제|지워/g, '').trim())
-            );
-            
-            if (targetTodo) {
-                todoManager.deleteTodo(targetTodo.id);
-                
-                // UI 업데이트
-                if (window.app && window.app.renderTodos) {
-                    window.app.renderTodos();
-                }
-                
-                return {
-                    success: true,
-                    message: `테스트 모드: "${targetTodo.text}" 할 일을 삭제했습니다.`
-                };
-            } else {
-                return handleLocalTestError(userInput, '삭제할 할 일을 찾을 수 없음');
-            }
-        }
-        
-        // 카테고리 변경 키워드 감지
-        if (lowerInput.includes('카테고리') && (lowerInput.includes('변경') || lowerInput.includes('바꿔'))) {
-            const match = userInput.match(/(.+?)\s*카테고리를\s*(.+?)\s*로\s*변경/);
-            if (match) {
-                const todoText = match[1].trim();
-                const newCategory = match[2].trim();
-                
-                // 할 일 찾기
-                const todo = todoManager.getTodos().find(t => t.text.includes(todoText));
-                if (todo) {
-                    // 카테고리가 존재하는지 확인
-                    const existingCategories = todoManager.getCategories();
-                    const categoryExists = existingCategories.some(cat => cat.name === newCategory);
-                    
-                    // 카테고리가 없으면 자동 생성
-                    if (!categoryExists) {
-                        console.log('[GeminiAPI] 테스트 모드 - 카테고리가 없어서 자동 생성:', newCategory);
-                        const createdCategory = todoManager.addCategory(newCategory);
-                        if (!createdCategory) {
-                            return handleLocalTestError(userInput, '카테고리 생성 실패');
-                        }
-                    }
-                    
-                    // 할 일 카테고리 변경
-                    todoManager.updateTodoCategory(todo.id, newCategory);
-                    
-                    if (window.app && window.app.renderTodos) {
-                        window.app.renderTodos();
-                    }
-                    
-                    const categoryMessage = categoryExists ? '' : ` (새로 생성된 카테고리)`;
-                    return {
-                        success: true,
-                        message: `테스트 모드: "${todo.text}" 할 일의 카테고리를 "${newCategory}"로 변경했습니다.${categoryMessage}`
-                    };
-                } else {
-                    return handleLocalTestError(userInput, '할 일을 찾을 수 없음');
-                }
-            }
-        }
-        
-        // 기본 응답
-        return {
-            success: true,
-            message: `테스트 모드: "${userInput}" 메시지를 받았습니다. 현재 모델: ${MODELS[currentModelIndex]}. API 키를 설정하면 더 정확한 응답을 받을 수 있습니다.`
-        };
-    };
-
-    // 로컬 테스트 모드에서 오류 처리
-    const handleLocalTestError = (userInput, error) => {
-        console.log('[GeminiAPI] 로컬 테스트 모드 오류 처리:', error);
-        
-        // 오류 유형에 따른 적절한 응답
-        if (error.includes('카테고리')) {
-            return {
-                success: true,
-                message: `테스트 모드: 카테고리 관련 오류가 발생했습니다. "새 카테고리 만들기: [카테고리명]" 형식으로 카테고리를 먼저 생성해주세요.`
-            };
-        } else if (error.includes('할 일')) {
-            return {
-                success: true,
-                message: `테스트 모드: 할 일 관련 오류가 발생했습니다. 할 일 내용을 더 구체적으로 말씀해주세요.`
-            };
-        } else if (error.includes('시간') || error.includes('알림')) {
-            return {
-                success: true,
-                message: `테스트 모드: 시간 설정 오류가 발생했습니다. "X분 후 알림" 형식으로 다시 시도해주세요.`
-            };
-        } else {
-            return {
-                success: true,
-                message: `테스트 모드: 오류가 발생했습니다. 다른 표현으로 다시 시도해주세요.`
-            };
-        }
-    };
-
-    // 명령 실행
-    const executeCommand = async (action, data) => {
-        console.log('[GeminiAPI] executeCommand 호출:', action, data);
-        try {
-            switch (action) {
-                case 'ADD_TODO':
-                    console.log('[GeminiAPI] ADD_TODO 실행');
-                    
-                    // 카테고리 ID 찾기
-                    let categoryId = 'default';
-                    if (data.category) {
-                        const existingCategories = todoManager.getCategories();
-                        const category = existingCategories.find(cat => cat.name === data.category);
-                        
-                        if (category) {
-                            categoryId = category.id;
-                        } else {
-                            // 카테고리가 없으면 자동 생성
-                            console.log('[GeminiAPI] 카테고리가 없어서 자동 생성:', data.category);
-                            const newCategory = todoManager.addCategory(data.category);
-                            if (newCategory) {
-                                categoryId = newCategory.id;
-                            }
-                        }
-                    }
-                    
-                    const newTodo = todoManager.addTodo(data.text, categoryId);
-                    if (newTodo) {
-                        const categoryMessage = data.category && !todoManager.getCategories().find(cat => cat.name === data.category) ? 
-                            ` (새로 생성된 카테고리)` : '';
-                        return { message: `"${data.text}" 할 일을 ${data.category || '일반'} 카테고리에 추가했습니다.${categoryMessage}` };
-                    } else {
-                        return { message: '할 일 추가에 실패했습니다.' };
-                    }
-
-                case 'SET_SCHEDULE':
-                    console.log('[GeminiAPI] SET_SCHEDULE 실행:', data);
-                    
-                    // 알림 타입 결정 (사용자 입력 분석)
-                    const isStartNotification = data.isStartNotification !== undefined ? data.isStartNotification : 
-                        (data.text && (
-                            data.text.includes('시작') || 
-                            data.text.includes('지금') || 
-                            data.text.includes('알림') ||
-                            (data.timeOffset && data.timeOffset <= 30) // 30분 이하는 시작 알림
-                        ));
-                    
-                    console.log('[GeminiAPI] 알림 타입 결정:', isStartNotification ? '시작 알림' : '마감 알림');
-                    
-                    // 기존 할 일에 알림 설정
-                    if (data.todoId && data.scheduleTime) {
-                        const todo = todoManager.getTodos().find(t => t.id == data.todoId);
-                        if (todo) {
-                            // 기존 앱 구조에 맞는 schedule 데이터 생성
-                            const scheduleData = isStartNotification ? {
-                                startTime: new Date(data.scheduleTime),
-                                startModal: true,
-                                startNotification: true
-                            } : {
-                                dueTime: new Date(data.scheduleTime),
-                                dueModal: true,
-                                dueNotification: true
-                            };
-                            
-                            // todoManager의 updateTodoSchedule 함수 사용
-                            todoManager.updateTodoSchedule(todo.id, scheduleData);
-                            
-                            // 반복 설정이 있다면 반복 시작 시간도 업데이트
-                            if (todo.repeat) {
-                                todo.repeat.startTime = new Date(data.scheduleTime).toISOString();
-                                todo.repeat.lastModified = new Date().toISOString();
-                                console.log(`[GeminiAPI] 반복 시작 시간 업데이트: ${todo.repeat.startTime}`);
-                            }
-                            
-                            // 알림 스케줄러 재초기화
-                            if (window.notificationScheduler) {
-                                window.notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
-                            }
-                            
-                            // UI 업데이트
-                            if (window.app && window.app.renderTodos) {
-                                window.app.renderTodos();
-                            }
-                            
-                            const notificationType = isStartNotification ? '시작 알림' : '마감 알림';
-                            return { 
-                                message: `"${todo.text}" ${notificationType}을 ${new Date(data.scheduleTime).toLocaleString('ko-KR')}에 설정했습니다.` 
-                            };
-                        }
-                    } 
-                    // 새로운 할 일 생성 후 알림 설정 (scheduleTime만 있는 경우)
-                    else if (data.scheduleTime) {
-                        console.log('[GeminiAPI] scheduleTime으로 새로운 할 일 생성 후 알림 설정:', data.scheduleTime);
-                        
-                        // 할 일 텍스트 결정
-                        const todoText = data.text || '알림';
-                        
-                        // 새로운 할 일 생성
-                        const tempTodo = todoManager.addTodo(todoText, 'default');
-                        
-                        console.log('[GeminiAPI] 생성된 할 일:', tempTodo);
-                        
-                        if (tempTodo) {
-                            // 기존 앱 구조에 맞는 schedule 데이터 생성
-                            const scheduleData = isStartNotification ? {
-                                startTime: new Date(data.scheduleTime),
-                                startModal: true,
-                                startNotification: true
-                            } : {
-                                dueTime: new Date(data.scheduleTime),
-                                dueModal: true,
-                                dueNotification: true
-                            };
-                            
-                            // todoManager의 updateTodoSchedule 함수 사용
-                            todoManager.updateTodoSchedule(tempTodo.id, scheduleData);
-                            
-                            // 반복 설정이 있다면 반복 시작 시간도 업데이트
-                            if (tempTodo.repeat) {
-                                tempTodo.repeat.startTime = new Date(data.scheduleTime).toISOString();
-                                tempTodo.repeat.lastModified = new Date().toISOString();
-                                console.log(`[GeminiAPI] 반복 시작 시간 업데이트: ${tempTodo.repeat.startTime}`);
-                            }
-                            
-                            // 알림 스케줄러 재초기화
-                            if (window.notificationScheduler) {
-                                window.notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
-                            }
-                            
-                            // UI 업데이트
-                            if (window.app && window.app.renderTodos) {
-                                window.app.renderTodos();
-                            }
-                            
-                            const notificationType = isStartNotification ? '시작 알림' : '마감 알림';
-                            return { 
-                                message: `${new Date(data.scheduleTime).toLocaleString('ko-KR')}에 ${notificationType}을 설정했습니다.` 
-                            };
-                        }
-                    }
-                    // 시간 오프셋으로 알림 설정 (예: 2분 후)
-                    else if (data.timeOffset) {
-                        console.log('[GeminiAPI] timeOffset으로 알림 설정:', data.timeOffset);
-                        // 시간 오프셋으로 알림 설정 (예: 2분 후)
-                        const now = new Date();
-                        const scheduleTime = new Date(now.getTime() + data.timeOffset * 60 * 1000);
-                        
-                        // 임시 할 일 생성
-                        const tempTodo = todoManager.addTodo(
-                            data.text || `${isStartNotification ? '시작' : '마감'} 알림 (${scheduleTime.toLocaleTimeString('ko-KR')})`, 
-                            'default'
-                        );
-                        
-                        console.log('[GeminiAPI] 생성된 할 일:', tempTodo);
-                        
-                        if (tempTodo) {
-                            // 기존 앱 구조에 맞는 schedule 데이터 생성
-                            const scheduleData = isStartNotification ? {
-                                startTime: scheduleTime,
-                                startModal: true,
-                                startNotification: true
-                            } : {
-                                dueTime: scheduleTime,
-                                dueModal: true,
-                                dueNotification: true
-                            };
-                            
-                            // todoManager의 updateTodoSchedule 함수 사용
-                            todoManager.updateTodoSchedule(tempTodo.id, scheduleData);
-                            
-                            // 반복 설정이 있다면 반복 시작 시간도 업데이트
-                            if (tempTodo.repeat) {
-                                tempTodo.repeat.startTime = scheduleTime.toISOString();
-                                tempTodo.repeat.lastModified = new Date().toISOString();
-                                console.log(`[GeminiAPI] 반복 시작 시간 업데이트: ${tempTodo.repeat.startTime}`);
-                            }
-                            
-                            // 알림 스케줄러 재초기화
-                            if (window.notificationScheduler) {
-                                window.notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
-                            }
-                            
-                            // UI 업데이트
-                            if (window.app && window.app.renderTodos) {
-                                window.app.renderTodos();
-                            }
-                            
-                            const notificationType = isStartNotification ? '시작 알림' : '마감 알림';
-                            return { 
-                                message: `${scheduleTime.toLocaleString('ko-KR')}에 ${notificationType}을 설정했습니다.` 
-                            };
-                        }
-                    }
-                    
-                    console.log('[GeminiAPI] SET_SCHEDULE 실패 - 조건에 맞지 않음');
-                    return { message: '알림 설정에 실패했습니다.' };
-
-                case 'UPDATE_SCHEDULE':
-                    console.log('[GeminiAPI] UPDATE_SCHEDULE 실행:', data);
-                    
-                    // 기존 알림 찾기
-                    const allTodos = todoManager.getTodos();
-                    let targetTodo = null;
-                    
-                    if (data.oldTime) {
-                        // 시간으로 기존 알림 찾기
-                        const oldHour = parseInt(data.oldTime.split(':')[0]);
-                        targetTodo = allTodos.find(todo => {
-                            if (todo.schedule) {
-                                if (todo.schedule.startTime) {
-                                    const startHour = new Date(todo.schedule.startTime).getHours();
-                                    return startHour === oldHour;
-                                }
-                                if (todo.schedule.dueTime) {
-                                    const dueHour = new Date(todo.schedule.dueTime).getHours();
-                                    return dueHour === oldHour;
-                                }
-                            }
-                            return false;
-                        });
-                    } else if (data.todoId) {
-                        // ID로 기존 알림 찾기
-                        targetTodo = allTodos.find(t => t.id == data.todoId);
-                    }
-                    
-                    if (targetTodo) {
-                        console.log('[GeminiAPI] 수정할 할 일 찾음:', targetTodo);
-                        
-                        // 새 시간 설정
-                        const newScheduleTime = new Date(data.newTime);
-                        const today = new Date();
-                        newScheduleTime.setFullYear(today.getFullYear());
-                        newScheduleTime.setMonth(today.getMonth());
-                        newScheduleTime.setDate(today.getDate());
-                        
-                        // 내일로 설정하는 경우
-                        if (data.newTime.includes('내일') || data.newTime.includes('tomorrow')) {
-                            newScheduleTime.setDate(today.getDate() + 1);
-                        }
-                        
-                        // 알림 타입 결정 (기존 알림 타입 유지)
-                        const isStartNotification = targetTodo.schedule && targetTodo.schedule.startTime;
-                        
-                        const scheduleData = isStartNotification ? {
-                            startTime: newScheduleTime,
-                            startModal: true,
-                            startNotification: true
-                        } : {
-                            dueTime: newScheduleTime,
-                            dueModal: true,
-                            dueNotification: true
-                        };
-                        
-                        // 기존 스케줄 업데이트
-                        todoManager.updateTodoSchedule(targetTodo.id, scheduleData);
-                        
-                        // 반복 설정이 있다면 반복 시작 시간도 업데이트
-                        if (targetTodo.repeat) {
-                            targetTodo.repeat.startTime = newScheduleTime.toISOString();
-                            targetTodo.repeat.lastModified = new Date().toISOString();
-                            console.log(`[GeminiAPI] 반복 시작 시간 업데이트: ${targetTodo.repeat.startTime}`);
-                        }
-                        
-                        // 알림 스케줄러 재초기화
-                        if (window.notificationScheduler) {
-                            window.notificationScheduler.rescheduleAllNotifications(todoManager.getTodos());
-                        }
-                        
-                        // UI 업데이트
-                        if (window.app && window.app.renderTodos) {
-                            window.app.renderTodos();
-                        }
-                        
-                        const notificationType = isStartNotification ? '시작 알림' : '마감 알림';
-                        return { 
-                            message: `"${targetTodo.text}" ${notificationType}을 ${newScheduleTime.toLocaleString('ko-KR')}로 수정했습니다.` 
-                        };
-                    } else {
-                        console.log('[GeminiAPI] 수정할 할 일을 찾을 수 없음');
-                        return { message: '수정할 알림을 찾을 수 없습니다.' };
-                    }
-
-                case 'ADD_CATEGORY':
-                    const newCategory = todoManager.addCategory(data.name);
-                    if (newCategory) {
-                        return { message: `"${data.name}" 카테고리를 추가했습니다.` };
-                    } else {
-                        return { message: '카테고리 추가에 실패했습니다.' };
-                    }
-
-                case 'UPDATE_TODO_CATEGORY':
-                    console.log('[GeminiAPI] UPDATE_TODO_CATEGORY 실행:', data);
-                    const todoToUpdate = todoManager.getTodos().find(t => t.id == data.todoId);
-                    if (todoToUpdate) {
-                        // 카테고리가 존재하는지 확인
-                        const existingCategories = todoManager.getCategories();
-                        const categoryExists = existingCategories.some(cat => cat.name === data.newCategory);
-                        
-                        // 카테고리가 없으면 자동 생성
-                        if (!categoryExists) {
-                            console.log('[GeminiAPI] 카테고리가 없어서 자동 생성:', data.newCategory);
-                            const newCategory = todoManager.addCategory(data.newCategory);
-                            if (!newCategory) {
-                                return { message: `카테고리 "${data.newCategory}" 생성에 실패했습니다.` };
-                            }
-                        }
-                        
-                        // 할 일 카테고리 변경
-                        todoManager.updateTodoCategory(todoToUpdate.id, data.newCategory);
-                        
-                        // UI 업데이트
-                        if (window.app && window.app.renderTodos) {
-                            window.app.renderTodos();
-                        }
-                        
-                        const categoryMessage = categoryExists ? '' : ` (새로 생성된 카테고리)`;
-                        return { message: `"${todoToUpdate.text}" 할 일의 카테고리를 "${data.newCategory}"로 변경했습니다.${categoryMessage}` };
-                    } else {
-                        return { message: '해당 할 일을 찾을 수 없습니다.' };
-                    }
-
-                case 'COMPLETE_TODO':
-                    const todo = todoManager.getTodos().find(t => t.id == data.todoId);
-                    if (todo) {
-                        todoManager.toggleTodoStatus(todo.id);
-                        return { message: `"${todo.text}" 할 일을 완료 처리했습니다.` };
-                    } else {
-                        return { message: '해당 할 일을 찾을 수 없습니다.' };
-                    }
-
-                case 'DELETE_TODO':
-                    console.log('[GeminiAPI] DELETE_TODO 실행:', data);
-                    
-                    // todoIds 배열 처리
-                    if (data.todoIds && Array.isArray(data.todoIds)) {
-                        console.log('[GeminiAPI] todoIds 배열로 삭제:', data.todoIds);
-                        const allTodos = todoManager.getTodos();
-                        let deletedCount = 0;
-                        
-                        for (const todoId of data.todoIds) {
-                            const todoToDelete = allTodos.find(t => t.id == todoId);
-                            if (todoToDelete) {
-                                todoManager.deleteTodo(todoToDelete.id);
-                                deletedCount++;
-                                console.log('[GeminiAPI] 할 일 삭제됨:', todoToDelete.text);
-                            } else {
-                                console.log('[GeminiAPI] 할 일을 찾을 수 없음, ID:', todoId);
-                            }
-                        }
-                        
-                        if (deletedCount > 0) {
-                            // UI 업데이트
-                            if (window.app && window.app.renderTodos) {
-                                window.app.renderTodos();
-                            }
-                            
-                            return { 
-                                message: `${deletedCount}개의 할 일을 삭제했습니다.` 
-                            };
-                        } else {
-                            return { message: '삭제할 할 일을 찾을 수 없습니다.' };
-                        }
-                    }
-                    // 단일 todoId 처리
-                    else if (data.todoId) {
-                        const todoToDelete = todoManager.getTodos().find(t => t.id == data.todoId);
-                        if (todoToDelete) {
-                            todoManager.deleteTodo(todoToDelete.id);
-                            
-                            // UI 업데이트
-                            if (window.app && window.app.renderTodos) {
-                                window.app.renderTodos();
-                            }
-                            
-                            return { message: `"${todoToDelete.text}" 할 일을 삭제했습니다.` };
-                        } else {
-                            return { message: '해당 할 일을 찾을 수 없습니다.' };
-                        }
-                    }
-                    // 전체 삭제 처리
-                    else if (data.deleteAll) {
-                        console.log('[GeminiAPI] 전체 삭제 실행');
-                        const allTodos = todoManager.getTodos();
-                        const deletedCount = allTodos.length;
-                        
-                        // 모든 할 일 삭제
-                        allTodos.forEach(todo => {
-                            todoManager.deleteTodo(todo.id);
-                        });
-                        
-                        // UI 업데이트
-                        if (window.app && window.app.renderTodos) {
-                            window.app.renderTodos();
-                        }
-                        
-                        return { message: `모든 할 일(${deletedCount}개)을 삭제했습니다.` };
-                    }
-                    
-                    console.log('[GeminiAPI] DELETE_TODO 실패 - 유효한 데이터 없음');
-                    return { message: '삭제할 할 일을 지정해주세요.' };
-
-                case 'SHOW_INFO':
-                    const todos = todoManager.getTodos();
-                    const categories = todoManager.getCategories();
-                    const completedCount = todos.filter(t => t.completed).length;
-                    
-                    return { 
-                        message: `현재 상태:\n• 총 할 일: ${todos.length}개\n• 완료된 할 일: ${completedCount}개\n• 미완료 할 일: ${todos.length - completedCount}개\n• 카테고리: ${categories.length}개\n\n카테고리별 할 일:\n${categories.map(cat => `• ${cat.name}: ${todos.filter(t => t.category === cat.name).length}개`).join('\n')}`
-                    };
-
-                default:
-                    return { message: '죄송합니다. 해당 명령을 이해하지 못했습니다.' };
-            }
-        } catch (error) {
-            console.error('[GeminiAPI] executeCommand 오류:', error);
-            
-            // 오류 상황을 AI에게 재전달하여 해결책 요청
-            try {
-                const errorPrompt = `명령 실행 중 오류가 발생했습니다. 사용자의 원래 요청과 오류 상황을 분석하여 적절한 해결책을 제시해주세요.
-
-원래 명령: ${action}
-명령 데이터: ${JSON.stringify(data)}
-발생한 오류: ${error.message}
-
-현재 앱 상태:
-- 할 일 목록: ${todoManager.getTodos().length}개
-- 카테고리: ${todoManager.getCategories().map(c => c.name).join(', ') || '없음'}
-
-다음 중 하나로 응답해주세요:
-1. 오류를 수정한 명령 (JSON 형식)
-2. 대안 제안 (CHAT 형식)
-3. 사용자에게 추가 정보 요청 (CHAT 형식)
-
-JSON 응답 형식:
-{
-    "action": "명령 타입",
-    "data": { ... },
-    "message": "사용자에게 보여줄 메시지",
-    "success": true
-}`;
-
-                const errorResponse = await fetch(`${getCurrentModel()}?key=${apiKey}`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        contents: [{
-                            parts: [{
-                                text: errorPrompt
-                            }]
-                        }],
-                        generationConfig: {
-                            temperature: 0.7,
-                            topK: 40,
-                            topP: 0.95,
-                            maxOutputTokens: 1024,
-                        }
-                    })
-                });
-
-                if (errorResponse.ok) {
-                    const errorData = await errorResponse.json();
-                    if (errorData.candidates && errorData.candidates[0] && errorData.candidates[0].content) {
-                        const aiErrorResponse = errorData.candidates[0].content.parts[0].text;
-                        
-                        try {
-                            const parsedErrorResponse = JSON.parse(aiErrorResponse);
-                            if (parsedErrorResponse.success && parsedErrorResponse.action !== 'CHAT') {
-                                // 오류 수정 명령 실행
-                                const result = await executeCommand(parsedErrorResponse.action, parsedErrorResponse.data);
-                                return result;
-                            } else {
-                                // 대안 제안 또는 추가 정보 요청
-                                return { message: parsedErrorResponse.message || aiErrorResponse };
-                            }
-                        } catch (parseError) {
-                            // JSON 파싱 실패 시 일반 대화로 처리
-                            return { message: aiErrorResponse };
-                        }
-                    }
-                }
-            } catch (retryError) {
-                console.error('[GeminiAPI] executeCommand 오류 재처리 실패:', retryError);
-            }
-            
-            // 모든 재처리 실패 시 원래 오류 반환
-            return { message: `명령 실행 중 오류가 발생했습니다: ${error.message}` };
-        }
-    };
-
-    return {
-        setApiKey,
-        clearApiKey, // API 키 초기화
-        sendMessage,
-        clearHistory, // 대화 히스토리 초기화
-        getConversationContext // 대화 히스토리 조회 (디버깅용)
-    };
+    return { setApiKey, clearApiKey, sendMessage };
 })();
 
-// window 객체에 노출
 window.geminiApi = geminiApi; 
+
