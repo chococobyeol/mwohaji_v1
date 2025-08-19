@@ -33,8 +33,8 @@ Mwohaji 앱의 Google Drive 동기화 기능을 사용하기 위해 Google Cloud
 
 ```bash
 # Google Drive API 설정
-GOOGLE_CLIENT_ID=123456789-abcdefghijklmnop.apps.googleusercontent.com
-GOOGLE_API_KEY=AIzaSyC1234567890abcdefghijklmnopqrstuvwxyz
+GOOGLE_CLIENT_ID=YOUR_CLIENT_ID.apps.googleusercontent.com
+GOOGLE_API_KEY=YOUR_API_KEY_HERE
 GOOGLE_SCOPE=https://www.googleapis.com/auth/drive.file
 GOOGLE_DISCOVERY_DOCS=https://www.googleapis.com/discovery/v1/apis/drive/v3/rest
 ```
@@ -47,8 +47,8 @@ GOOGLE_DISCOVERY_DOCS=https://www.googleapis.com/discovery/v1/apis/drive/v3/rest
 
 **Netlify/Vercel:**
 ```bash
-GOOGLE_CLIENT_ID=123456789-abcdefghijklmnop.apps.googleusercontent.com
-GOOGLE_API_KEY=AIzaSyC1234567890abcdefghijklmnopqrstuvwxyz
+GOOGLE_CLIENT_ID=YOUR_CLIENT_ID.apps.googleusercontent.com
+GOOGLE_API_KEY=YOUR_API_KEY_HERE
 GOOGLE_SCOPE=https://www.googleapis.com/auth/drive.file
 GOOGLE_DISCOVERY_DOCS=https://www.googleapis.com/discovery/v1/apis/drive/v3/rest
 ```

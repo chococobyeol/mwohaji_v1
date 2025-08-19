@@ -2,7 +2,7 @@
 
 ## 현재 문제 상황
 - **오류**: `unregistered_origin` 및 `403 Forbidden`
-- **Client ID**: `373777574537-a7b49o0lqaio887cq385onkjdutoasiu.apps.googleusercontent.com`
+- **Client ID**: `YOUR_CLIENT_ID.apps.googleusercontent.com`
 - **로컬 개발 URL**: `http://localhost:8000`
 
 ## 1단계: Google Cloud Console 설정 재확인
@@ -17,18 +17,18 @@
 
 ### 1.2 OAuth 클라이언트 ID 설정
 1. **API 및 서비스** → **사용자 인증 정보**
-2. 클라이언트 ID `373777574537-a7b49o0lqaio887cq385onkjdutoasiu.apps.googleusercontent.com` 클릭
+2. 클라이언트 ID `YOUR_CLIENT_ID.apps.googleusercontent.com` 클릭
 3. **승인된 JavaScript 원본** 확인:
    ```
    http://localhost:8000
    http://127.0.0.1:8000
-   https://mwohaji.onrender.com
+   https://yourdomain.com
    ```
 4. **승인된 리디렉션 URI** 확인:
    ```
    http://localhost:8000
    http://127.0.0.1:8000
-   https://mwohaji.onrender.com
+   https://yourdomain.com
    ```
 
 ### 1.3 API 활성화 확인
@@ -50,13 +50,13 @@
    ```
    http://localhost:8000
    http://127.0.0.1:8000
-   https://mwohaji.onrender.com
+   https://yourdomain.com
    ```
 6. **승인된 리디렉션 URI**:
    ```
    http://localhost:8000
    http://127.0.0.1:8000
-   https://mwohaji.onrender.com
+   https://yourdomain.com
    ```
 
 ### 2.2 새 클라이언트 ID로 코드 업데이트
