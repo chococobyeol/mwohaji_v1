@@ -193,6 +193,130 @@ const utils = (() => {
         return stats;
     };
 
+    // Google Drive API 환경변수 로더
+    const loadGoogleDriveConfig = async () => {
+        console.log('환경변수 로드 시작...');
+        try {
+            // .env 파일에서 설정 읽기 시도
+            console.log('.env 파일 fetch 시도...');
+            const response = await fetch('.env');
+            console.log('.env 파일 응답:', response.status, response.ok);
+            
+            if (response.ok) {
+                const envText = await response.text();
+                console.log('.env 파일 내용 길이:', envText.length);
+                const config = {};
+                
+                envText.split('\n').forEach(line => {
+                    const trimmed = line.trim();
+                    if (trimmed && !trimmed.startsWith('#') && trimmed.includes('=')) {
+                        const [key, value] = trimmed.split('=', 2);
+                        config[key.trim()] = value.trim().replace(/^["']|["']$/g, '');
+                    }
+                });
+                
+                console.log('파싱된 환경변수 키들:', Object.keys(config));
+                console.log('GOOGLE_CLIENT_ID 존재:', !!config.GOOGLE_CLIENT_ID);
+                console.log('GOOGLE_API_KEY 존재:', !!config.GOOGLE_API_KEY);
+                
+                if (config.GOOGLE_CLIENT_ID && config.GOOGLE_API_KEY) {
+                    console.log('Google Drive 환경변수를 .env 파일에서 로드했습니다.');
+                    const finalConfig = {
+                        apiKey: config.GOOGLE_API_KEY,
+                        clientId: config.GOOGLE_CLIENT_ID,
+                        scope: config.GOOGLE_SCOPE || 'https://www.googleapis.com/auth/drive.file',
+                        discoveryDocs: [config.GOOGLE_DISCOVERY_DOCS || 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest']
+                    };
+                    console.log('최종 설정:', { ...finalConfig, apiKey: finalConfig.apiKey ? '[설정됨]' : '[누락]' });
+                    return finalConfig;
+                } else {
+                    console.warn('필수 환경변수가 누락됨:', {
+                        GOOGLE_CLIENT_ID: !!config.GOOGLE_CLIENT_ID,
+                        GOOGLE_API_KEY: !!config.GOOGLE_API_KEY
+                    });
+                }
+            } else {
+                console.warn('.env 파일을 찾을 수 없음:', response.status);
+            }
+        } catch (error) {
+            console.warn('환경변수 파일 로드 실패:', error.message);
+        }
+        
+        // 폴백: 전역 변수에서 설정 읽기
+        console.log('전역 변수 폴백 확인...');
+        const globalConfig = window.GOOGLE_DRIVE_CONFIG || {};
+        console.log('전역 설정:', globalConfig);
+        if (globalConfig.clientId && globalConfig.apiKey) {
+            console.log('Google Drive 환경변수를 전역 변수에서 로드했습니다.');
+            return globalConfig;
+        }
+        
+        // 설정이 없는 경우
+        console.error('Google Drive API 설정을 찾을 수 없습니다. .env 파일을 확인하거나 window.GOOGLE_DRIVE_CONFIG를 설정해주세요.');
+        return null;
+    };
+
+    // 시간 경과 표시
+    const getTimeAgo = (date) => {
+        if (!date) return '알 수 없음';
+        
+        const now = new Date();
+        const target = new Date(date);
+        const diffMs = now - target;
+        const diffMins = Math.floor(diffMs / (1000 * 60));
+        const diffHours = Math.floor(diffMins / 60);
+        const diffDays = Math.floor(diffHours / 24);
+        
+        if (diffMs < 0) {
+            return '미래 시간';
+        } else if (diffMins < 1) {
+            return '방금 전';
+        } else if (diffMins < 60) {
+            return `${diffMins}분 전`;
+        } else if (diffHours < 24) {
+            return `${diffHours}시간 전`;
+        } else if (diffDays < 7) {
+            return `${diffDays}일 전`;
+        } else {
+            return formatDate(target, 'YYYY-MM-DD HH:mm');
+        }
+    };
+
+    // 간단한 토스트 알림
+    const showToast = (message, type = 'info') => {
+        const toast = document.createElement('div');
+        toast.textContent = message;
+        toast.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: ${type === 'error' ? '#ef4444' : type === 'success' ? '#10b981' : '#3b82f6'};
+            color: white;
+            padding: 12px 16px;
+            border-radius: 6px;
+            z-index: 10000;
+            font-size: 14px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transition: all 0.3s ease;
+            transform: translateX(100%);
+        `;
+        
+        document.body.appendChild(toast);
+        
+        setTimeout(() => {
+            toast.style.transform = 'translateX(0)';
+        }, 10);
+        
+        setTimeout(() => {
+            toast.style.transform = 'translateX(100%)';
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 300);
+        }, 3000);
+    };
+
     return {
         formatDate,
         formatDateTime,
@@ -208,6 +332,9 @@ const utils = (() => {
         isValidUrl,
         formatFileSize,
         validateBackupData,
-        getBackupStats
+        getBackupStats,
+        loadGoogleDriveConfig,
+        getTimeAgo,
+        showToast
     };
 })();

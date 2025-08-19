@@ -241,6 +241,12 @@ const todoManager = (() => {
     const deleteTodo = (id) => {
         todos = todos.filter(todo => todo.id !== id);
         storage.saveTodos(todos);
+        
+        // Google Drive 동기화: 삭제된 항목 추적
+        if (window.googleDriveSync) {
+            window.googleDriveSync.markAsDeleted(id);
+        }
+        
         triggerChange();
     };
 

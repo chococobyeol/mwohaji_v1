@@ -2547,4 +2547,81 @@ button:hover {
     }
 }
 
+/* Google Drive 동기화 관련 스타일 */
+.status-text {
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.status-text.warning {
+    color: #f59e0b;
+}
+
+.status-text.success {
+    color: #10b981;
+}
+
+.status-text.error {
+    color: #ef4444;
+}
+
+/* 동기화 진행 상태 애니메이션 */
+@keyframes gdrive-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+#gdrive-sync-progress svg {
+    animation: gdrive-spin 1s linear infinite;
+}
+
+/* Google Drive 설정 섹션 스타일 */
+#gdrive-user-info img {
+    border: 1px solid #e5e7eb;
+}
+
+.setting-control button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    flex-direction: row;
+    writing-mode: initial;
+}
+
+.setting-control button svg {
+    flex-shrink: 0;
+}
+
+.setting-control button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Google Drive 버튼 특별 스타일 */
+#gdrive-auth-btn,
+#gdrive-sync-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    white-space: nowrap !important;
+    flex-direction: row !important;
+    writing-mode: horizontal-tb !important;
+    text-orientation: mixed !important;
+}
+
+#gdrive-auth-btn span,
+#gdrive-sync-btn span {
+    display: inline-block;
+    vertical-align: middle;
+}
+
+#gdrive-sync-progress div {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    flex-direction: row !important;
+}
+
 

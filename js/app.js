@@ -2464,7 +2464,47 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
         settingsContent.appendChild(aiFeatureGroupSection);
         
-        // 7. 데이터 초기화 설정
+        // 7. Google Drive 동기화 설정
+        const googleDriveSection = document.createElement('div');
+        googleDriveSection.className = 'setting-item';
+        googleDriveSection.innerHTML = `
+            <div class="setting-row">
+                <label class="setting-label">${icons.get('cloud', 18)} Google Drive 동기화</label>
+            </div>
+            <div class="setting-row" style="margin-top: 12px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span id="gdrive-auth-status" class="status-text">초기화 중...</span>
+                    <div id="gdrive-user-info" style="display: none; margin-left: 12px;">
+                        <img id="gdrive-user-avatar" style="width: 24px; height: 24px; border-radius: 50%; vertical-align: middle; margin-right: 8px;" src="" alt="">
+                        <span id="gdrive-user-email" style="font-size: 12px; color: #6b7280;"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="setting-control" style="display: flex; gap: 8px; margin-top: 12px;">
+                <button id="gdrive-auth-btn" class="secondary-btn" disabled>초기화 중...</button>
+                <button id="gdrive-sync-btn" class="secondary-btn" disabled style="display: none;">동기화</button>
+            </div>
+            <div class="setting-row" style="margin-top: 12px; display: none;" id="gdrive-auto-sync-row">
+                <label class="setting-label">자동 동기화 (5분마다)</label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="gdrive-auto-sync-toggle" class="toggle-input">
+                    <span class="toggle-label"></span>
+                </label>
+            </div>
+            <div class="setting-row" style="margin-top: 12px; display: none;" id="gdrive-last-sync-row">
+                <label class="setting-label">마지막 동기화</label>
+                <span id="gdrive-last-sync-time" style="font-size: 12px; color: #6b7280; font-style: italic;">동기화 기록 없음</span>
+            </div>
+            <div id="gdrive-sync-progress" style="display: none; margin-top: 12px; padding: 12px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px;">
+                <div style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: #0369a1;">
+                    동기화 진행 중...
+                </div>
+            </div>
+            <p class="setting-description">Google Drive와 할 일 데이터를 동기화합니다. 자동 동기화를 활성화하면 5분마다 백그라운드에서 동기화가 실행됩니다. .env 파일에 Google Drive API 설정이 필요합니다.</p>
+        `;
+        settingsContent.appendChild(googleDriveSection);
+        
+        // 8. 데이터 초기화 설정
         const dataResetSection = document.createElement('div');
         dataResetSection.className = 'setting-item';
         dataResetSection.innerHTML = `
@@ -2493,6 +2533,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const syncTimeBtn = document.getElementById('sync-time-btn');
         const apiKeyInput = document.getElementById('ai-api-key-input');
         const saveApiKeyBtn = document.getElementById('save-api-key-btn');
+        
+        // Google Drive 동기화 관련 요소들
+        const gdriveAuthBtn = document.getElementById('gdrive-auth-btn');
+        const gdriveSyncBtn = document.getElementById('gdrive-sync-btn');
+
+        const gdriveAutoSyncToggle = document.getElementById('gdrive-auto-sync-toggle');
+        const gdriveAuthStatus = document.getElementById('gdrive-auth-status');
+        const gdriveUserInfo = document.getElementById('gdrive-user-info');
+        const gdriveUserAvatar = document.getElementById('gdrive-user-avatar');
+        const gdriveUserEmail = document.getElementById('gdrive-user-email');
+        const gdriveAutoSyncRow = document.getElementById('gdrive-auto-sync-row');
+        const gdriveLastSyncRow = document.getElementById('gdrive-last-sync-row');
+        const gdriveLastSyncTime = document.getElementById('gdrive-last-sync-time');
+        const gdriveSyncProgress = document.getElementById('gdrive-sync-progress');
 
         // 할일 정렬 선택 초기화
         if (todoSortSelect) {
@@ -2670,6 +2724,146 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
+        // Google Drive 동기화 초기화 및 이벤트 리스너
+        if (gdriveAuthBtn && gdriveSyncBtn && gdriveAutoSyncToggle) {
+            // Google Drive 동기화 버튼 텍스트만 설정
+            gdriveSyncBtn.textContent = '동기화';
+            
+            // Google Drive API 초기화
+            window.googleDriveSync.initialize()
+                .then(() => {
+                    console.log('Google Drive API 초기화 성공');
+                    updateGoogleDriveUI();
+                })
+                .catch((error) => {
+                    console.error('Google Drive API 초기화 실패:', error);
+                    if (gdriveAuthStatus) {
+                        gdriveAuthStatus.textContent = '초기화 실패 - .env 파일 확인 필요';
+                        gdriveAuthStatus.style.color = '#ef4444';
+                    }
+                });
+
+            // 인증 버튼 이벤트
+            gdriveAuthBtn.addEventListener('click', async () => {
+                try {
+                    if (window.googleDriveSync.isSignedIn) {
+                        await window.googleDriveSync.signOut();
+                    } else {
+                        await window.googleDriveSync.signIn();
+                    }
+                    updateGoogleDriveUI();
+                } catch (error) {
+                    console.error('Google Drive 인증 오류:', error);
+                }
+            });
+
+            // 동기화 버튼 이벤트
+            gdriveSyncBtn.addEventListener('click', async () => {
+                try {
+                    await window.googleDriveSync.sync();
+                    updateGoogleDriveUI();
+                } catch (error) {
+                    console.error('동기화 오류:', error);
+                }
+            });
+
+
+
+            // 자동 동기화 토글 이벤트
+            gdriveAutoSyncToggle.addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    window.googleDriveSync.startAutoSync();
+                } else {
+                    window.googleDriveSync.stopAutoSync();
+                }
+                updateGoogleDriveUI();
+            });
+        }
+
+        // Google Drive UI 업데이트 함수
+        const updateGoogleDriveUI = () => {
+            if (!window.googleDriveSync) return;
+
+            const isSignedIn = window.googleDriveSync.isSignedIn;
+            const syncInProgress = window.googleDriveSync.syncInProgress;
+            const autoSyncEnabled = window.googleDriveSync.autoSyncEnabled;
+            const lastSyncTime = window.googleDriveSync.lastSyncTime;
+
+            // 인증 상태 업데이트
+            if (gdriveAuthStatus) {
+                gdriveAuthStatus.textContent = isSignedIn ? '로그인됨' : '로그인 필요';
+                gdriveAuthStatus.style.color = isSignedIn ? '#10b981' : '#f59e0b';
+            }
+
+            // 인증 버튼 업데이트
+            if (gdriveAuthBtn) {
+                if (isSignedIn) {
+                    gdriveAuthBtn.textContent = '로그아웃';
+                } else {
+                    gdriveAuthBtn.textContent = '로그인';
+                }
+                gdriveAuthBtn.disabled = false;
+            }
+
+            // 사용자 정보 업데이트
+            if (isSignedIn) {
+                const user = window.googleDriveSync.getCurrentUser();
+                if (user && gdriveUserInfo && gdriveUserAvatar && gdriveUserEmail) {
+                    // 안전한 이미지 URL 설정
+                    const imageUrl = user.picture || user.imageUrl;
+                    if (imageUrl && imageUrl !== 'undefined' && imageUrl.startsWith('http')) {
+                        gdriveUserAvatar.src = imageUrl;
+                        gdriveUserAvatar.style.display = 'inline-block';
+                    } else {
+                        gdriveUserAvatar.style.display = 'none';
+                    }
+                    
+                    gdriveUserEmail.textContent = user.email || '로그인됨';
+                    gdriveUserInfo.style.display = 'block';
+                }
+            } else {
+                if (gdriveUserInfo) {
+                    gdriveUserInfo.style.display = 'none';
+                }
+            }
+
+            // 동기화 관련 요소들 표시/숨김
+            const shouldShowSyncControls = isSignedIn;
+            if (gdriveSyncBtn) {
+                gdriveSyncBtn.style.display = shouldShowSyncControls ? 'inline-flex' : 'none';
+                gdriveSyncBtn.disabled = syncInProgress;
+            }
+
+            if (gdriveAutoSyncRow) {
+                gdriveAutoSyncRow.style.display = shouldShowSyncControls ? 'flex' : 'none';
+            }
+            if (gdriveLastSyncRow) {
+                gdriveLastSyncRow.style.display = shouldShowSyncControls ? 'flex' : 'none';
+            }
+
+            // 자동 동기화 토글 상태 업데이트
+            if (gdriveAutoSyncToggle) {
+                gdriveAutoSyncToggle.checked = autoSyncEnabled;
+            }
+
+            // 마지막 동기화 시간 업데이트
+            if (gdriveLastSyncTime && lastSyncTime) {
+                gdriveLastSyncTime.textContent = utils.getTimeAgo(lastSyncTime);
+            }
+
+            // 동기화 진행 상태 업데이트
+            if (gdriveSyncProgress) {
+                gdriveSyncProgress.style.display = syncInProgress ? 'block' : 'none';
+            }
+        };
+
+        // Google Drive UI 업데이트 함수를 전역에 등록 (동기화 모듈에서 호출할 수 있도록)
+        if (window.googleDriveSync) {
+            window.googleDriveSync.updateAuthUI = updateGoogleDriveUI;
+            window.googleDriveSync.updateSyncUI = updateGoogleDriveUI;
+            window.googleDriveSync.updateLastSyncTime = updateGoogleDriveUI;
+        }
+
         // 알림 권한 상태 업데이트 (동적으로 생성된 요소들 이후)
         updateNotificationPermissionStatus();
         }, 0);
@@ -2750,6 +2944,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 전체 초기화 함수 (AI 채팅 포함)
     const init = async () => {
+        // Storage를 전역으로 설정 (Google Drive 동기화에서 사용)
+        window.storage = storage;
+        console.log('[App] Storage 전역 설정 완료');
+        
         await initWithoutAiChat();
         
         // 알림 권한 상태 업데이트
@@ -3314,4 +3512,884 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     };
+
+    // Google Drive 동기화 모듈
+    const googleDriveSync = (() => {
+        let isSignedIn = false;
+        let drive = null;
+        let config = null;
+        let autoSyncEnabled = false;
+        let autoSyncInterval = null;
+        let lastSyncTime = null;
+        let syncInProgress = false;
+        let deletedItemIds = new Set();
+        let tokenClient = null; // GIS token client
+        let currentUserInfo = null; // Store user profile info
+
+        // 로컬 시간대 기준 날짜 문자열 생성
+        const getLocalDateString = () => {
+            const now = new Date();
+            const utcDate = now.toISOString().split('T')[0];
+            const localDate = new Date(now.getTime() - (now.getTimezoneOffset() * 60000));
+            const localDateStr = localDate.toISOString().split('T')[0];
+            
+            console.log('🗓️ 시간대 정보:', {
+                현재_로컬시간: now.toLocaleString('ko-KR'),
+                UTC_날짜: utcDate,
+                로컬_날짜: localDateStr,
+                시간대_오프셋: `UTC${now.getTimezoneOffset() > 0 ? '-' : '+'}${Math.abs(now.getTimezoneOffset() / 60)}`
+            });
+            
+            return localDateStr;
+        };
+
+        // 초기화
+        const initialize = async () => {
+            try {
+                console.log('Google Drive 환경 변수 로드 시작...');
+                config = await utils.loadGoogleDriveConfig();
+                console.log('환경 변수 로드 결과:', config);
+                if (!config) {
+                    throw new Error('Google Drive 설정을 로드할 수 없습니다.');
+                }
+
+                console.log('Google Identity Services (GIS) 초기화 시작...');
+                await loadGoogleIdentityServices();
+                console.log('Google API 클라이언트 초기화 시작...');
+                
+                // Google API 클라이언트 초기화 (Drive API용)
+                await new Promise((resolve, reject) => {
+                    try {
+                        if (!window.gapi || typeof window.gapi.load !== 'function') {
+                            reject(new Error('Google API 객체가 사용할 수 없습니다.'));
+                            return;
+                        }
+                        
+                        window.gapi.load('client', async () => {
+                            try {
+                                console.log('gapi.client.init 호출...');
+                                await window.gapi.client.init({
+                                    apiKey: config.apiKey,
+                                    discoveryDocs: config.discoveryDocs
+                                });
+                                
+                                drive = window.gapi.client.drive;
+                                console.log('Google Drive API 클라이언트 초기화 완료');
+                                resolve();
+                            } catch (error) {
+                                console.error('Google API 클라이언트 초기화 오류:', error);
+                                reject(error);
+                            }
+                        });
+                    } catch (error) {
+                        console.error('Google API load 호출 오류:', error);
+                        reject(error);
+                    }
+                });
+
+                // Google Identity Services 초기화
+                if (window.google && window.google.accounts) {
+                    console.log('Google Identity Services 초기화...');
+                    
+                    // OAuth2 토큰 클라이언트 초기화
+                    window.tokenClient = window.google.accounts.oauth2.initTokenClient({
+                        client_id: config.clientId,
+                        scope: config.scope,
+                        callback: (response) => {
+                            if (response.error) {
+                                console.error('토큰 획득 실패:', response.error);
+                                return;
+                            }
+                            console.log('액세스 토큰 획득 성공');
+                            isSignedIn = true;
+                            gapi.client.setToken({
+                                access_token: response.access_token
+                            });
+                            onAuthStateChanged(true);
+                        }
+                    });
+                    
+                    // 기존 토큰이 있는지 확인
+                    try {
+                        const existingToken = window.gapi.client.getToken();
+                        if (existingToken && existingToken.access_token) {
+                            console.log('기존 토큰 발견');
+                            
+                            // 기존 토큰으로 사용자 정보 가져오기
+                            try {
+                                const userInfoResponse = await fetch(`https://www.googleapis.com/oauth2/v2/userinfo?access_token=${existingToken.access_token}`);
+                                if (userInfoResponse.ok) {
+                                    const userInfo = await userInfoResponse.json();
+                                    window.currentUserInfo = userInfo;
+                                    isSignedIn = true;
+                                    onAuthStateChanged(true);
+                                } else {
+                                    console.log('기존 토큰이 유효하지 않음');
+                                    window.gapi.client.setToken(null);
+                                }
+                            } catch (error) {
+                                console.warn('기존 토큰 검증 실패:', error);
+                                window.gapi.client.setToken(null);
+                            }
+                        }
+                    } catch (error) {
+                        console.log('기존 토큰 확인 중 오류 (정상):', error.message);
+                    }
+                    
+                } else {
+                    throw new Error('Google Identity Services를 로드할 수 없습니다.');
+                }
+
+                loadSettings();
+                return true;
+            } catch (error) {
+                console.error('Google Drive API 초기화 실패:', error);
+                throw error;
+            }
+        };
+
+        const loadGoogleAPI = () => {
+            return new Promise((resolve, reject) => {
+                if (window.gapi) {
+                    resolve();
+                    return;
+                }
+
+                const script = document.createElement('script');
+                script.src = 'https://apis.google.com/js/api.js';
+                script.onload = () => {
+                    // gapi 객체가 사용가능할 때까지 기다림 (최대 10초)
+                    let attempts = 0;
+                    const maxAttempts = 100; // 10초 (100ms * 100회)
+                    const checkGapi = () => {
+                        if (window.gapi && typeof window.gapi.load === 'function') {
+                            console.log('Google API 스크립트 로드 완료');
+                            resolve();
+                        } else if (attempts < maxAttempts) {
+                            attempts++;
+                            setTimeout(checkGapi, 100);
+                        } else {
+                            reject(new Error('Google API 객체 로드 시간 초과'));
+                        }
+                    };
+                    checkGapi();
+                };
+                script.onerror = () => reject(new Error('Google API 스크립트 로드 실패'));
+                document.head.appendChild(script);
+            });
+        };
+
+        const loadGoogleIdentityServices = () => {
+            return new Promise((resolve, reject) => {
+                // Google API 먼저 로드
+                loadGoogleAPI().then(() => {
+                    // Google Identity Services 스크립트 로드
+                    if (window.google && window.google.accounts) {
+                        resolve();
+                        return;
+                    }
+
+                    const gisScript = document.createElement('script');
+                    gisScript.src = 'https://accounts.google.com/gsi/client';
+                    gisScript.onload = () => {
+                        let attempts = 0;
+                        const maxAttempts = 100;
+                        const checkGIS = () => {
+                            if (window.google && window.google.accounts && window.google.accounts.oauth2) {
+                                console.log('Google Identity Services 로드 완료');
+                                resolve();
+                            } else if (attempts < maxAttempts) {
+                                attempts++;
+                                setTimeout(checkGIS, 100);
+                            } else {
+                                reject(new Error('Google Identity Services 로드 시간 초과'));
+                            }
+                        };
+                        checkGIS();
+                    };
+                    gisScript.onerror = () => reject(new Error('Google Identity Services 스크립트 로드 실패'));
+                    document.head.appendChild(gisScript);
+                }).catch(reject);
+            });
+        };
+
+        const onAuthStateChanged = (signedIn) => {
+            isSignedIn = signedIn;
+            if (signedIn) {
+                console.log('Google Drive에 로그인되었습니다.');
+                if (autoSyncEnabled) {
+                    startAutoSync();
+                }
+            } else {
+                console.log('Google Drive에서 로그아웃되었습니다.');
+                stopAutoSync();
+            }
+            updateAuthUI();
+        };
+
+        const signIn = async () => {
+            try {
+                if (!window.tokenClient) {
+                    throw new Error('Google Identity Services가 초기화되지 않았습니다.');
+                }
+                
+                return new Promise((resolve, reject) => {
+                    try {
+                        // 토큰 요청
+                        window.tokenClient.callback = async (response) => {
+                            if (response.error) {
+                                console.error('토큰 획득 실패:', response.error);
+                                reject(new Error('로그인에 실패했습니다.'));
+                                return;
+                            }
+                            
+                            console.log('액세스 토큰 획득 성공');
+                            window.gapi.client.setToken({
+                                access_token: response.access_token
+                            });
+                            
+                            // 간단한 사용자 정보 설정
+                            window.currentUserInfo = {
+                                id: 'google_user',
+                                email: '로그인됨',
+                                name: 'Google 사용자',
+                                picture: ''
+                            };
+                            
+                            isSignedIn = true;
+                            onAuthStateChanged(true);
+                            resolve(true);
+                        };
+                        
+                        // 토큰 요청 시작
+                        window.tokenClient.requestAccessToken({ prompt: '' });
+                    } catch (error) {
+                        reject(error);
+                    }
+                });
+            } catch (error) {
+                console.error('로그인 실패:', error);
+                utils.showToast('로그인에 실패했습니다.', 'error');
+                throw error;
+            }
+        };
+
+        const signOut = async () => {
+            try {
+                const token = window.gapi.client.getToken();
+                if (token) {
+                    window.google.accounts.oauth2.revoke(token.access_token, () => {
+                        console.log('토큰 해제 완료');
+                    });
+                    window.gapi.client.setToken(null);
+                }
+                
+                window.currentUserInfo = null;
+                isSignedIn = false;
+                onAuthStateChanged(false);
+                return true;
+            } catch (error) {
+                console.error('로그아웃 실패:', error);
+                utils.showToast('로그아웃에 실패했습니다.', 'error');
+                throw error;
+            }
+        };
+
+        const getCurrentUser = () => {
+            if (!isSignedIn || !window.currentUserInfo) return null;
+            
+            return {
+                id: window.currentUserInfo.id,
+                name: window.currentUserInfo.name,
+                email: window.currentUserInfo.email,
+                imageUrl: window.currentUserInfo.picture
+            };
+        };
+
+        const sync = async () => {
+            if (syncInProgress) {
+                console.log('동기화가 이미 진행 중입니다.');
+                return;
+            }
+
+            if (!isSignedIn) {
+                throw new Error('Google Drive에 로그인이 필요합니다.');
+            }
+
+            syncInProgress = true;
+            updateSyncUI(true);
+
+            try {
+                console.log('🔄 [Google Drive 동기화] 시작...');
+                
+                console.log('📥 [단계 1] 로컬 데이터 읽기...');
+                const localData = await getLocalData();
+                console.log('📥 로컬 데이터:', {
+                    todosCount: localData.todos.length,
+                    categoriesCount: localData.categories?.length || 0,
+                    deletedItemsCount: localData.metadata.deletedItemIds.length,
+                    lastModified: localData.metadata.lastModified
+                });
+                
+                console.log('☁️ [단계 2] 원격 데이터 읽기...');
+                const remoteData = await getRemoteData();
+                console.log('☁️ 원격 데이터:', {
+                    todosCount: remoteData.todos.length,
+                    categoriesCount: remoteData.categories?.length || 0,
+                    deletedItemsCount: remoteData.metadata.deletedItemIds.length,
+                    lastModified: remoteData.metadata.lastModified
+                });
+                
+                console.log('🔀 [단계 3] 데이터 병합 시작...');
+                const syncResult = performSync(localData, remoteData);
+                console.log('🔀 병합 결과:', {
+                    localChanges: syncResult.localChanges.length,
+                    remoteChanges: syncResult.remoteChanges.length,
+                    totalMergedTodos: syncResult.mergedData.todos.length,
+                    totalMergedCategories: syncResult.mergedData.categories?.length || 0
+                });
+                
+                if (syncResult.localChanges.length > 0) {
+                    console.log('💾 [단계 4] 로컬 데이터 저장...');
+                    await saveLocalData(syncResult.mergedData);
+                    console.log('💾 로컬 저장 완료');
+                }
+                
+                // 동기화가 발생했으면 항상 원격에도 저장 (최신 상태 유지)
+                if (syncResult.localChanges.length > 0 || syncResult.remoteChanges.length > 0) {
+                    console.log('☁️ [단계 5] 원격 데이터 저장...');
+                    await saveRemoteData(syncResult.mergedData);
+                    console.log('☁️ 원격 저장 완료');
+                } else {
+                    console.log('☁️ 변경사항 없음, 원격 저장 건너뜀');
+                }
+                
+                lastSyncTime = new Date();
+                // 마지막 동기화 시간을 localStorage에 저장
+                try {
+                    localStorage.setItem('mwohaji-lastSyncTime', lastSyncTime.toISOString());
+                    console.log('✅ 마지막 동기화 시간 저장:', lastSyncTime.toISOString());
+                } catch (error) {
+                    console.warn('마지막 동기화 시간 저장 실패:', error);
+                }
+                
+                console.log(`✅ [동기화 완료] 로컬 ${syncResult.localChanges.length}개, 원격 ${syncResult.remoteChanges.length}개 변경`);
+                console.log('✅ 마지막 동기화 시간:', lastSyncTime.toISOString());
+                utils.showToast('동기화가 완료되었습니다.', 'success');
+                
+            } catch (error) {
+                console.error('❌ [동기화 실패]:', error);
+                console.error('❌ 오류 상세:', {
+                    message: error.message,
+                    stack: error.stack
+                });
+                utils.showToast('동기화에 실패했습니다.', 'error');
+                throw error;
+            } finally {
+                syncInProgress = false;
+                updateSyncUI(false);
+                updateLastSyncTime();
+            }
+        };
+
+        const getLocalData = async () => {
+            try {
+                console.log('💾 로컬 데이터 읽기 시작...');
+                
+                // todoManager와 storage 모두에서 확인
+                let todos = [];
+                
+                // 1차: todoManager에서 가져오기 (현재 메모리 상태)
+                if (window.todoManager && window.todoManager.getTodos) {
+                    todos = window.todoManager.getTodos() || [];
+                    console.log('💾 todoManager에서 todos 읽기:', todos.length + '개');
+                }
+                
+                // 2차: storage에서 가져오기 (빈 경우)
+                if (todos.length === 0) {
+                    try {
+                        todos = storage.getTodos() || [];
+                        console.log('💾 storage에서 todos 읽기:', todos.length + '개');
+                    } catch (error) {
+                        console.warn('💾 Storage에서 todos 읽기 실패:', error);
+                        todos = [];
+                    }
+                }
+                
+                console.log('💾 최종 로컬 todos:', todos.length + '개');
+                if (todos.length > 0) {
+                    console.log('💾 첫 번째 todo 샘플:', {
+                        id: todos[0].id,
+                        text: todos[0].text.substring(0, 30) + '...',
+                        category: todos[0].category
+                    });
+                }
+                
+                // 카테고리 정보도 함께 가져오기
+                let categories = [];
+                if (window.todoManager && window.todoManager.getCategories) {
+                    categories = window.todoManager.getCategories() || [];
+                    console.log('💾 로컬 카테고리:', categories.length + '개');
+                } else {
+                    try {
+                        categories = storage.getCategories() || [];
+                        console.log('💾 storage에서 카테고리 읽기:', categories.length + '개');
+                    } catch (error) {
+                        console.warn('💾 카테고리 읽기 실패:', error);
+                        categories = [];
+                    }
+                }
+                
+                const metadata = {
+                    lastModified: new Date().toISOString(),
+                    version: '1.0',
+                    deletedItemIds: Array.from(deletedItemIds)
+                };
+                
+                console.log('💾 로컬 데이터 준비 완료:', {
+                    todosCount: todos.length,
+                    categoriesCount: categories.length,
+                    deletedItemsCount: metadata.deletedItemIds.length
+                });
+                
+                return { todos, categories, metadata };
+            } catch (error) {
+                console.error('로컬 데이터 읽기 실패:', error);
+                return { todos: [], categories: [], metadata: { lastModified: new Date().toISOString(), version: '1.0', deletedItemIds: [] } };
+            }
+        };
+
+        const getRemoteData = async () => {
+            try {
+                // 고정된 파일명 사용 (날짜별 분리하지 않음)
+                const fileName = 'mwohaji_sync.json';
+                console.log('원격 파일 검색:', fileName);
+                
+                const response = await window.gapi.client.drive.files.list({
+                    q: `name='${fileName}' and trashed=false`,
+                    spaces: 'drive',
+                    fields: 'files(id, name)'
+                });
+
+                if (!response.result.files || response.result.files.length === 0) {
+                    console.log('원격 파일 없음, 빈 데이터 반환');
+                    return { todos: [], categories: [], metadata: { lastModified: new Date().toISOString(), version: '1.0', deletedItemIds: [] } };
+                }
+
+                const fileId = response.result.files[0].id;
+                console.log('원격 파일 발견, 내용 읽기:', fileId);
+                
+                const fileResponse = await window.gapi.client.drive.files.get({
+                    fileId: fileId,
+                    alt: 'media'
+                });
+
+                const rawData = JSON.parse(fileResponse.body);
+                console.log('원격 파일 파싱 완료:', {
+                    todosCount: rawData.todos?.length || 0,
+                    hasMetadata: !!rawData.metadata
+                });
+                
+                // 안전한 데이터 구조 보장
+                const safeData = {
+                    todos: rawData.todos || [],
+                    categories: rawData.categories || [],
+                    metadata: {
+                        lastModified: rawData.metadata?.lastModified || new Date().toISOString(),
+                        version: rawData.metadata?.version || '1.0',
+                        deletedItemIds: rawData.metadata?.deletedItemIds || []
+                    }
+                };
+                
+                console.log('☁️ 원격 데이터 구조 확인:', {
+                    todosCount: safeData.todos.length,
+                    categoriesCount: safeData.categories.length,
+                    hasMetadata: !!safeData.metadata
+                });
+                
+                return safeData;
+            } catch (error) {
+                console.error('원격 데이터 읽기 실패:', error);
+                return { todos: [], categories: [], metadata: { lastModified: new Date().toISOString(), version: '1.0', deletedItemIds: [] } };
+            }
+        };
+
+        const performSync = (localData, remoteData) => {
+            const localTodos = new Map(localData.todos.map(todo => [todo.id, todo]));
+            const remoteTodos = new Map(remoteData.todos.map(todo => [todo.id, todo]));
+            const mergedTodos = new Map();
+            const localChanges = [];
+            const remoteChanges = [];
+            
+            const allDeletedIds = new Set([
+                ...(localData.metadata?.deletedItemIds || []),
+                ...(remoteData.metadata?.deletedItemIds || [])
+            ]);
+
+            const allIds = new Set([...localTodos.keys(), ...remoteTodos.keys()]);
+
+            for (const id of allIds) {
+                if (allDeletedIds.has(id)) {
+                    continue;
+                }
+
+                const localTodo = localTodos.get(id);
+                const remoteTodo = remoteTodos.get(id);
+
+                if (localTodo && remoteTodo) {
+                    const localTime = new Date(localTodo.updatedAt || localTodo.createdAt);
+                    const remoteTime = new Date(remoteTodo.updatedAt || remoteTodo.createdAt);
+                    
+                    if (localTime >= remoteTime) {
+                        mergedTodos.set(id, localTodo);
+                        if (localTime > remoteTime) {
+                            remoteChanges.push({ type: 'update', todo: localTodo });
+                        }
+                    } else {
+                        mergedTodos.set(id, remoteTodo);
+                        localChanges.push({ type: 'update', todo: remoteTodo });
+                    }
+                } else if (localTodo) {
+                    mergedTodos.set(id, localTodo);
+                    remoteChanges.push({ type: 'add', todo: localTodo });
+                } else if (remoteTodo) {
+                    mergedTodos.set(id, remoteTodo);
+                    localChanges.push({ type: 'add', todo: remoteTodo });
+                }
+            }
+
+            deletedItemIds = allDeletedIds;
+            if (window.storage && typeof window.storage.saveData === 'function') {
+                window.storage.saveData('deletedItemIds', Array.from(deletedItemIds));
+            }
+
+            // 카테고리 병합 (로컬 우선, 원격에서 추가)
+            const localCategories = new Map((localData.categories || []).map(cat => [cat.id, cat]));
+            const remoteCategories = new Map((remoteData.categories || []).map(cat => [cat.id, cat]));
+            const mergedCategories = new Map();
+            
+            // 로컬 카테고리 우선 추가
+            for (const [id, category] of localCategories) {
+                mergedCategories.set(id, category);
+            }
+            
+            // 원격에만 있는 카테고리 추가
+            for (const [id, category] of remoteCategories) {
+                if (!mergedCategories.has(id)) {
+                    mergedCategories.set(id, category);
+                }
+            }
+            
+            console.log('🔀 카테고리 병합 완료:', {
+                localCategories: localCategories.size,
+                remoteCategories: remoteCategories.size,
+                mergedCategories: mergedCategories.size
+            });
+
+            const mergedData = {
+                todos: Array.from(mergedTodos.values()),
+                categories: Array.from(mergedCategories.values()),
+                metadata: {
+                    lastModified: new Date().toISOString(),
+                    version: '1.0',
+                    deletedItemIds: Array.from(allDeletedIds)
+                }
+            };
+
+            return { mergedData, localChanges, remoteChanges };
+        };
+
+        const saveLocalData = async (data) => {
+            try {
+                console.log('💾 로컬 데이터 저장 시작...', data.todos.length + '개 항목');
+                
+                if (data.todos.length > 0) {
+                    console.log('💾 저장할 데이터 샘플:', {
+                        id: data.todos[0].id,
+                        text: data.todos[0].text.substring(0, 30) + '...',
+                        category: data.todos[0].category,
+                        completed: data.todos[0].completed
+                    });
+                    
+                    // 카테고리별 통계
+                    const categoryStats = {};
+                    data.todos.forEach(todo => {
+                        const cat = todo.category || 'default';
+                        categoryStats[cat] = (categoryStats[cat] || 0) + 1;
+                    });
+                    console.log('💾 카테고리별 할 일 수:', categoryStats);
+                }
+                
+                // 1. storage에 저장
+                storage.saveTodos(data.todos);
+                console.log('💾 로컬 todos storage 저장 완료');
+                
+                if (data.categories && data.categories.length > 0) {
+                    storage.saveCategories(data.categories);
+                    console.log('💾 로컬 categories storage 저장 완료:', data.categories.length + '개');
+                }
+                
+                // 2. todoManager 업데이트
+                if (window.todoManager) {
+                    window.todoManager.setTodos(data.todos);
+                    console.log('💾 todoManager todos 업데이트 완료');
+                    
+                    // 카테고리도 함께 저장
+                    if (data.categories && data.categories.length > 0) {
+                        window.todoManager.setCategories(data.categories);
+                        console.log('💾 todoManager categories 업데이트 완료:', data.categories.length + '개');
+                    }
+                } else {
+                    console.warn('💾 todoManager를 찾을 수 없음');
+                }
+                
+                // 3. 강력한 UI 업데이트
+                try {
+                    // 전체 렌더링 함수 호출
+                    if (typeof render === 'function') {
+                        render();
+                        console.log('💾 전체 UI 렌더링 완료');
+                    }
+                    
+                    // DOM 이벤트 트리거 (todoManager의 변경 이벤트)
+                    const customEvent = new CustomEvent('todosUpdated', { 
+                        detail: { todos: data.todos, source: 'googleDriveSync' }
+                    });
+                    document.dispatchEvent(customEvent);
+                    console.log('💾 todosUpdated 이벤트 발생');
+                    
+                    // 약간의 지연 후 다시 렌더링 (확실히 하기 위해)
+                    setTimeout(() => {
+                        if (typeof render === 'function') {
+                            render();
+                            console.log('💾 지연 렌더링 완료');
+                        }
+                    }, 100);
+                    
+                } catch (renderError) {
+                    console.error('💾 UI 렌더링 오류:', renderError);
+                }
+                
+            } catch (error) {
+                console.error('로컬 데이터 저장 실패:', error);
+                throw error;
+            }
+        };
+
+        const saveRemoteData = async (data) => {
+            try {
+                if (!drive) {
+                    throw new Error('Google Drive API가 초기화되지 않았습니다.');
+                }
+                
+                // 고정된 파일명 사용 (getRemoteData와 동일)
+                const fileName = 'mwohaji_sync.json';
+                const fileContent = JSON.stringify(data, null, 2);
+                
+                console.log('구글드라이브에 파일 저장 시도:', fileName);
+                
+                // 기존 파일 검색
+                const searchResponse = await window.gapi.client.drive.files.list({
+                    q: `name='${fileName}' and trashed=false`,
+                    spaces: 'drive',
+                    fields: 'files(id, name)'
+                });
+
+                if (searchResponse.result.files && searchResponse.result.files.length > 0) {
+                    // 기존 파일 업데이트
+                    const fileId = searchResponse.result.files[0].id;
+                    console.log('기존 파일 업데이트:', fileId);
+                    
+                    const updateResponse = await window.gapi.client.request({
+                        path: `https://www.googleapis.com/upload/drive/v3/files/${fileId}`,
+                        method: 'PATCH',
+                        params: {
+                            uploadType: 'media'
+                        },
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: fileContent
+                    });
+                    
+                    console.log('파일 업데이트 완료:', updateResponse);
+                } else {
+                    // 새 파일 생성
+                    console.log('새 파일 생성');
+                    
+                    const boundary = '-------314159265358979323846';
+                    const delimiter = "\r\n--" + boundary + "\r\n";
+                    const close_delim = "\r\n--" + boundary + "--";
+
+                    const metadata = {
+                        'name': fileName,
+                        'mimeType': 'application/json'
+                    };
+
+                    const multipartRequestBody =
+                        delimiter +
+                        'Content-Type: application/json\r\n\r\n' +
+                        JSON.stringify(metadata) +
+                        delimiter +
+                        'Content-Type: application/json\r\n\r\n' +
+                        fileContent +
+                        close_delim;
+
+                    const createResponse = await window.gapi.client.request({
+                        path: 'https://www.googleapis.com/upload/drive/v3/files',
+                        method: 'POST',
+                        params: {
+                            uploadType: 'multipart'
+                        },
+                        headers: {
+                            'Content-Type': 'multipart/related; boundary="' + boundary + '"'
+                        },
+                        body: multipartRequestBody
+                    });
+                    
+                    console.log('새 파일 생성 완료:', createResponse);
+                }
+                
+                console.log('구글드라이브 저장 성공');
+            } catch (error) {
+                console.error('원격 데이터 저장 실패:', error);
+                throw error;
+            }
+        };
+
+        const startAutoSync = () => {
+            if (autoSyncInterval) {
+                stopAutoSync();
+            }
+            
+            autoSyncEnabled = true;
+            autoSyncInterval = setInterval(() => {
+                if (isSignedIn && !syncInProgress) {
+                    sync().catch(error => {
+                        console.error('자동 동기화 실패:', error);
+                    });
+                }
+            }, 5 * 60 * 1000);
+            
+            try {
+                localStorage.setItem('mwohaji-autoSyncEnabled', 'true');
+            } catch (error) {
+                console.warn('자동 동기화 설정 저장 실패:', error);
+            }
+            console.log('자동 동기화가 시작되었습니다. (5분 간격)');
+        };
+
+        const stopAutoSync = () => {
+            if (autoSyncInterval) {
+                clearInterval(autoSyncInterval);
+                autoSyncInterval = null;
+            }
+            
+            autoSyncEnabled = false;
+            try {
+                localStorage.setItem('mwohaji-autoSyncEnabled', 'false');
+            } catch (error) {
+                console.warn('자동 동기화 설정 저장 실패:', error);
+            }
+            console.log('자동 동기화가 중지되었습니다.');
+        };
+
+        const markAsDeleted = (todoId) => {
+            deletedItemIds.add(todoId);
+            try {
+                localStorage.setItem('mwohaji-deletedItemIds', JSON.stringify(Array.from(deletedItemIds)));
+                console.log('🗑️ 삭제된 항목 ID 저장:', todoId);
+            } catch (error) {
+                console.warn('삭제된 항목 ID 저장 실패:', error);
+            }
+        };
+
+        const loadSettings = () => {
+            try {
+                console.log('⚙️ Google Drive 설정 로드 시작...');
+                
+                // 삭제된 항목 ID 로드
+                try {
+                    const deletedIdsStr = localStorage.getItem('mwohaji-deletedItemIds');
+                    const deletedIds = deletedIdsStr ? JSON.parse(deletedIdsStr) : [];
+                    deletedItemIds = new Set(deletedIds);
+                    console.log('⚙️ 삭제된 항목 ID 로드:', deletedItemIds.size + '개');
+                } catch (error) {
+                    console.warn('삭제된 항목 ID 로드 실패:', error);
+                    deletedItemIds = new Set();
+                }
+                
+                // 마지막 동기화 시간 로드
+                try {
+                    const lastSyncStr = localStorage.getItem('mwohaji-lastSyncTime');
+                    if (lastSyncStr) {
+                        lastSyncTime = new Date(lastSyncStr);
+                        console.log('⚙️ 마지막 동기화 시간 로드:', lastSyncTime.toISOString());
+                    } else {
+                        lastSyncTime = null;
+                        console.log('⚙️ 마지막 동기화 시간 없음');
+                    }
+                } catch (error) {
+                    console.warn('마지막 동기화 시간 로드 실패:', error);
+                    lastSyncTime = null;
+                }
+                
+                // 자동 동기화 설정 로드
+                try {
+                    const autoSyncStr = localStorage.getItem('mwohaji-autoSyncEnabled');
+                    autoSyncEnabled = autoSyncStr === 'true';
+                    console.log('⚙️ 자동 동기화 설정 로드:', autoSyncEnabled);
+                    
+                    if (autoSyncEnabled && isSignedIn) {
+                        startAutoSync();
+                    }
+                } catch (error) {
+                    console.warn('자동 동기화 설정 로드 실패:', error);
+                    autoSyncEnabled = false;
+                }
+                
+                console.log('⚙️ Google Drive 설정 로드 완료:', {
+                    deletedItemsCount: deletedItemIds.size,
+                    lastSyncTime: lastSyncTime ? lastSyncTime.toISOString() : null,
+                    autoSyncEnabled
+                });
+            } catch (error) {
+                console.error('설정 로드 중 오류:', error);
+                // 오류가 발생해도 기본값으로 계속 진행
+                deletedItemIds = new Set();
+                lastSyncTime = null;
+                autoSyncEnabled = false;
+            }
+        };
+
+        const updateAuthUI = () => {
+            // UI 업데이트는 설정 섹션이 추가된 후에 구현
+        };
+
+        const updateSyncUI = (inProgress) => {
+            // UI 업데이트는 설정 섹션이 추가된 후에 구현
+        };
+
+        const updateLastSyncTime = () => {
+            // UI 업데이트는 설정 섹션이 추가된 후에 구현
+        };
+
+        return {
+            initialize,
+            signIn,
+            signOut,
+            sync,
+            startAutoSync,
+            stopAutoSync,
+            markAsDeleted,
+            getCurrentUser,
+            get isSignedIn() { return isSignedIn; },
+            get lastSyncTime() { return lastSyncTime; },
+            get autoSyncEnabled() { return autoSyncEnabled; },
+            get syncInProgress() { return syncInProgress; }
+        };
+    })();
+
+    // 전역에서 접근 가능하도록 설정
+    window.googleDriveSync = googleDriveSync;
 });
