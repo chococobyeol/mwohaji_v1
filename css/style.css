@@ -2524,8 +2524,8 @@ button:hover {
 /* 모바일 반응형 */
 @media (max-width: 768px) {
     .ai-chat-sidebar {
-        width: 100vw;
-        left: -100vw;
+        width: 360px;  /* 100vw에서 360px로 변경하여 다른 사이드바들과 동일하게 */
+        /* left: -100vw; ← 이 줄을 제거하여 transform과 충돌 방지 */
     }
     
     .ai-chat-messages {

@@ -166,11 +166,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 모바일 전용 로직
     function isMobileWidth() { return window.innerWidth <= 980; }
+    
+    // AI 버튼 표시 상태 업데이트 함수
+    function updateAiButtonVisibility() {
+        const aiChatToggleBtn = document.getElementById('ai-chat-toggle-btn');
+        if (aiChatToggleBtn) {
+            const isAiEnabled = storage.getAiFeatureEnabled();
+            const isMobile = window.innerWidth <= 980;
+            
+            if (isMobile) {
+                aiChatToggleBtn.style.removeProperty('display');
+            } else {
+                aiChatToggleBtn.style.setProperty('display', isAiEnabled ? 'flex' : 'none', 'important');
+            }
+        }
+    }
+    
     function syncMobileButtonsVisibility() {
         console.log('[Mobile] sync visibility. width=', window.innerWidth, 'hasBtn=', !!mobileMenuBtn, 'hasBar=', !!mobileActionBar);
         if (!mobileMenuBtn || !mobileActionBar) return;
+        
         if (isMobileWidth()) {
             mobileMenuBtn.style.display = 'inline-flex';
+            // AI 버튼 상태도 함께 업데이트
+            updateAiButtonVisibility();
         } else {
             mobileMenuBtn.style.display = 'none';
             mobileActionBar.classList.remove('open');
@@ -2259,6 +2278,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (mobileActionBar && mobileActionBar.classList.contains('open')) {
                     renderMobileActionBar();
                 }
+                // AI 버튼 상태도 함께 업데이트
+                updateAiButtonVisibility();
             });
             if (mobileMenuBtn) {
                 mobileMenuBtn.addEventListener('click', toggleMobileActionBar);
