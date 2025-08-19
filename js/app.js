@@ -157,11 +157,135 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => settingsSidebar.classList.add('open'), 10);
         settingsSidebarOverlay.classList.add('open');
         settingsSidebarOverlay.style.display = 'block';
+        
+        // Google Drive 동기화 UI 상태 업데이트
+        setTimeout(() => {
+            updateGoogleDriveUI();
+            
+            // 모듈이 로드되지 않은 경우 주기적으로 확인
+            if (!window.googleDriveSync) {
+                const checkInterval = setInterval(() => {
+                    if (window.googleDriveSync) {
+                        clearInterval(checkInterval);
+                        updateGoogleDriveUI();
+                        console.log('[App] Google Drive 동기화 모듈 로드 감지됨');
+                    }
+                }, 1000);
+                
+                // 30초 후 체크 중단
+                setTimeout(() => {
+                    clearInterval(checkInterval);
+                }, 30000);
+            }
+        }, 100);
     }
+    
+    // 전역으로 노출 (Google Drive 로그인 후 설정 사이드바 다시 열기용)
+    window.openSettingsSidebar = openSettingsSidebar;
     function closeSettingsSidebarFn() {
         settingsSidebar.classList.remove('open');
         settingsSidebarOverlay.classList.remove('open');
         setTimeout(() => { settingsSidebar.style.display = 'none'; settingsSidebarOverlay.style.display = 'none'; }, 300);
+    }
+
+    // Google Drive 동기화 관련 함수들
+    function updateGoogleDriveUI() {
+        // DOM 요소들이 로드되었는지 확인
+        const loginBtn = document.getElementById('google-drive-login-btn');
+        const syncBtn = document.getElementById('google-drive-sync-btn');
+        const logoutBtn = document.getElementById('google-drive-logout-btn');
+        const infoDiv = document.getElementById('google-drive-info');
+        
+        if (!loginBtn || !syncBtn || !logoutBtn || !infoDiv) {
+            console.warn('[App] Google Drive UI 요소들을 찾을 수 없습니다.');
+            return;
+        }
+        
+        // Google Drive 동기화 모듈이 로드되었는지 확인
+        if (window.googleDriveSync && window.googleDriveSync.isAuthenticated()) {
+            // 로그인된 상태
+            loginBtn.style.display = 'none';
+            syncBtn.style.display = 'inline-flex';
+            logoutBtn.style.display = 'inline-flex';
+            infoDiv.style.display = 'block';
+            
+            // 동기화 상태 표시
+            const status = window.googleDriveSync.getSyncStatus();
+            if (status) {
+                updateSyncStatusUI(status);
+            }
+            
+            // 자동 동기화 상태 표시
+            const autoSyncToggle = document.getElementById('auto-sync-toggle');
+            if (autoSyncToggle) {
+                autoSyncToggle.checked = localStorage.getItem('googleDriveAutoSync') === 'true';
+            }
+        } else {
+            // 로그인되지 않은 상태 또는 모듈이 로드되지 않은 상태
+            loginBtn.style.display = 'inline-flex';
+            syncBtn.style.display = 'none';
+            logoutBtn.style.display = 'none';
+            infoDiv.style.display = 'none';
+            
+            // 모듈이 로드되지 않은 경우 상태 표시
+            if (!window.googleDriveSync) {
+                const statusIndicator = document.getElementById('google-drive-status-indicator');
+                if (statusIndicator) {
+                    const statusText = statusIndicator.querySelector('.status-text');
+                    if (statusText) {
+                        statusText.textContent = '모듈 로드 중...';
+                    }
+                }
+            }
+        }
+    }
+
+    function updateSyncStatusUI(status) {
+        const statusIndicator = document.getElementById('google-drive-status-indicator');
+        const lastSyncTime = document.getElementById('last-sync-time');
+        
+        if (!statusIndicator || !lastSyncTime) return;
+        
+        const statusDot = statusIndicator.querySelector('.status-dot');
+        const statusText = statusIndicator.querySelector('.status-text');
+        
+        if (status.success) {
+            statusDot.className = 'status-dot success';
+            statusText.textContent = '동기화 완료';
+            lastSyncTime.textContent = new Date(status.timestamp).toLocaleString('ko-KR');
+        } else {
+            statusDot.className = 'status-dot error';
+            statusText.textContent = `동기화 실패: ${status.errorMessage || '알 수 없는 오류'}`;
+            lastSyncTime.textContent = new Date(status.timestamp).toLocaleString('ko-KR');
+        }
+    }
+
+    function initGoogleDriveSync() {
+        // Google Drive 동기화 모듈이 로드되었는지 확인
+        if (!window.googleDriveSync) {
+            console.warn('[App] Google Drive 동기화 모듈이 로드되지 않았습니다.');
+            return;
+        }
+
+        try {
+            // UI 상태 업데이트
+            updateGoogleDriveUI();
+            
+            // 자동 동기화 설정
+            if (localStorage.getItem('googleDriveAutoSync') === 'true') {
+                window.googleDriveSync.setupAutoSync(5);
+            }
+            
+            // 동기화 상태 변경 이벤트 리스너
+            window.addEventListener('googleDriveSyncStatusChanged', (event) => {
+                updateSyncStatusUI(event.detail);
+            });
+            
+            console.log('[App] Google Drive 동기화 초기화 완료');
+            
+        } catch (error) {
+            console.error('[App] Google Drive 동기화 초기화 실패:', error);
+        }
     }
 
     // 모바일 전용 로직
@@ -2353,6 +2477,161 @@ document.addEventListener('DOMContentLoaded', () => {
         const existingItems = settingsContent.querySelectorAll('.setting-item');
         existingItems.forEach(item => item.remove());
         
+        // 0. Google Drive 동기화 설정 (최상단)
+        const googleDriveSyncSection = document.createElement('div');
+        googleDriveSyncSection.className = 'setting-item google-drive-sync-section';
+        googleDriveSyncSection.innerHTML = `
+            <div class="setting-row">
+                <label class="setting-label">Google Drive 동기화</label>
+                <div class="google-drive-status-indicator" id="google-drive-status-indicator">
+                    <span class="status-dot"></span>
+                    <span class="status-text">연결 안됨</span>
+                </div>
+            </div>
+            <div class="google-drive-controls">
+                <button id="google-drive-login-btn" class="google-drive-btn primary">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                    </svg>
+                    Google Drive 로그인
+                </button>
+                <button id="google-drive-sync-btn" class="google-drive-btn secondary" style="display: none;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 12a9 9 0 11-6.219-8.56"/>
+                        <path d="M3 12a9 9 0 016.219 8.56"/>
+                    </svg>
+                    동기화
+                </button>
+                <button id="google-drive-logout-btn" class="google-drive-btn danger" style="display: none;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
+                        <polyline points="16,17 21,12 16,7"/>
+                        <line x1="21" y1="12" x2="9" y2="12"/>
+                    </svg>
+                    로그아웃
+                </button>
+            </div>
+            <div class="google-drive-info" id="google-drive-info" style="display: none;">
+                <div class="sync-status-row">
+                    <span class="last-sync-label">마지막 동기화:</span>
+                    <span class="last-sync-time" id="last-sync-time">-</span>
+                </div>
+                <div class="auto-sync-info">
+                    <label class="auto-sync-toggle-label">
+                        <input type="checkbox" id="auto-sync-toggle" class="toggle-input">
+                        <span class="toggle-label"></span>
+                        자동 동기화 (5분 간격)
+                    </label>
+                </div>
+            </div>
+            <p class="setting-description">Google Drive와 할 일 데이터를 동기화하여 여러 기기에서 데이터를 공유할 수 있습니다. 로그인하지 않아도 기존 기능은 정상적으로 사용할 수 있습니다.</p>
+        `;
+        settingsContent.appendChild(googleDriveSyncSection);
+        
+        // Google Drive 동기화 이벤트 리스너들 추가
+        setTimeout(() => {
+            // Google Drive 동기화 초기화
+            initGoogleDriveSync();
+            const loginBtn = document.getElementById('google-drive-login-btn');
+            const syncBtn = document.getElementById('google-drive-sync-btn');
+            const logoutBtn = document.getElementById('google-drive-logout-btn');
+            const autoSyncToggle = document.getElementById('auto-sync-toggle');
+            
+            // Google Drive 로그인 버튼 이벤트 리스너
+            if (loginBtn) {
+                loginBtn.addEventListener('click', async () => {
+                    try {
+                        if (!window.googleDriveSync) {
+                            alert('Google Drive 동기화 모듈이 로드되지 않았습니다.');
+                            return;
+                        }
+                        
+                        const success = await window.googleDriveSync.signIn();
+                        if (success) {
+                            updateGoogleDriveUI();
+                            if (autoSyncToggle && autoSyncToggle.checked) {
+                                window.googleDriveSync.setupAutoSync(5);
+                                localStorage.setItem('googleDriveAutoSync', 'true');
+                            }
+                            alert('Google Drive 로그인 성공!');
+                        }
+                    } catch (error) {
+                        alert('Google Drive 로그인 실패: ' + error.message);
+                    }
+                });
+            }
+            
+            if (syncBtn) {
+                syncBtn.addEventListener('click', async () => {
+                    try {
+                        if (!window.googleDriveSync) {
+                            alert('Google Drive 동기화 모듈이 로드되지 않았습니다.');
+                            return;
+                        }
+                        
+                        syncBtn.disabled = true;
+                        syncBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-6.219-8.56"/><path d="M3 12a9 9 0 016.219 8.56"/></svg> 동기화 중...';
+                        
+                        await window.googleDriveSync.autoSync();
+                        alert('동기화 완료!');
+                        
+                    } catch (error) {
+                        alert('동기화 실패: ' + error.message);
+                    } finally {
+                        syncBtn.disabled = false;
+                        syncBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-6.219-8.56"/><path d="M3 12a9 9 0 016.219 8.56"/></svg> 동기화';
+                    }
+                });
+            }
+            
+            if (logoutBtn) {
+                logoutBtn.addEventListener('click', async () => {
+                    try {
+                        if (!window.googleDriveSync) {
+                            alert('Google Drive 동기화 모듈이 로드되지 않았습니다.');
+                            return;
+                        }
+                        
+                        await window.googleDriveSync.signOut();
+                        updateGoogleDriveUI();
+                        
+                        // 자동 동기화 타이머 제거
+                        if (window.autoSyncTimer) {
+                            clearInterval(window.autoSyncTimer);
+                            window.autoSyncTimer = null;
+                        }
+                        
+                        localStorage.removeItem('googleDriveAutoSync');
+                        alert('Google Drive 로그아웃 완료!');
+                    } catch (error) {
+                        alert('로그아웃 실패: ' + error.message);
+                    }
+                });
+            }
+            
+            if (autoSyncToggle) {
+                autoSyncToggle.addEventListener('change', (e) => {
+                    if (!window.googleDriveSync) return;
+                    
+                    if (e.target.checked) {
+                        if (window.googleDriveSync.isAuthenticated()) {
+                            window.googleDriveSync.setupAutoSync(5);
+                            localStorage.setItem('googleDriveAutoSync', 'true');
+                        } else {
+                            e.target.checked = false;
+                            alert('Google Drive에 로그인해야 자동 동기화를 사용할 수 있습니다.');
+                        }
+                    } else {
+                        if (window.autoSyncTimer) {
+                            clearInterval(window.autoSyncTimer);
+                            window.autoSyncTimer = null;
+                        }
+                        localStorage.removeItem('googleDriveAutoSync');
+                    }
+                });
+            }
+        }, 100);
+        
         // 1. 완료된 할 일 표시 설정
         const showCompletedSection = document.createElement('div');
         showCompletedSection.className = 'setting-item';
@@ -2493,6 +2772,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const syncTimeBtn = document.getElementById('sync-time-btn');
         const apiKeyInput = document.getElementById('ai-api-key-input');
         const saveApiKeyBtn = document.getElementById('save-api-key-btn');
+
+        // Google Drive 동기화 관련 DOM 요소들
+        const googleDriveLoginBtn = document.getElementById('google-drive-login-btn');
+        const googleDriveSyncBtn = document.getElementById('google-drive-sync-btn');
+        const googleDriveLogoutBtn = document.getElementById('google-drive-logout-btn');
+        const googleDriveInfo = document.getElementById('google-drive-info');
+        const lastSyncTime = document.getElementById('last-sync-time');
+        const autoSyncToggle = document.getElementById('auto-sync-toggle');
+        const googleDriveStatusIndicator = document.getElementById('google-drive-status-indicator');
 
         // 할일 정렬 선택 초기화
         if (todoSortSelect) {
@@ -3314,4 +3602,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     };
+
+    // 설정 사이드바 내부 토글 이벤트 리스너 (동적으로 생성되는 요소들은 나중에 추가됨)
+    
+
+    // Google Drive 동기화 이벤트 리스너들
+    // Google Drive 동기화 이벤트 리스너들은 설정 사이드바 생성 후에 추가됩니다
+
+    // Google Drive 동기화 초기화 (모듈 로드 후)
+    setTimeout(() => {
+        initGoogleDriveSync();
+    }, 1000);
 });

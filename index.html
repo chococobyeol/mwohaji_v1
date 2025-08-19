@@ -258,6 +258,8 @@
             <h2 style="margin-top:40px;">설정</h2>
             
             <!-- 설정 항목들이 JavaScript에서 동적으로 생성됩니다 -->
+            
+            <!-- Google 로그인은 순수 OAuth 2.0 방식으로 처리됩니다 -->
         </div>
     </div>
 
@@ -387,6 +389,16 @@
     <script src="js/aiChat.js"></script>
     <script src="js/timer.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="js/envLoader.js"></script>
+    <script>
+        // 환경변수 로더 초기화
+        window.envLoader.init().then(() => {
+            console.log('[Main] 환경변수 로딩 완료');
+        }).catch(error => {
+            console.error('[Main] 환경변수 로딩 실패:', error);
+        });
+    </script>
+    <script src="js/googleDriveSync.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>
