@@ -218,13 +218,14 @@ const utils = (() => {
                 console.log('파싱된 환경변수 키들:', Object.keys(config));
                 console.log('GOOGLE_CLIENT_ID 존재:', !!config.GOOGLE_CLIENT_ID);
                 console.log('GOOGLE_API_KEY 존재:', !!config.GOOGLE_API_KEY);
+                console.log('GOOGLE_SCOPE 값:', config.GOOGLE_SCOPE);
                 
                 if (config.GOOGLE_CLIENT_ID && config.GOOGLE_API_KEY) {
                     console.log('Google Drive 환경변수를 .env 파일에서 로드했습니다.');
                     const finalConfig = {
                         apiKey: config.GOOGLE_API_KEY,
                         clientId: config.GOOGLE_CLIENT_ID,
-                        scope: config.GOOGLE_SCOPE || 'https://www.googleapis.com/auth/drive.file',
+                        scope: config.GOOGLE_SCOPE || 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/drive.file',
                         discoveryDocs: [config.GOOGLE_DISCOVERY_DOCS || 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest']
                     };
                     console.log('최종 설정:', { ...finalConfig, apiKey: finalConfig.apiKey ? '[설정됨]' : '[누락]' });
@@ -248,7 +249,10 @@ const utils = (() => {
         console.log('전역 설정:', globalConfig);
         if (globalConfig.clientId && globalConfig.apiKey) {
             console.log('Google Drive 환경변수를 전역 변수에서 로드했습니다.');
-            return globalConfig;
+            return {
+                ...globalConfig,
+                scope: globalConfig.scope || 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/drive.file'
+            };
         }
         
         // 설정이 없는 경우

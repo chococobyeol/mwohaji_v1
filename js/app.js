@@ -2469,7 +2469,7 @@ document.addEventListener('DOMContentLoaded', () => {
         googleDriveSection.className = 'setting-item';
         googleDriveSection.innerHTML = `
             <div class="setting-row">
-                <label class="setting-label">${icons.get('cloud', 18)} Google Drive 동기화</label>
+                <label class="setting-label">Google Drive 동기화</label>
             </div>
             <div class="setting-row" style="margin-top: 12px;">
                 <div style="display: flex; align-items: center; gap: 8px;">
@@ -2500,7 +2500,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     동기화 진행 중...
                 </div>
             </div>
-            <p class="setting-description">Google Drive와 할 일 데이터를 동기화합니다. 자동 동기화를 활성화하면 5분마다 백그라운드에서 동기화가 실행됩니다. .env 파일에 Google Drive API 설정이 필요합니다.</p>
+            <p class="setting-description">Google Drive와 할 일 데이터를 동기화합니다. 자동 동기화를 활성화하면 5분마다 백그라운드에서 동기화가 실행됩니다.</p>
         `;
         settingsContent.appendChild(googleDriveSection);
         
@@ -2818,7 +2818,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         gdriveUserAvatar.style.display = 'none';
                     }
                     
-                    gdriveUserEmail.textContent = user.email || '로그인됨';
+                    // 이메일 표시 후보를 구성
+                    const emailCandidate = user?.email || user?.name || '';
+                    gdriveUserEmail.textContent = emailCandidate;
                     gdriveUserInfo.style.display = 'block';
                 }
             } else {
@@ -3590,6 +3592,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Google Identity Services 초기화
                 if (window.google && window.google.accounts) {
                     console.log('Google Identity Services 초기화...');
+                    console.log('[GoogleDrive] OAuth 설정 확인:', {
+                        clientId: config.clientId ? '[설정됨]' : '[누락]',
+                        scope: config.scope
+                    });
                     
                     // OAuth2 토큰 클라이언트 초기화
                     window.tokenClient = window.google.accounts.oauth2.initTokenClient({
@@ -3733,7 +3739,51 @@ document.addEventListener('DOMContentLoaded', () => {
                     throw new Error('Google Identity Services가 초기화되지 않았습니다.');
                 }
                 
-                return new Promise((resolve, reject) => {
+                // 완전한 토큰 정리 및 캐시 제거
+                console.log('[GoogleDrive] 완전한 토큰 정리 시작...');
+                
+                // 1. 기존 gapi 토큰 제거
+                const existingToken = window.gapi.client.getToken();
+                if (existingToken && existingToken.access_token) {
+                    console.log('[GoogleDrive] 기존 토큰 무효화...');
+                    try {
+                        window.google.accounts.oauth2.revoke(existingToken.access_token, () => {
+                            console.log('[GoogleDrive] 토큰 무효화 완료');
+                        });
+                    } catch (revokeError) {
+                        console.warn('[GoogleDrive] 토큰 무효화 실패 (무시):', revokeError);
+                    }
+                    window.gapi.client.setToken(null);
+                }
+                
+                // 2. 브라우저 캐시 완전 정리
+                try {
+                    // Google 관련 localStorage 항목 제거
+                    Object.keys(localStorage).forEach(key => {
+                        if (key.includes('google') || key.includes('gapi') || key.includes('oauth')) {
+                            localStorage.removeItem(key);
+                            console.log('[GoogleDrive] localStorage 제거:', key);
+                        }
+                    });
+                    
+                    // Google 관련 sessionStorage 항목 제거  
+                    Object.keys(sessionStorage).forEach(key => {
+                        if (key.includes('google') || key.includes('gapi') || key.includes('oauth')) {
+                            sessionStorage.removeItem(key);
+                            console.log('[GoogleDrive] sessionStorage 제거:', key);
+                        }
+                    });
+                } catch (storageError) {
+                    console.warn('[GoogleDrive] 스토리지 정리 실패 (무시):', storageError);
+                }
+                
+                // 3. 사용자 정보 초기화
+                window.currentUserInfo = null;
+                isSignedIn = false;
+                
+                console.log('[GoogleDrive] 토큰 정리 완료');
+                
+                return new Promise(async (resolve, reject) => {
                     try {
                         // 토큰 요청
                         window.tokenClient.callback = async (response) => {
@@ -3743,26 +3793,63 @@ document.addEventListener('DOMContentLoaded', () => {
                                 return;
                             }
                             
-                            console.log('액세스 토큰 획득 성공');
+                            console.log('[GoogleDrive] 액세스 토큰 획득 성공!');
+                            console.log('[GoogleDrive] 토큰 응답 상세:', {
+                                hasAccessToken: !!response.access_token,
+                                scope: response.scope,
+                                hasUserinfoEmail: response.scope?.includes('userinfo.email'),
+                                hasUserinfoProfile: response.scope?.includes('userinfo.profile'),
+                                hasDriveFile: response.scope?.includes('drive.file'),
+                                tokenType: response.token_type,
+                                expiresIn: response.expires_in
+                            });
+                            
+                            if (!response.scope?.includes('userinfo.email')) {
+                                console.error('[GoogleDrive] 오류: 토큰에 userinfo.email 권한이 없습니다!');
+                                console.log('[GoogleDrive] 받은 scope:', response.scope);
+                                console.log('[GoogleDrive] 필요한 scope: userinfo.email, userinfo.profile');
+                            }
+                            
                             window.gapi.client.setToken({
                                 access_token: response.access_token
                             });
                             
-                            // 간단한 사용자 정보 설정
-                            window.currentUserInfo = {
-                                id: 'google_user',
-                                email: '로그인됨',
-                                name: 'Google 사용자',
-                                picture: ''
-                            };
+                            // userinfo API로 사용자 정보 가져오기
                             
-                            isSignedIn = true;
-                            onAuthStateChanged(true);
-                            resolve(true);
+                            // 실제 사용자 정보 가져오기
+                            try {
+                                await fetchUserInfo();
+                                isSignedIn = true;
+                                onAuthStateChanged(true);
+                                resolve(true);
+                            } catch (userInfoError) {
+                                console.error('[GoogleDrive] 사용자 정보 가져오기 실패, 기본값으로 진행:', userInfoError);
+                                // 사용자 정보 가져오기 실패해도 로그인은 성공으로 처리
+                                isSignedIn = true;
+                                onAuthStateChanged(true);
+                                resolve(true);
+                            }
                         };
                         
-                        // 토큰 요청 시작
-                        window.tokenClient.requestAccessToken({ prompt: '' });
+                        // 완전히 새로운 권한으로 토큰 요청
+                        console.log('[GoogleDrive] 새로운 userinfo 권한으로 토큰 요청 시작...');
+                        
+                        // 새로운 tokenClient 생성 (최신 scope 적용)
+                        const config = await utils.loadGoogleDriveConfig();
+                        console.log('[GoogleDrive] 최신 scope 설정:', config.scope);
+                        
+                        window.tokenClient = window.google.accounts.oauth2.initTokenClient({
+                            client_id: config.clientId,
+                            scope: config.scope,
+                            callback: window.tokenClient.callback  // 현재 콜백 유지
+                        });
+                        
+                        // 강제 권한 재요청
+                        window.tokenClient.requestAccessToken({ 
+                            prompt: 'select_account consent',  // 계정 선택 + 권한 재동의 강제
+                            include_granted_scopes: false,    // 기존 권한 무시
+                            enable_granular_consent: true     // 세분화된 권한 동의
+                        });
                     } catch (error) {
                         reject(error);
                     }
@@ -3791,6 +3878,79 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (error) {
                 console.error('로그아웃 실패:', error);
                 utils.showToast('로그아웃에 실패했습니다.', 'error');
+                throw error;
+            }
+        };
+
+        // Google userinfo API로 사용자 정보 가져오기
+        const fetchUserInfo = async () => {
+            try {
+                console.log('[GoogleDrive] 사용자 정보 가져오기 시작...');
+                
+                const token = window.gapi.client.getToken();
+                if (!token || !token.access_token) {
+                    throw new Error('액세스 토큰이 없습니다.');
+                }
+                
+                // 토큰의 실제 권한 확인
+                try {
+                    console.log('[GoogleDrive] 토큰 권한 확인...');
+                    const tokenInfoResponse = await fetch(`https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=${token.access_token}`);
+                    if (tokenInfoResponse.ok) {
+                        const tokenInfo = await tokenInfoResponse.json();
+                        console.log('[GoogleDrive] 토큰 실제 권한:', {
+                            scope: tokenInfo.scope,
+                            hasUserinfoEmail: tokenInfo.scope?.includes('userinfo.email'),
+                            hasUserinfoProfile: tokenInfo.scope?.includes('userinfo.profile')
+                        });
+                        
+                        if (!tokenInfo.scope?.includes('userinfo.email')) {
+                            throw new Error('토큰에 userinfo.email 권한이 없습니다. 재로그인이 필요합니다.');
+                        }
+                    }
+                } catch (tokenInfoError) {
+                    console.error('[GoogleDrive] 토큰 정보 확인 오류:', tokenInfoError);
+                }
+                
+                // Google userinfo API 호출
+                console.log('[GoogleDrive] userinfo API 호출...');
+                const response = await fetch('https://www.googleapis.com/oauth2/v1/userinfo?alt=json', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token.access_token}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`userinfo API 요청 실패: ${response.status} ${response.statusText}`);
+                }
+                
+                const userInfo = await response.json();
+                console.log('[GoogleDrive] 사용자 정보 수신 성공:', {
+                    id: userInfo.id,
+                    email: userInfo.email,
+                    name: userInfo.name,
+                    picture: userInfo.picture ? '[있음]' : '[없음]'
+                });
+                
+                // 전역 사용자 정보 설정
+                window.currentUserInfo = {
+                    id: userInfo.id,
+                    email: userInfo.email,
+                    name: userInfo.name,
+                    picture: userInfo.picture
+                };
+                
+                return userInfo;
+            } catch (error) {
+                console.error('[GoogleDrive] 사용자 정보 가져오기 실패:', error);
+                // 폴백: 기본값 설정  
+                window.currentUserInfo = {
+                    id: 'google_user',
+                    email: '로그인됨',
+                    name: 'Google 사용자',
+                    picture: ''
+                };
                 throw error;
             }
         };
