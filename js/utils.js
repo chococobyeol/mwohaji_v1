@@ -256,7 +256,8 @@ const utils = (() => {
         }
         
         // 설정이 없는 경우
-        console.error('Google Drive API 설정을 찾을 수 없습니다. .env 파일을 확인하거나 window.GOOGLE_DRIVE_CONFIG를 설정해주세요.');
+        console.error('Google Drive API 설정을 찾을 수 없습니다.');
+        console.error('로컬 개발: .env 파일 확인 | 프로덕션: Render.com 환경변수와 빌드 스크립트 확인');
         return null;
     };
 
