@@ -1969,7 +1969,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!hasUserInteracted) {
             hasUserInteracted = true;
             console.log('[App] 사용자 인터랙션 감지됨 - 소리 상태 업데이트');
-            updateAudioStatus();
+            // 500ms 후에 업데이트 (중복 방지)
+            setTimeout(() => updateAudioStatus(), 500);
         }
     };
     
@@ -2350,11 +2351,9 @@ document.addEventListener('DOMContentLoaded', () => {
         icons.setButtonIcon(closeSettingsSidebar, 'close', '닫기', 18);
         // showCompletedToggle은 동적으로 생성되므로 나중에 설정됨
         
-        // 소리 상태 버튼 초기화 (즉시 + 반복 확인)
+        // 소리 상태 버튼 초기화 (적절한 간격으로)
         updateAudioStatus(); // 즉시 1번
-        setTimeout(() => updateAudioStatus(), 100); // 100ms 후 1번
-        setTimeout(() => updateAudioStatus(), 500); // 500ms 후 1번
-        setTimeout(() => updateAudioStatus(), 1000); // 1초 후 1번
+        setTimeout(() => updateAudioStatus(), 1000); // 1초 후 1번만
 
         // 햄버거 아이콘 설정
         if (mobileMenuBtn) {
@@ -3651,13 +3650,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!e.target.closest('#audio-status-btn')) {
             // notificationScheduler의 소리 중지 (모달 닫기로 처리됨)
             console.log('[App] 소리 재생 중지');
-        }
-        
-        // 마지막 클릭으로부터 500ms 이상 지났을 때만 상태 확인
-        if (now - lastClickTime > 500) {
-            lastClickTime = now;
-            // 즉시 업데이트 (딜레이 없음)
-            updateAudioStatus();
+            
+            // 소리 상태 버튼이 아닌 클릭에서만 상태 확인 (중복 방지)
+            if (now - lastClickTime > 2000) {
+                lastClickTime = now;
+                updateAudioStatus();
+            }
         }
     }, { once: false });
 
