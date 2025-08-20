@@ -136,17 +136,19 @@ const notificationScheduler = (() => {
             console.log(`[NotificationScheduler] Service Worker 사용 불가: useServiceWorker=${useServiceWorker}, hasManager=${!!window.serviceWorkerManager}, hasPermission=${window.serviceWorkerManager ? window.serviceWorkerManager.hasPermission() : false}`);
         }
 
-        // Service Worker 사용 불가능한 경우 기존 방식 사용 (폴백)
+        // Service Worker 사용 불가능한 경우 사이트 내 알림만 사용 (시스템 알림 차단)
+        console.log(`[NotificationScheduler] 사이트 내 알림으로 폴백: useServiceWorker=${useServiceWorker}`);
+        
         const timeoutKey = `${todo.id}-${type}`;
         if (scheduledTimeouts.has(timeoutKey)) {
             clearTimeout(scheduledTimeouts.get(timeoutKey));
             scheduledTimeouts.delete(timeoutKey);
         }
         
-        // setTimeout으로 알림 예약
+        // setTimeout으로 사이트 내 알림 예약 (시스템 알림 제외)
         const timeoutId = setTimeout(() => {
-            // 알림이 트리거될 때 실제 알림을 띄우고 소리를 재생
-            console.log(`    >>> ${titlePrefix} 트리거: '${todo.text}' (예약된 시간: ${targetTime}, 실제 트리거 시간: ${new Date()})`);
+            // 알림이 트리거될 때 사이트 내 모달과 소리만 재생 (시스템 알림 제외)
+            console.log(`    >>> ${titlePrefix} 트리거 (사이트 내 알림): '${todo.text}' (예약된 시간: ${targetTime}, 실제 트리거 시간: ${new Date()})`);
             if (todo.schedule[modalProperty] !== false) {
                 showNotificationModal(titlePrefix, `'${todo.text}'`);
             }
@@ -520,14 +522,16 @@ const notificationScheduler = (() => {
             }
         }
 
-        // Service Worker 사용 불가능한 경우 기존 방식 사용 (폴백)
+        // Service Worker 사용 불가능한 경우 사이트 내 알림만 사용 (시스템 알림 차단)
+        console.log(`[RepeatAlarm] 사이트 내 알림으로 폴백: useServiceWorker=${useServiceWorker}`);
+        
         const timeoutKey = `${todo.id}-repeat-${type}`;
         if (scheduledTimeouts.has(timeoutKey)) {
             clearTimeout(scheduledTimeouts.get(timeoutKey));
             scheduledTimeouts.delete(timeoutKey);
         }
         
-        console.log(`[RepeatAlarm] 폴백 방식으로 예약: ${todo.text} (${type}), ${nextTime}까지 ${Math.round(diff/1000)}초 남음`);
+        console.log(`[RepeatAlarm] 사이트 내 알림으로 예약: ${todo.text} (${type}), ${nextTime}까지 ${Math.round(diff/1000)}초 남음`);
         
         const timeoutId = setTimeout(() => {
             console.log(`[RepeatAlarm] 트리거: ${todo.text} (${type}), 예약된 시간: ${nextTime}, 실제 트리거 시간: ${new Date()}`);
@@ -810,15 +814,26 @@ const notificationScheduler = (() => {
         calculateTimeBasedCount: calculateTimeBasedCount,
         getRepeatCountsData: getRepeatCountsData,
         setUseServiceWorker: (use) => {
+            const previousSetting = useServiceWorker;
             useServiceWorker = use;
-            console.log(`[NotificationScheduler] Service Worker 사용 설정: ${useServiceWorker}`);
+            console.log(`[NotificationScheduler] Service Worker 사용 설정 변경: ${previousSetting} → ${useServiceWorker}`);
+            
+            // Service Worker 비활성화 시 기존 Service Worker 알림들 모두 취소
+            if (!useServiceWorker && previousSetting && window.serviceWorkerManager) {
+                console.log('[NotificationScheduler] Service Worker 비활성화 - 기존 Service Worker 알림 모두 취소');
+                try {
+                    window.serviceWorkerManager.cancelAllNotifications();
+                } catch (error) {
+                    console.error('[NotificationScheduler] Service Worker 알림 취소 실패:', error);
+                }
+            }
             
             // 설정 변경 후 즉시 알림 재스케줄링 (기존 알림이 있다면)
-            if (useServiceWorker && window.todoManager) {
+            if (window.todoManager) {
                 try {
                     const todos = window.todoManager.getTodos();
                     if (todos && todos.length > 0) {
-                        console.log('[NotificationScheduler] Service Worker 사용 설정 변경 후 알림 재스케줄링');
+                        console.log(`[NotificationScheduler] Service Worker 설정 변경 후 알림 재스케줄링 (useServiceWorker: ${useServiceWorker})`);
                         setTimeout(() => {
                             rescheduleAllNotifications(todos);
                         }, 100);

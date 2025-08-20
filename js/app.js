@@ -1780,8 +1780,61 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log('[App] 설정 초기화: geminiApi API 키 초기화됨');
             }
             
+            // Google Drive 로그인 상태 초기화
+            if (window.googleDriveSync && window.googleDriveSync.signOut) {
+                try {
+                    await window.googleDriveSync.signOut();
+                    console.log('[App] 데이터 초기화: Google Drive 로그아웃 완료');
+                } catch (error) {
+                    console.warn('[App] 데이터 초기화: Google Drive 로그아웃 실패:', error);
+                }
+            }
+            // Google Drive 관련 localStorage 데이터도 제거
+            try {
+                localStorage.removeItem('mwohaji-gdrive-token');
+                localStorage.removeItem('mwohaji-autoSyncEnabled');
+                localStorage.removeItem('mwohaji-lastSyncTime');
+                localStorage.removeItem('mwohaji-deletedItemIds');
+                console.log('[App] 데이터 초기화: Google Drive 관련 데이터 제거 완료');
+            } catch (error) {
+                console.warn('[App] 데이터 초기화: Google Drive 데이터 제거 실패:', error);
+            }
+            
             // UI 새로고침
             render();
+            
+            // UI 토글들 즉시 업데이트 (설정 사이드바가 열려있는 경우)
+            const dataResetAiToggle = document.getElementById('ai-feature-toggle');
+            const dataResetNotificationToggle = document.getElementById('notification-api-toggle');
+            const dataResetApiKeyInput = document.getElementById('ai-api-key-input');
+            
+            if (dataResetAiToggle) {
+                dataResetAiToggle.checked = false;
+                console.log('[App] 데이터 초기화: AI 기능 토글 OFF');
+            }
+            if (dataResetNotificationToggle) {
+                dataResetNotificationToggle.checked = false;
+                console.log('[App] 데이터 초기화: 백그라운드 알림 토글 OFF');
+            }
+            if (dataResetApiKeyInput) {
+                dataResetApiKeyInput.value = '';
+                dataResetApiKeyInput.type = 'text';
+                console.log('[App] 데이터 초기화: API 키 입력 필드 초기화');
+            }
+            
+            // Google Drive UI 업데이트
+            if (window.updateGoogleDriveUI) {
+                setTimeout(() => {
+                    window.updateGoogleDriveUI();
+                    console.log('[App] 데이터 초기화: Google Drive UI 업데이트 완료');
+                }, 100);
+            }
+            
+            // 알림 권한 상태 즉시 업데이트
+            setTimeout(() => {
+                updateNotificationPermissionStatus();
+                console.log('[App] 데이터 초기화: 알림 권한 상태 업데이트 완료');
+            }, 150);
             
             // 설정 사이드바가 열려있다면 완전히 다시 생성하여 UI 업데이트
             if (settingsSidebar.classList.contains('open')) {
@@ -1862,6 +1915,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log('[App] 설정 초기화: Notification API 비활성화');
             }
             
+            // UI 토글들 즉시 업데이트 (설정 사이드바가 열려있는 경우)
+            const settingsResetAiToggle = document.getElementById('ai-feature-toggle');
+            const settingsResetNotificationToggle = document.getElementById('notification-api-toggle');
+            const settingsResetApiKeyInput = document.getElementById('ai-api-key-input');
+            
+            if (settingsResetAiToggle) {
+                settingsResetAiToggle.checked = false;
+                console.log('[App] 설정 초기화: AI 기능 토글 OFF');
+            }
+            if (settingsResetNotificationToggle) {
+                settingsResetNotificationToggle.checked = false;
+                console.log('[App] 설정 초기화: 백그라운드 알림 토글 OFF');
+            }
+            if (settingsResetApiKeyInput) {
+                settingsResetApiKeyInput.value = '';
+                settingsResetApiKeyInput.type = 'text';
+                console.log('[App] 설정 초기화: API 키 입력 필드 초기화');
+            }
+            
+            // 알림 권한 상태 즉시 업데이트
+            setTimeout(() => {
+                updateNotificationPermissionStatus();
+                console.log('[App] 설정 초기화: 알림 권한 상태 업데이트 완료');
+            }, 100);
+            
             // 설정 사이드바가 열려있다면 다시 열어서 UI 업데이트
             if (settingsSidebar.classList.contains('open')) {
                 // 설정 사이드바를 완전히 다시 생성하여 UI 업데이트
@@ -1875,28 +1953,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }, 100);
             }
             
-            // UI 요소들을 즉시 업데이트
-            const aiFeatureToggle = document.getElementById('ai-feature-toggle');
-            const notificationApiToggle = document.getElementById('notification-api-toggle');
-            const apiKeyInput = document.getElementById('ai-api-key-input');
-            
-            if (aiFeatureToggle) {
-                aiFeatureToggle.checked = false;
-            }
-            if (notificationApiToggle) {
-                notificationApiToggle.checked = false;
-            }
-            if (apiKeyInput) {
-                apiKeyInput.value = '';
-                // API 키 입력 필드를 완전히 초기화 (마스킹 해제)
-                apiKeyInput.type = 'text';
-                apiKeyInput.type = 'password';
-                apiKeyInput.blur();
-                apiKeyInput.focus();
-            }
-            
-            // 알림 권한 상태 업데이트
-            updateNotificationPermissionStatus();
+
             
             renderTodos();
             
@@ -3650,6 +3707,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                     
+                    // 설정 로드 (토큰 복원 이전에 실행)
+                    loadSettings();
+                    console.log('⚙️ 설정 로드 완료, 이제 토큰 복원 시작...');
+                    
                     // localStorage에서 저장된 토큰 복원
                     try {
                         const savedTokenStr = localStorage.getItem('mwohaji-gdrive-token');
@@ -3674,6 +3735,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                         window.currentUserInfo = userInfo;
                                         isSignedIn = true;
                                         console.log('🔑 토큰 복원 및 자동 로그인 성공');
+                                        console.log('🔑 자동 동기화 상태 확인:', {
+                                            autoSyncEnabled: autoSyncEnabled,
+                                            isSignedIn: isSignedIn
+                                        });
                                         onAuthStateChanged(true);
                                     } else {
                                         console.log('🔑 저장된 토큰이 유효하지 않음, 제거');
@@ -3701,7 +3766,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     throw new Error('Google Identity Services를 로드할 수 없습니다.');
                 }
 
-                loadSettings();
                 return true;
             } catch (error) {
                 console.error('Google Drive API 초기화 실패:', error);
@@ -3777,12 +3841,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const onAuthStateChanged = (signedIn) => {
             isSignedIn = signedIn;
             if (signedIn) {
-                console.log('Google Drive에 로그인되었습니다.');
+                console.log('🔄 [onAuthStateChanged] Google Drive에 로그인되었습니다.');
+                console.log('🔄 [onAuthStateChanged] 자동 동기화 상태 확인:', {
+                    autoSyncEnabled: autoSyncEnabled,
+                    autoSyncInterval: autoSyncInterval ? 'active' : 'inactive'
+                });
                 if (autoSyncEnabled) {
+                    console.log('🔄 [onAuthStateChanged] 자동 동기화 시작 호출...');
                     startAutoSync();
+                } else {
+                    console.log('🔄 [onAuthStateChanged] 자동 동기화가 비활성화되어 있음');
                 }
             } else {
-                console.log('Google Drive에서 로그아웃되었습니다.');
+                console.log('🔄 [onAuthStateChanged] Google Drive에서 로그아웃되었습니다.');
                 stopAutoSync();
             }
             updateAuthUI();
@@ -4493,15 +4564,29 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         const startAutoSync = () => {
+            console.log('🔄 [startAutoSync] 호출됨');
             if (autoSyncInterval) {
+                console.log('🔄 [startAutoSync] 기존 interval 중지 후 재시작');
                 stopAutoSync();
             }
             
             autoSyncEnabled = true;
             autoSyncInterval = setInterval(() => {
+                console.log('🔄 [자동 동기화] 5분 타이머 실행됨:', {
+                    isSignedIn: isSignedIn,
+                    syncInProgress: syncInProgress,
+                    autoSyncEnabled: autoSyncEnabled,
+                    currentTime: new Date().toLocaleString('ko-KR')
+                });
+                
                 if (isSignedIn && !syncInProgress) {
+                    console.log('🔄 [자동 동기화] 조건 충족, 동기화 시작...');
                     sync().catch(error => {
-                        console.error('자동 동기화 실패:', error);
+                        console.error('🔄 [자동 동기화] 실패:', error);
+                    });
+                } else {
+                    console.log('🔄 [자동 동기화] 조건 불충족:', {
+                        이유: !isSignedIn ? '로그인 안됨' : '동기화 진행중'
                     });
                 }
             }, 5 * 60 * 1000);
@@ -4511,13 +4596,18 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (error) {
                 console.warn('자동 동기화 설정 저장 실패:', error);
             }
-            console.log('자동 동기화가 시작되었습니다. (5분 간격)');
+            console.log('🔄 [startAutoSync] 자동 동기화가 시작되었습니다. (5분 간격)');
+            console.log('🔄 [startAutoSync] interval ID:', autoSyncInterval);
         };
 
         const stopAutoSync = () => {
+            console.log('🔄 [stopAutoSync] 호출됨');
             if (autoSyncInterval) {
+                console.log('🔄 [stopAutoSync] interval 중지:', autoSyncInterval);
                 clearInterval(autoSyncInterval);
                 autoSyncInterval = null;
+            } else {
+                console.log('🔄 [stopAutoSync] 중지할 interval 없음');
             }
             
             autoSyncEnabled = false;
@@ -4526,7 +4616,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (error) {
                 console.warn('자동 동기화 설정 저장 실패:', error);
             }
-            console.log('자동 동기화가 중지되었습니다.');
+            console.log('🔄 [stopAutoSync] 자동 동기화가 중지되었습니다.');
         };
 
         const markAsDeleted = (todoId) => {
