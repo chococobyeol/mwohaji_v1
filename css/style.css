@@ -1654,7 +1654,8 @@ button:hover {
 /* 초기화 버튼 스타일 */
 .reset-btn {
   width: 100%;
-  padding: 8px 16px;
+  padding: 10px 16px;
+  font-size: 15px;
   border: 1px solid;
   border-radius: 6px;
   font-size: 13px;
@@ -1662,6 +1663,10 @@ button:hover {
   cursor: pointer;
   transition: all 0.2s ease;
   margin-bottom: 6px;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;  
 }
 
 .reset-btn:last-child {
@@ -1883,11 +1888,6 @@ button:hover {
   
   .setting-description {
     font-size: 11px;
-  }
-  
-  .reset-btn {
-    padding: 10px 16px;
-    font-size: 15px; /* iOS에서 줌 방지 */
   }
 }
 
@@ -2630,6 +2630,30 @@ button:hover {
     align-items: center !important;
     gap: 8px !important;
     flex-direction: row !important;
+}
+
+/* Google Drive 사용자 정보 가로 배치 */
+#gdrive-user-info {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    margin-left: 12px !important;
+}
+
+#gdrive-user-info img {
+    border: 1px solid #e5e7eb;
+    flex-shrink: 0;
+}
+
+/* Google Drive 사용자 이메일 스타일 */
+.gdrive-user-email {
+    font-size: 12px;
+    color: #6b7280;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+    display: block;
 }
 
 

@@ -2636,9 +2636,9 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="setting-row" style="margin-top: 12px;">
                 <div style="display: flex; align-items: center; gap: 8px;">
                     <span id="gdrive-auth-status" class="status-text">초기화 중...</span>
-                    <div id="gdrive-user-info" style="display: none; margin-left: 12px;">
-                        <img id="gdrive-user-avatar" style="width: 24px; height: 24px; border-radius: 50%; vertical-align: middle; margin-right: 8px;" src="" alt="">
-                        <span id="gdrive-user-email" style="font-size: 12px; color: #6b7280;"></span>
+                    <div id="gdrive-user-info" style="display: none;">
+                        <img id="gdrive-user-avatar" style="width: 24px; height: 24px; border-radius: 50%;" src="" alt="">
+                        <span id="gdrive-user-email" class="gdrive-user-email"></span>
                     </div>
                 </div>
             </div>
@@ -2985,9 +2985,22 @@ document.addEventListener('DOMContentLoaded', () => {
                         gdriveUserAvatar.style.display = 'none';
                     }
                     
-                    // 이메일 표시 후보를 구성
+                    // 구글 계정만 표시 (도메인 제거)
                     const emailCandidate = user?.email || user?.name || '';
-                    gdriveUserEmail.textContent = emailCandidate;
+                    let displayName = emailCandidate;
+                    
+                    if (emailCandidate.includes('@')) {
+                        // 이메일에서 도메인 제거 (username@gmail.com -> username)
+                        displayName = emailCandidate.split('@')[0];
+                    }
+                    
+                    // 길면 말줄임표로 표시
+                    if (displayName.length > 15) {
+                        displayName = displayName.substring(0, 15) + '...';
+                    }
+                    
+                    gdriveUserEmail.textContent = displayName;
+                    gdriveUserEmail.title = emailCandidate; // 전체 이메일을 툴팁으로 표시
                     gdriveUserInfo.style.display = 'block';
                 }
             } else {
