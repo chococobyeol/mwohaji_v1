@@ -2918,13 +2918,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
-            // 동기화 버튼 이벤트
+            // 동기화 버튼 이벤트 (안전 처리)
             gdriveSyncBtn.addEventListener('click', async () => {
                 try {
-                    await window.googleDriveSync.sync();
+                    const result = await window.googleDriveSync.sync();
                     updateGoogleDriveUI();
+                    // sync()가 이제 성공/실패 정보를 반환하므로 모든 알림은 내부에서 처리됨
                 } catch (error) {
-                    console.error('동기화 오류:', error);
+                    // 예외적인 경우에만 여기서 처리 (sync 함수가 throw하지 않도록 수정했으므로 거의 실행 안됨)
+                    console.error('동기화 요청 오류:', error);
+                    updateGoogleDriveUI();
+                    utils.showToast('동기화 요청에 실패했습니다. 로컬 기능은 정상 동작합니다.', 'error');
                 }
             });
 
@@ -2943,7 +2947,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Google Drive UI 업데이트 함수
         const updateGoogleDriveUI = () => {
-            if (!window.googleDriveSync) return;
+            if (!window.googleDriveSync) {
+                // 초기화되지 않았으면 사용자 정보는 무조건 숨김
+                if (gdriveUserInfo) {
+                    gdriveUserInfo.style.display = 'none';
+                }
+                if (gdriveUserAvatar) {
+                    gdriveUserAvatar.style.display = 'none';
+                    gdriveUserAvatar.removeAttribute('src'); // 깨진 이미지 방지
+                }
+                return;
+            }
 
             const isSignedIn = window.googleDriveSync.isSignedIn;
             const syncInProgress = window.googleDriveSync.syncInProgress;
@@ -3004,8 +3018,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     gdriveUserInfo.style.display = 'block';
                 }
             } else {
+                // 로그인 안했을 때는 사용자 정보 숨기고 아바타 src도 제거
                 if (gdriveUserInfo) {
                     gdriveUserInfo.style.display = 'none';
+                }
+                if (gdriveUserAvatar) {
+                    gdriveUserAvatar.style.display = 'none';
+                    gdriveUserAvatar.removeAttribute('src'); // 깨진 이미지 방지
                 }
             }
 
@@ -4310,8 +4329,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     message: error.message,
                     stack: error.stack
                 });
-                utils.showToast('동기화에 실패했습니다.', 'error');
-                throw error;
+                
+                // 동기화 실패해도 앱은 계속 동작 (로컬 기능은 독립적)
+                const userMessage = error.message?.includes('로그인') 
+                    ? '동기화에 실패했습니다. Google Drive 연결을 확인해주세요.'
+                    : '동기화에 실패했습니다. 로컬에서는 정상 동작합니다.';
+                    
+                utils.showToast(userMessage, 'error');
+                
+                // 동기화 실패는 앱 전체를 중단시키지 않음
+                return { success: false, error: error.message };
             } finally {
                 syncInProgress = false;
                 updateSyncUI(false);
@@ -4386,17 +4413,218 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
+        // 토큰 유효성 체크 및 자동 갱신 함수 (안전 모드)
+        const ensureValidToken = async () => {
+            try {
+                const savedTokenStr = localStorage.getItem('mwohaji-gdrive-token');
+                if (!savedTokenStr) {
+                    console.warn('⚠️ 저장된 토큰이 없음. 로그인 필요.');
+                    return false; // 에러 대신 false 반환
+                }
+                
+                const savedToken = JSON.parse(savedTokenStr);
+                const currentTime = Date.now();
+                const tokenExpiresAt = savedToken.expires_at || 0;
+                const timeUntilExpiry = tokenExpiresAt - currentTime;
+                
+                // 토큰이 5분 이내에 만료되거나 이미 만료된 경우 갱신 시도
+                if (timeUntilExpiry < 5 * 60 * 1000) {
+                    console.log('🔄 토큰 만료 임박/만료됨. 새 토큰 요청 중...');
+                    try {
+                        await requestNewToken();
+                        return true;
+                    } catch (refreshError) {
+                        console.warn('⚠️ 토큰 갱신 실패, 그냥 진행:', refreshError.message);
+                        return false; // 갱신 실패해도 일단 시도는 해볼 수 있게
+                    }
+                } else {
+                    console.log('✅ 토큰 유효. 남은 시간:', Math.round(timeUntilExpiry / 60000), '분');
+                    return true;
+                }
+            } catch (error) {
+                console.warn('⚠️ 토큰 체크 실패, 그냥 진행:', error.message);
+                return false; // 에러 대신 false 반환하여 API 호출은 시도해볼 수 있게
+            }
+        };
+        
+        // 토큰 갱신 상태 관리
+        let tokenRefreshInProgress = false;
+        let tokenRefreshPromise = null;
+        
+        // 새로운 토큰 요청 함수 (동시 요청 방지 + 타임아웃)
+        const requestNewToken = async () => {
+            // 이미 토큰 갱신이 진행 중이면 기존 Promise 반환
+            if (tokenRefreshInProgress && tokenRefreshPromise) {
+                console.log('🔄 토큰 갱신 진행 중, 기존 요청 대기...');
+                return tokenRefreshPromise;
+            }
+            
+            tokenRefreshInProgress = true;
+            
+            // 30초 타임아웃 설정
+            const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => {
+                    tokenRefreshInProgress = false;
+                    tokenRefreshPromise = null;
+                    reject(new Error('토큰 갱신 타임아웃 (30초)'));
+                }, 30000)
+            );
+            
+            const refreshPromise = new Promise((resolve, reject) => {
+                if (!window.tokenClient) {
+                    tokenRefreshInProgress = false;
+                    tokenRefreshPromise = null;
+                    reject(new Error('TokenClient가 초기화되지 않았습니다. 다시 로그인해주세요.'));
+                    return;
+                }
+                
+                const originalCallback = window.tokenClient.callback;
+                window.tokenClient.callback = (response) => {
+                    if (response.error) {
+                        console.error('토큰 갱신 실패:', response.error);
+                        tokenRefreshInProgress = false;
+                        tokenRefreshPromise = null;
+                        window.tokenClient.callback = originalCallback;
+                        reject(new Error(`토큰 갱신 실패: ${response.error}`));
+                        return;
+                    }
+                    
+                    const tokenData = {
+                        access_token: response.access_token,
+                        expires_at: Date.now() + (response.expires_in || 3600) * 1000
+                    };
+                    
+                    window.gapi.client.setToken(tokenData);
+                    
+                    try {
+                        localStorage.setItem('mwohaji-gdrive-token', JSON.stringify(tokenData));
+                        console.log('✅ 새 토큰 저장 완료');
+                    } catch (error) {
+                        console.warn('토큰 저장 실패:', error);
+                    }
+                    
+                    // 원래 callback 복원 및 상태 초기화
+                    window.tokenClient.callback = originalCallback;
+                    tokenRefreshInProgress = false;
+                    tokenRefreshPromise = null;
+                    resolve();
+                };
+                
+                // 자동 토큰 갱신 (사용자 개입 없이)
+                try {
+                    window.tokenClient.requestAccessToken({ prompt: '' });
+                } catch (error) {
+                    tokenRefreshInProgress = false;
+                    tokenRefreshPromise = null;
+                    reject(error);
+                }
+            });
+            
+            tokenRefreshPromise = Promise.race([refreshPromise, timeoutPromise]);
+            return tokenRefreshPromise;
+        };
+        
+        // API 호출 시 오류 자동 재시도 래퍼 함수 (개선된 버전)
+        const executeApiWithRetry = async (apiCall, maxRetries = 2) => {
+            let lastError = null;
+            
+            for (let attempt = 0; attempt <= maxRetries; attempt++) {
+                try {
+                    return await apiCall();
+                } catch (error) {
+                    lastError = error;
+                    const errorStatus = error.status || error.code;
+                    
+                    console.log(`❌ API 호출 오류 (시도 ${attempt + 1}/${maxRetries + 1}):`, {
+                        status: errorStatus,
+                        message: error.message,
+                        details: error.result?.error || error
+                    });
+                    
+                    // 401 Unauthorized - 토큰 갱신 후 재시도
+                    if (errorStatus === 401 && attempt < maxRetries) {
+                        console.log('🔄 401 오류: 토큰 갱신 후 재시도...');
+                        try {
+                            await requestNewToken();
+                            console.log('✅ 토큰 갱신 성공, API 재시도...');
+                            continue;
+                        } catch (refreshError) {
+                            console.error('❌ 토큰 갱신 실패:', refreshError);
+                            
+                            // 사용자에게 친화적인 안내 메시지
+                            const errorMsg = refreshError.message?.includes('타임아웃') 
+                                ? '토큰 갱신이 시간 초과되었습니다. 네트워크 연결을 확인하고 다시 로그인해주세요.'
+                                : '인증 토큰 갱신에 실패했습니다. Google Drive 연동을 다시 설정해주세요.';
+                            
+                            // UI에 오류 알림 (있다면)
+                            if (typeof window.showNotification === 'function') {
+                                window.showNotification(errorMsg, 'error');
+                            }
+                            
+                            throw new Error(errorMsg);
+                        }
+                    }
+                    
+                    // 429 Too Many Requests - 지수 백오프로 재시도
+                    if (errorStatus === 429 && attempt < maxRetries) {
+                        const delayMs = Math.min(1000 * Math.pow(2, attempt), 8000); // 최대 8초
+                        console.log(`⏳ 429 오류: ${delayMs}ms 대기 후 재시도...`);
+                        await new Promise(resolve => setTimeout(resolve, delayMs));
+                        continue;
+                    }
+                    
+                    // 500/502/503 Server Error - 짧은 대기 후 재시도
+                    if ((errorStatus >= 500 && errorStatus <= 503) && attempt < maxRetries) {
+                        const delayMs = 1000 + Math.random() * 1000; // 1~2초 랜덤 대기
+                        console.log(`⏳ ${errorStatus} 서버 오류: ${delayMs.toFixed(0)}ms 대기 후 재시도...`);
+                        await new Promise(resolve => setTimeout(resolve, delayMs));
+                        continue;
+                    }
+                    
+                    // 403 Forbidden - 권한 문제, 재시도 불가
+                    if (errorStatus === 403) {
+                        console.error('❌ 권한 오류: API 접근 권한이 없습니다.');
+                        throw new Error('API 접근 권한이 없습니다. Google Cloud Console에서 권한을 확인해주세요.');
+                    }
+                    
+                    // 네트워크 오류 또는 타임아웃 - 재시도
+                    if ((error.message?.includes('fetch') || 
+                         error.message?.includes('network') || 
+                         error.message?.includes('timeout') ||
+                         error.code === 'NetworkError') && attempt < maxRetries) {
+                        const delayMs = 2000 + Math.random() * 2000; // 2~4초 랜덤 대기
+                        console.log(`⏳ 네트워크 오류: ${delayMs.toFixed(0)}ms 대기 후 재시도...`);
+                        await new Promise(resolve => setTimeout(resolve, delayMs));
+                        continue;
+                    }
+                    
+                    // 기타 오류는 재시도하지 않음
+                    throw error;
+                }
+            }
+            
+            throw lastError;
+        };
+
         const getRemoteData = async () => {
             try {
+                // 🔥 토큰 유효성 먼저 체크 (실패해도 일단 시도)
+                const tokenValid = await ensureValidToken();
+                if (!tokenValid) {
+                    console.warn('⚠️ 토큰 상태 불확실, 그래도 API 호출 시도...');
+                }
+                
                 // 고정된 파일명 사용 (날짜별 분리하지 않음)
                 const fileName = 'mwohaji_sync.json';
                 console.log('원격 파일 검색:', fileName);
                 
-                const response = await window.gapi.client.drive.files.list({
-                    q: `name='${fileName}' and trashed=false`,
-                    spaces: 'drive',
-                    fields: 'files(id, name)'
-                });
+                const response = await executeApiWithRetry(() => 
+                    window.gapi.client.drive.files.list({
+                        q: `name='${fileName}' and trashed=false`,
+                        spaces: 'drive',
+                        fields: 'files(id, name)'
+                    })
+                );
 
                 if (!response.result.files || response.result.files.length === 0) {
                     console.log('원격 파일 없음, 빈 데이터 반환');
@@ -4406,10 +4634,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const fileId = response.result.files[0].id;
                 console.log('원격 파일 발견, 내용 읽기:', fileId);
                 
-                const fileResponse = await window.gapi.client.drive.files.get({
-                    fileId: fileId,
-                    alt: 'media'
-                });
+                const fileResponse = await executeApiWithRetry(() => 
+                    window.gapi.client.drive.files.get({
+                        fileId: fileId,
+                        alt: 'media'
+                    })
+                );
 
                 const rawData = JSON.parse(fileResponse.body);
                 console.log('원격 파일 파싱 완료:', {
@@ -4605,6 +4835,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const saveRemoteData = async (data) => {
             try {
+                // 🔥 토큰 유효성 먼저 체크 (실패해도 일단 시도)
+                const tokenValid = await ensureValidToken();
+                if (!tokenValid) {
+                    console.warn('⚠️ 토큰 상태 불확실, 그래도 API 호출 시도...');
+                }
+                
                 if (!drive) {
                     throw new Error('Google Drive API가 초기화되지 않았습니다.');
                 }
@@ -4616,28 +4852,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log('구글드라이브에 파일 저장 시도:', fileName);
                 
                 // 기존 파일 검색
-                const searchResponse = await window.gapi.client.drive.files.list({
-                    q: `name='${fileName}' and trashed=false`,
-                    spaces: 'drive',
-                    fields: 'files(id, name)'
-                });
+                const searchResponse = await executeApiWithRetry(() => 
+                    window.gapi.client.drive.files.list({
+                        q: `name='${fileName}' and trashed=false`,
+                        spaces: 'drive',
+                        fields: 'files(id, name)'
+                    })
+                );
 
                 if (searchResponse.result.files && searchResponse.result.files.length > 0) {
                     // 기존 파일 업데이트
                     const fileId = searchResponse.result.files[0].id;
                     console.log('기존 파일 업데이트:', fileId);
                     
-                    const updateResponse = await window.gapi.client.request({
-                        path: `https://www.googleapis.com/upload/drive/v3/files/${fileId}`,
-                        method: 'PATCH',
-                        params: {
-                            uploadType: 'media'
-                        },
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: fileContent
-                    });
+                    const updateResponse = await executeApiWithRetry(() => 
+                        window.gapi.client.request({
+                            path: `https://www.googleapis.com/upload/drive/v3/files/${fileId}`,
+                            method: 'PATCH',
+                            params: {
+                                uploadType: 'media'
+                            },
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: fileContent
+                        })
+                    );
                     
                     console.log('파일 업데이트 완료:', updateResponse);
                 } else {
@@ -4662,17 +4902,19 @@ document.addEventListener('DOMContentLoaded', () => {
                         fileContent +
                         close_delim;
 
-                    const createResponse = await window.gapi.client.request({
-                        path: 'https://www.googleapis.com/upload/drive/v3/files',
-                        method: 'POST',
-                        params: {
-                            uploadType: 'multipart'
-                        },
-                        headers: {
-                            'Content-Type': 'multipart/related; boundary="' + boundary + '"'
-                        },
-                        body: multipartRequestBody
-                    });
+                    const createResponse = await executeApiWithRetry(() => 
+                        window.gapi.client.request({
+                            path: 'https://www.googleapis.com/upload/drive/v3/files',
+                            method: 'POST',
+                            params: {
+                                uploadType: 'multipart'
+                            },
+                            headers: {
+                                'Content-Type': 'multipart/related; boundary="' + boundary + '"'
+                            },
+                            body: multipartRequestBody
+                        })
+                    );
                     
                     console.log('새 파일 생성 완료:', createResponse);
                 }
@@ -4825,6 +5067,69 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
+        // 페이지 언로드 시 리소스 정리
+        const cleanup = () => {
+            console.log('🧹 [Google Drive Sync] 리소스 정리 중...');
+            
+            // 자동 동기화 중지
+            if (autoSyncInterval) {
+                clearInterval(autoSyncInterval);
+                autoSyncInterval = null;
+            }
+            
+            // 진행 중인 토큰 갱신 정리
+            if (tokenRefreshInProgress) {
+                tokenRefreshInProgress = false;
+                tokenRefreshPromise = null;
+            }
+            
+            console.log('🧹 [Google Drive Sync] 리소스 정리 완료');
+        };
+        
+        // 네트워크 연결 상태 및 페이지 포커스 처리
+        const handleNetworkRecovery = async () => {
+            if (isSignedIn && window.navigator.onLine) {
+                try {
+                    console.log('🌐 네트워크 연결 복구 감지, 토큰 상태 확인...');
+                    await ensureValidToken();
+                    console.log('✅ 네트워크 복구 후 토큰 상태 정상');
+                } catch (error) {
+                    console.warn('⚠️ 네트워크 복구 후 토큰 확인 실패:', error);
+                }
+            }
+        };
+        
+        const handlePageFocus = async () => {
+            if (isSignedIn && !document.hidden) {
+                const lastActivity = localStorage.getItem('mwohaji-last-activity');
+                const now = Date.now();
+                
+                // 10분 이상 백그라운드에 있었다면 토큰 상태 재확인
+                if (lastActivity && (now - parseInt(lastActivity)) > 10 * 60 * 1000) {
+                    try {
+                        console.log('👁️ 장시간 백그라운드 후 포커스 복귀, 토큰 재확인...');
+                        await ensureValidToken();
+                        console.log('✅ 포커스 복귀 후 토큰 상태 정상');
+                    } catch (error) {
+                        console.warn('⚠️ 포커스 복귀 후 토큰 확인 실패:', error);
+                    }
+                }
+                localStorage.setItem('mwohaji-last-activity', now.toString());
+            }
+        };
+        
+        // 페이지 언로드 및 네트워크/포커스 이벤트 리스너 등록
+        if (typeof window !== 'undefined') {
+            window.addEventListener('beforeunload', cleanup);
+            window.addEventListener('pagehide', cleanup);
+            window.addEventListener('online', handleNetworkRecovery);
+            window.addEventListener('focus', handlePageFocus);
+            document.addEventListener('visibilitychange', handlePageFocus);
+            
+            // 초기 활동 시간 기록
+            localStorage.setItem('mwohaji-last-activity', Date.now().toString());
+        }
+
         return {
             initialize,
             signIn,
@@ -4834,6 +5139,7 @@ document.addEventListener('DOMContentLoaded', () => {
             stopAutoSync,
             markAsDeleted,
             getCurrentUser,
+            cleanup, // 수동 정리 함수 추가
             get isSignedIn() { return isSignedIn; },
             get lastSyncTime() { return lastSyncTime; },
             get autoSyncEnabled() { return autoSyncEnabled; },
