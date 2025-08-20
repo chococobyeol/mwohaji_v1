@@ -2810,10 +2810,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // API 키가 비어있거나 null인 경우 빈 문자열로 설정
             const apiKeyValue = settings.aiApiKey || savedApiKey || '';
             console.log('[App] API 키 입력 필드 초기화:', {
-                settingsAiApiKey: settings.aiApiKey,
-                savedApiKey,
-                apiKeyValue,
-                isEmpty: !apiKeyValue
+                settingsHasKey: !!settings.aiApiKey,
+                savedHasKey: !!savedApiKey,
+                hasValue: !!apiKeyValue
             });
             apiKeyInput.value = apiKeyValue;
             
@@ -3732,7 +3731,11 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 console.log('Google Drive 환경 변수 로드 시작...');
                 config = await utils.loadGoogleDriveConfig();
-                console.log('환경 변수 로드 결과:', config);
+                console.log('환경 변수 로드 결과:', {
+                    ...config, 
+                    apiKey: config.apiKey ? '[설정됨]' : '[누락]',
+                    clientId: config.clientId ? config.clientId.substring(0, 10) + '***' : '[누락]'
+                });
                 if (!config) {
                     throw new Error('Google Drive 설정을 로드할 수 없습니다.');
                 }
@@ -3776,7 +3779,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.log('Google Identity Services 초기화...');
                     console.log('[GoogleDrive] OAuth 설정 확인:', {
                         clientId: config.clientId ? '[설정됨]' : '[누락]',
-                        scope: config.scope
+                        scope: config.scope ? '[설정됨]' : '[누락]'
                     });
                     
                     // OAuth2 토큰 클라이언트 초기화

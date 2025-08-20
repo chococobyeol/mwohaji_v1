@@ -204,7 +204,7 @@ const utils = (() => {
             
             if (response.ok) {
                 const envText = await response.text();
-                console.log('.env 파일 내용 길이:', envText.length);
+                console.log('.env 파일 로드 성공, 내용 길이:', envText.length);
                 const config = {};
                 
                 envText.split('\n').forEach(line => {
@@ -215,10 +215,10 @@ const utils = (() => {
                     }
                 });
                 
-                console.log('파싱된 환경변수 키들:', Object.keys(config));
+                console.log('환경변수 파싱 완료, 키 개수:', Object.keys(config).length);
                 console.log('GOOGLE_CLIENT_ID 존재:', !!config.GOOGLE_CLIENT_ID);
                 console.log('GOOGLE_API_KEY 존재:', !!config.GOOGLE_API_KEY);
-                console.log('GOOGLE_SCOPE 값:', config.GOOGLE_SCOPE);
+                console.log('GOOGLE_SCOPE 설정됨:', !!config.GOOGLE_SCOPE);
                 
                 if (config.GOOGLE_CLIENT_ID && config.GOOGLE_API_KEY) {
                     console.log('Google Drive 환경변수를 .env 파일에서 로드했습니다.');
