@@ -2469,7 +2469,7 @@ document.addEventListener('DOMContentLoaded', () => {
         googleDriveSection.className = 'setting-item';
         googleDriveSection.innerHTML = `
             <div class="setting-row">
-                <label class="setting-label">Google Drive 동기화</label>
+                <label class="setting-label">Google Drive 동기화 (Beta)</label>
             </div>
             <div class="setting-row" style="margin-top: 12px;">
                 <div style="display: flex; align-items: center; gap: 8px;">
@@ -2792,7 +2792,13 @@ document.addEventListener('DOMContentLoaded', () => {
             // 인증 상태 업데이트
             if (gdriveAuthStatus) {
                 gdriveAuthStatus.textContent = isSignedIn ? '로그인됨' : '로그인 필요';
-                gdriveAuthStatus.style.color = isSignedIn ? '#10b981' : '#f59e0b';
+                // CSS 클래스로 점과 텍스트 색상 모두 제어
+                gdriveAuthStatus.className = 'status-text';
+                if (isSignedIn) {
+                    gdriveAuthStatus.classList.add('success');
+                } else {
+                    gdriveAuthStatus.classList.add('offline');
+                }
             }
 
             // 인증 버튼 업데이트
@@ -2849,8 +2855,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // 마지막 동기화 시간 업데이트
-            if (gdriveLastSyncTime && lastSyncTime) {
-                gdriveLastSyncTime.textContent = utils.getTimeAgo(lastSyncTime);
+            if (gdriveLastSyncTime) {
+                if (lastSyncTime) {
+                    gdriveLastSyncTime.textContent = utils.getTimeAgo(lastSyncTime);
+                } else {
+                    gdriveLastSyncTime.textContent = '동기화 기록 없음';
+                }
             }
 
             // 동기화 진행 상태 업데이트
@@ -2860,11 +2870,19 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         // Google Drive UI 업데이트 함수를 전역에 등록 (동기화 모듈에서 호출할 수 있도록)
+        window.updateGoogleDriveUI = updateGoogleDriveUI;
         if (window.googleDriveSync) {
             window.googleDriveSync.updateAuthUI = updateGoogleDriveUI;
             window.googleDriveSync.updateSyncUI = updateGoogleDriveUI;
             window.googleDriveSync.updateLastSyncTime = updateGoogleDriveUI;
         }
+        
+        // 1분마다 동기화 시간 실시간 업데이트
+        setInterval(() => {
+            if (window.googleDriveSync && window.googleDriveSync.lastSyncTime && gdriveLastSyncTime) {
+                gdriveLastSyncTime.textContent = utils.getTimeAgo(window.googleDriveSync.lastSyncTime);
+            }
+        }, 60000); // 1분마다 업데이트
 
         // 알림 권한 상태 업데이트 (동적으로 생성된 요소들 이후)
         updateNotificationPermissionStatus();
@@ -3608,38 +3626,75 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
                             console.log('액세스 토큰 획득 성공');
                             isSignedIn = true;
-                            gapi.client.setToken({
-                                access_token: response.access_token
+                            const tokenData = {
+                                access_token: response.access_token,
+                                expires_at: Date.now() + (response.expires_in || 3600) * 1000 // 만료 시간 저장
+                            };
+                            gapi.client.setToken(tokenData);
+                            
+                            // 토큰을 localStorage에 저장
+                            try {
+                                localStorage.setItem('mwohaji-gdrive-token', JSON.stringify(tokenData));
+                                console.log('🔑 토큰 저장 완료');
+                            } catch (error) {
+                                console.warn('토큰 저장 실패:', error);
+                            }
+                            
+                            // 사용자 정보 가져오기
+                            fetchUserInfo().then(() => {
+                                onAuthStateChanged(true);
+                            }).catch(error => {
+                                console.warn('사용자 정보 가져오기 실패, 기본값으로 진행:', error);
+                                onAuthStateChanged(true);
                             });
-                            onAuthStateChanged(true);
                         }
                     });
                     
-                    // 기존 토큰이 있는지 확인
+                    // localStorage에서 저장된 토큰 복원
                     try {
-                        const existingToken = window.gapi.client.getToken();
-                        if (existingToken && existingToken.access_token) {
-                            console.log('기존 토큰 발견');
+                        const savedTokenStr = localStorage.getItem('mwohaji-gdrive-token');
+                        if (savedTokenStr) {
+                            const savedToken = JSON.parse(savedTokenStr);
+                            console.log('🔑 저장된 토큰 발견');
                             
-                            // 기존 토큰으로 사용자 정보 가져오기
-                            try {
-                                const userInfoResponse = await fetch(`https://www.googleapis.com/oauth2/v2/userinfo?access_token=${existingToken.access_token}`);
-                                if (userInfoResponse.ok) {
-                                    const userInfo = await userInfoResponse.json();
-                                    window.currentUserInfo = userInfo;
-                                    isSignedIn = true;
-                                    onAuthStateChanged(true);
-                                } else {
-                                    console.log('기존 토큰이 유효하지 않음');
+                            // 토큰 만료 시간 확인
+                            if (savedToken.expires_at && Date.now() < savedToken.expires_at) {
+                                console.log('🔑 저장된 토큰이 유효함, 복원 시도');
+                                
+                                // 토큰 설정
+                                window.gapi.client.setToken({
+                                    access_token: savedToken.access_token
+                                });
+                                
+                                // 토큰 유효성 검증을 위해 사용자 정보 가져오기
+                                try {
+                                    const userInfoResponse = await fetch(`https://www.googleapis.com/oauth2/v2/userinfo?access_token=${savedToken.access_token}`);
+                                    if (userInfoResponse.ok) {
+                                        const userInfo = await userInfoResponse.json();
+                                        window.currentUserInfo = userInfo;
+                                        isSignedIn = true;
+                                        console.log('🔑 토큰 복원 및 자동 로그인 성공');
+                                        onAuthStateChanged(true);
+                                    } else {
+                                        console.log('🔑 저장된 토큰이 유효하지 않음, 제거');
+                                        localStorage.removeItem('mwohaji-gdrive-token');
+                                        window.gapi.client.setToken(null);
+                                    }
+                                } catch (error) {
+                                    console.warn('🔑 저장된 토큰 검증 실패, 제거:', error);
+                                    localStorage.removeItem('mwohaji-gdrive-token');
                                     window.gapi.client.setToken(null);
                                 }
-                            } catch (error) {
-                                console.warn('기존 토큰 검증 실패:', error);
-                                window.gapi.client.setToken(null);
+                            } else {
+                                console.log('🔑 저장된 토큰이 만료됨, 제거');
+                                localStorage.removeItem('mwohaji-gdrive-token');
                             }
+                        } else {
+                            console.log('🔑 저장된 토큰 없음');
                         }
                     } catch (error) {
-                        console.log('기존 토큰 확인 중 오류 (정상):', error.message);
+                        console.log('🔑 저장된 토큰 확인 중 오류:', error.message);
+                        localStorage.removeItem('mwohaji-gdrive-token');
                     }
                     
                 } else {
@@ -3810,9 +3865,21 @@ document.addEventListener('DOMContentLoaded', () => {
                                 console.log('[GoogleDrive] 필요한 scope: userinfo.email, userinfo.profile');
                             }
                             
-                            window.gapi.client.setToken({
-                                access_token: response.access_token
-                            });
+                            // 토큰 데이터 준비 및 저장
+                            const tokenData = {
+                                access_token: response.access_token,
+                                expires_at: Date.now() + (response.expires_in || 3600) * 1000 // 만료 시간 저장
+                            };
+                            
+                            window.gapi.client.setToken(tokenData);
+                            
+                            // 토큰을 localStorage에 저장
+                            try {
+                                localStorage.setItem('mwohaji-gdrive-token', JSON.stringify(tokenData));
+                                console.log('🔑 토큰 저장 완료');
+                            } catch (error) {
+                                console.warn('토큰 저장 실패:', error);
+                            }
                             
                             // userinfo API로 사용자 정보 가져오기
                             
@@ -3869,6 +3936,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         console.log('토큰 해제 완료');
                     });
                     window.gapi.client.setToken(null);
+                }
+                
+                // localStorage에서 토큰 제거
+                try {
+                    localStorage.removeItem('mwohaji-gdrive-token');
+                    console.log('🔑 저장된 토큰 제거 완료');
+                } catch (error) {
+                    console.warn('저장된 토큰 제거 실패:', error);
                 }
                 
                 window.currentUserInfo = null;
@@ -4500,9 +4575,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     autoSyncEnabled = autoSyncStr === 'true';
                     console.log('⚙️ 자동 동기화 설정 로드:', autoSyncEnabled);
                     
-                    if (autoSyncEnabled && isSignedIn) {
-                        startAutoSync();
-                    }
+                    // 자동 동기화 시작은 onAuthStateChanged에서 처리
+                    console.log('⚙️ 자동 동기화 시작은 로그인 완료 후 처리됩니다.');
                 } catch (error) {
                     console.warn('자동 동기화 설정 로드 실패:', error);
                     autoSyncEnabled = false;
@@ -4523,15 +4597,21 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         const updateAuthUI = () => {
-            // UI 업데이트는 설정 섹션이 추가된 후에 구현
+            if (window.updateGoogleDriveUI) {
+                window.updateGoogleDriveUI();
+            }
         };
 
         const updateSyncUI = (inProgress) => {
-            // UI 업데이트는 설정 섹션이 추가된 후에 구현
+            if (window.updateGoogleDriveUI) {
+                window.updateGoogleDriveUI();
+            }
         };
 
         const updateLastSyncTime = () => {
-            // UI 업데이트는 설정 섹션이 추가된 후에 구현
+            if (window.updateGoogleDriveUI) {
+                window.updateGoogleDriveUI();
+            }
         };
 
         return {

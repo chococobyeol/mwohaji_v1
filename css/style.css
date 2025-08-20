@@ -2331,6 +2331,10 @@ button:hover {
     background: #f59e0b;
 }
 
+.status-text.offline::before {
+    background: #6b7280;
+}
+
 @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.5; }
@@ -2563,6 +2567,10 @@ button:hover {
 
 .status-text.error {
     color: #ef4444;
+}
+
+.status-text.offline {
+    color: #6b7280;
 }
 
 /* 동기화 진행 상태 애니메이션 */

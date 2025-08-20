@@ -172,7 +172,11 @@ const aiChat = (() => {
             categories: categories.map(cat => cat.name),
             totalTodos: todos.length,
             completedTodos: todos.filter(todo => todo.completed).length,
-            currentTime: new Date().toISOString(),
+            currentTime: (() => {
+                const now = new Date();
+                const localTime = new Date(now.getTime() - (now.getTimezoneOffset() * 60000));
+                return localTime.toISOString().slice(0, -1); // 'Z' 제거하여 로컬 시간으로 표시
+            })(),
             conversation: recentMessages
         };
     };
