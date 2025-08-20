@@ -309,7 +309,8 @@ const geminiApi = (() => {
 
     // 프롬프트 구성: 함수 호출 목록(actions) + 대화 메시지(message)
     const buildPrompt = (userInput, context) => {
-        const nowISO = new Date().toISOString();
+        const now = new Date();
+        const nowISO = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().slice(0, -1);
         const categories = (context?.categories || []).join(', ');
         const todosBrief = (context?.todos || [])
             .map(t => `- ${t.text} [${t.category}]${t.schedule?.startTime ? ` 시작:${new Date(t.schedule.startTime).toLocaleString('ko-KR')}` : ''}${t.schedule?.dueTime ? ` 마감:${new Date(t.schedule.dueTime).toLocaleString('ko-KR')}` : ''}`)
@@ -573,7 +574,8 @@ ${convo}
     };
 
     const buildObservationFollowupPrompt = (userInput, context, observationResults, originalActions) => {
-        const nowISO = new Date().toISOString();
+        const now = new Date();
+        const nowISO = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().slice(0, -1);
         return `당신은 할 일 관리 앱 어시스턴트입니다. 먼저 관찰 함수 결과를 참고하여, 사용자 의도를 달성하기 위한 최종 actions만 JSON으로 출력하세요. 코드블록/설명 금지.
 
 현재시각: ${nowISO}
@@ -589,7 +591,8 @@ ${convo}
     };
 
     const buildForcedPlanPrompt = (userInput, context) => {
-        const nowISO = new Date().toISOString();
+        const now = new Date();
+        const nowISO = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().slice(0, -1);
         const categories = (context?.categories || []).join(', ');
         return `역할: 당신은 할 일 관리 앱 어시스턴트입니다.
 요청: "${userInput}"
@@ -706,10 +709,12 @@ ${errors.map(e=>`- ${e}`).join('\n')}
             return { success: false, error: 'API 키가 설정되지 않았습니다. 설정에서 API 키를 입력해주세요.' };
         }
         if (apiKey === 'test') {
-            const in5 = new Date(Date.now() + 5 * 60000).toISOString().slice(0, 19);
-            const actions = [{ function: 'createTodo', args: { text: '테스트 알림', schedule: { startTime: in5 } } }];
+            const now = new Date();
+            const in5Local = new Date(now.getTime() + 5 * 60000);
+            const in5ISO = new Date(in5Local.getTime() - (in5Local.getTimezoneOffset() * 60000)).toISOString().slice(0, 19);
+            const actions = [{ function: 'createTodo', args: { text: '테스트 알림', schedule: { startTime: in5ISO } } }];
             await runActions(actions);
-            return { success: true, message: `테스트 모드: ${new Date(in5).toLocaleString('ko-KR')} 시작 알림 생성` };
+            return { success: true, message: `테스트 모드: ${in5Local.toLocaleString('ko-KR')} 시작 알림 생성` };
         }
 
         try {
