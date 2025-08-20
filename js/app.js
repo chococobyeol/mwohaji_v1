@@ -1961,18 +1961,122 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // 사용자 인터랙션 추적
+    let hasUserInteracted = false;
+    
+    // 사용자 인터랙션 감지
+    const trackUserInteraction = () => {
+        if (!hasUserInteracted) {
+            hasUserInteracted = true;
+            console.log('[App] 사용자 인터랙션 감지됨 - 소리 상태 업데이트');
+            updateAudioStatus();
+        }
+    };
+    
+    // 사용자 인터랙션 이벤트 리스너
+    ['click', 'touchstart', 'keydown'].forEach(eventType => {
+        document.addEventListener(eventType, trackUserInteraction, { once: true });
+    });
+
     // 소리 상태 확인 함수
     const checkAudioStatus = async () => {
-        try {
-            // 매우 짧은 무음으로 재생 가능한지 테스트
-            const testAudio = new Audio();
-            testAudio.src = 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OSNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU7k9n1unEiBC13yO/eizEIHWq+8+OWT';
-            testAudio.volume = 0;
-            await testAudio.play();
-            testAudio.pause();
-            return 'ready';
-        } catch (error) {
+        // 사용자 인터랙션이 없으면 무조건 suspended
+        if (!hasUserInteracted) {
+            console.log('[App] 사용자 인터랙션 없음 - suspended 상태');
             return 'suspended';
+        }
+        
+        try {
+            // 실제 오디오 파일로 재생 가능한지 테스트 (정상 볼륨)
+            const testAudio = new Audio('assets/sounds/notification.wav');
+            testAudio.volume = 0.0; // 볼륨 0으로 테스트
+            
+            // 실제 재생 여부를 확인하기 위한 Promise
+            const actualPlayPromise = new Promise((resolve, reject) => {
+                let hasPlayed = false;
+                let hasTimeUpdate = false;
+                
+                // 재생 시작 이벤트
+                testAudio.addEventListener('playing', () => {
+                    console.log('[App] 실제 재생 시작됨');
+                    hasPlayed = true;
+                    checkCompletion();
+                }, { once: true });
+                
+                // 시간 진행 이벤트 (실제 재생 확인)
+                testAudio.addEventListener('timeupdate', () => {
+                    if (testAudio.currentTime > 0) {
+                        console.log('[App] 실제 재생 중 (시간 진행)');
+                        hasTimeUpdate = true;
+                        checkCompletion();
+                    }
+                }, { once: true });
+                
+                // 오류 이벤트
+                testAudio.addEventListener('error', (e) => {
+                    console.log('[App] 오디오 재생 오류:', e);
+                    reject(new Error('audio_error'));
+                }, { once: true });
+                
+                // 완료 확인 함수
+                const checkCompletion = () => {
+                    if (hasPlayed && hasTimeUpdate) {
+                        resolve('actually_playing');
+                    } else if (hasPlayed) {
+                        // playing 이벤트는 있지만 시간 진행이 없으면 500ms 더 기다림
+                        setTimeout(() => {
+                            if (hasTimeUpdate) {
+                                resolve('actually_playing');
+                            } else {
+                                resolve('playing_but_no_progress');
+                            }
+                        }, 500);
+                    }
+                };
+                
+                // 2초 타임아웃
+                setTimeout(() => {
+                    if (!hasPlayed && !hasTimeUpdate) {
+                        reject(new Error('timeout'));
+                    }
+                }, 2000);
+            });
+            
+            // play() Promise를 먼저 기다림
+            const playPromise = testAudio.play();
+            await playPromise;
+            
+            // 실제 재생 확인
+            const playResult = await actualPlayPromise;
+            
+            // 테스트 완료 후 정리
+            testAudio.pause();
+            testAudio.currentTime = 0;
+            
+            if (playResult === 'actually_playing') {
+                console.log('[App] 소리 재생 테스트 성공 (실제 재생 확인됨)');
+                return 'ready';
+            } else {
+                console.log('[App] 소리 재생 시작되었지만 진행되지 않음');
+                return 'not-ready';
+            }
+        } catch (error) {
+            console.log('[App] 소리 재생 테스트 실패:', error.name, error.message);
+            
+            // 브라우저 자동재생 정책 관련 에러들
+            if (error.name === 'NotAllowedError' || 
+                error.message.includes('user activation') ||
+                error.message.includes('autoplay') ||
+                error.message.includes('gesture')) {
+                return 'suspended'; // 브라우저 정책으로 차단됨
+            } else if (error.name === 'NotSupportedError' || 
+                       error.name === 'AbortError' ||
+                       error.message.includes('fetch') ||
+                       error.message.includes('load')) {
+                return 'not-ready'; // 파일 없음 또는 로드 실패
+            } else {
+                return 'suspended'; // 기타 권한 관련 오류
+            }
         }
     };
 
@@ -1996,10 +2100,11 @@ document.addEventListener('DOMContentLoaded', () => {
             // 새 클래스 추가
             audioStatusBtn.classList.add(status);
             
-            // 아이콘 설정 (올바른 아이콘 이름 사용)
+            // 아이콘 설정 (상태별 정확한 아이콘)
             let iconName = 'volume';
-            if (status === 'suspended') iconName = 'volumeX';
-            else if (status === 'not-ready') iconName = 'volume';
+            if (status === 'suspended' || status === 'not-ready') {
+                iconName = 'volumeX'; // 재생 불가능한 모든 상태에서 X 아이콘
+            }
             
             console.log('[App] 소리 상태 업데이트:', status, iconName);
             icons.setButtonIcon(audioStatusBtn, iconName, statusText, 18);
@@ -2245,10 +2350,11 @@ document.addEventListener('DOMContentLoaded', () => {
         icons.setButtonIcon(closeSettingsSidebar, 'close', '닫기', 18);
         // showCompletedToggle은 동적으로 생성되므로 나중에 설정됨
         
-        // 소리 상태 버튼 초기화 (지연 실행)
-        setTimeout(() => {
-            updateAudioStatus();
-        }, 100);
+        // 소리 상태 버튼 초기화 (즉시 + 반복 확인)
+        updateAudioStatus(); // 즉시 1번
+        setTimeout(() => updateAudioStatus(), 100); // 100ms 후 1번
+        setTimeout(() => updateAudioStatus(), 500); // 500ms 후 1번
+        setTimeout(() => updateAudioStatus(), 1000); // 1초 후 1번
 
         // 햄버거 아이콘 설정
         if (mobileMenuBtn) {
@@ -3530,10 +3636,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target === settingsSidebarOverlay) closeSettingsSidebarFn();
     });
 
-    // 주기적인 소리 상태 업데이트 (30초마다)
+    // 주기적인 소리 상태 업데이트 (사용자 인터랙션 후에만, 10초마다)
     setInterval(() => {
-        updateAudioStatus();
-    }, 30 * 1000); // 30초마다
+        if (hasUserInteracted) { // 사용자가 인터랙션한 경우에만 주기적 확인
+            updateAudioStatus();
+        }
+    }, 60 * 1000); // 60초마다
     
     // 사용자 클릭 시 소리 상태 즉시 업데이트 및 소리 멈추기
     let lastClickTime = 0;
@@ -3546,12 +3654,11 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('[App] 소리 재생 중지');
         }
         
-        // 마지막 클릭으로부터 1초 이상 지났을 때만 상태 확인
-        if (now - lastClickTime > 1000) {
+        // 마지막 클릭으로부터 500ms 이상 지났을 때만 상태 확인
+        if (now - lastClickTime > 500) {
             lastClickTime = now;
-            setTimeout(() => {
-                updateAudioStatus();
-            }, 100);
+            // 즉시 업데이트 (딜레이 없음)
+            updateAudioStatus();
         }
     }, { once: false });
 
