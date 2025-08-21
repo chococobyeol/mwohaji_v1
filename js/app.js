@@ -2662,7 +2662,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     동기화 진행 중...
                 </div>
             </div>
-            <p class="setting-description">Google Drive와 할 일 데이터를 동기화합니다. 자동 동기화를 활성화하면 5분마다 백그라운드에서 동기화가 실행됩니다.</p>
+            <p class="setting-description">Google Drive와 할 일 데이터를 동기화합니다. <strong>보안정책상 1시간 후 자동 로그아웃됩니다.</strong> 자동 동기화를 활성화하면 5분마다 백그라운드에서 동기화가 실행됩니다.</p>
         `;
         settingsContent.appendChild(googleDriveSection);
         
@@ -2959,7 +2959,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            const isSignedIn = window.googleDriveSync.isSignedIn;
+            // 토큰 만료 체크 후 실제 로그인 상태 결정
+            let isSignedIn = window.googleDriveSync.isSignedIn;
+            if (isSignedIn && window.googleDriveSync.isTokenExpired()) {
+                console.log('토큰 만료됨, UI를 로그아웃 상태로 변경');
+                // 실제 로그인 상태도 업데이트 (다음 호출부터 반영)
+                window.googleDriveSync.markAsLoggedOut();
+                isSignedIn = false; // 이번 UI 업데이트에서 즉시 반영
+            }
             const syncInProgress = window.googleDriveSync.syncInProgress;
             const autoSyncEnabled = window.googleDriveSync.autoSyncEnabled;
             const lastSyncTime = window.googleDriveSync.lastSyncTime;
@@ -3016,6 +3023,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     gdriveUserEmail.textContent = displayName;
                     gdriveUserEmail.title = emailCandidate; // 전체 이메일을 툴팁으로 표시
                     gdriveUserInfo.style.display = 'block';
+                } else {
+                    // 로그인은 되어 있지만 사용자 정보가 없는 경우 (예: 토큰 만료 후)
+                    if (gdriveUserInfo) {
+                        gdriveUserInfo.style.display = 'none';
+                    }
+                    if (gdriveUserAvatar) {
+                        gdriveUserAvatar.style.display = 'none';
+                        gdriveUserAvatar.removeAttribute('src'); // 깨진 이미지 방지
+                    }
                 }
             } else {
                 // 로그인 안했을 때는 사용자 정보 숨기고 아바타 src도 제거
@@ -3064,18 +3080,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Google Drive UI 업데이트 함수를 전역에 등록 (동기화 모듈에서 호출할 수 있도록)
         window.updateGoogleDriveUI = updateGoogleDriveUI;
-        if (window.googleDriveSync) {
-            window.googleDriveSync.updateAuthUI = updateGoogleDriveUI;
-            window.googleDriveSync.updateSyncUI = updateGoogleDriveUI;
-            window.googleDriveSync.updateLastSyncTime = updateGoogleDriveUI;
-        }
         
-        // 1분마다 동기화 시간 실시간 업데이트
+        // 동기화 시간 실시간 업데이트 (1분마다)
         setInterval(() => {
             if (window.googleDriveSync && window.googleDriveSync.lastSyncTime && gdriveLastSyncTime) {
                 gdriveLastSyncTime.textContent = utils.getTimeAgo(window.googleDriveSync.lastSyncTime);
             }
-        }, 60000); // 1분마다 업데이트
+        }, 60000);
 
         // 알림 권한 상태 업데이트 (동적으로 생성된 요소들 이후)
         updateNotificationPermissionStatus();
@@ -3832,16 +3843,20 @@ document.addEventListener('DOMContentLoaded', () => {
                             // 토큰을 localStorage에 저장
                             try {
                                 localStorage.setItem('mwohaji-gdrive-token', JSON.stringify(tokenData));
-                                console.log('🔑 토큰 저장 완료');
+                                console.log(' 토큰 저장 완료');
                             } catch (error) {
                                 console.warn('토큰 저장 실패:', error);
                             }
                             
                             // 사용자 정보 가져오기
                             fetchUserInfo().then(() => {
+                                // 토큰 만료 스케줄링 시작
+                                scheduleTokenExpiry();
                                 onAuthStateChanged(true);
                             }).catch(error => {
                                 console.warn('사용자 정보 가져오기 실패, 기본값으로 진행:', error);
+                                // 토큰 만료 스케줄링 시작
+                                scheduleTokenExpiry();
                                 onAuthStateChanged(true);
                             });
                         }
@@ -3856,11 +3871,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         const savedTokenStr = localStorage.getItem('mwohaji-gdrive-token');
                         if (savedTokenStr) {
                             const savedToken = JSON.parse(savedTokenStr);
-                            console.log('🔑 저장된 토큰 발견');
+                            console.log(' 저장된 토큰 발견');
                             
                             // 토큰 만료 시간 확인
                             if (savedToken.expires_at && Date.now() < savedToken.expires_at) {
-                                console.log('🔑 저장된 토큰이 유효함, 복원 시도');
+                                console.log(' 저장된 토큰이 유효함, 복원 시도');
                                 
                                 // 토큰 설정
                                 window.gapi.client.setToken({
@@ -3874,31 +3889,34 @@ document.addEventListener('DOMContentLoaded', () => {
                                         const userInfo = await userInfoResponse.json();
                                         window.currentUserInfo = userInfo;
                                         isSignedIn = true;
-                                        console.log('🔑 토큰 복원 및 자동 로그인 성공');
-                                        console.log('🔑 자동 동기화 상태 확인:', {
+                                        console.log('토큰 복원 및 자동 로그인 성공');
+                                        
+                                        // 토큰 만료 스케줄링 시작
+                                        scheduleTokenExpiry();
+                                        console.log(' 자동 동기화 상태 확인:', {
                                             autoSyncEnabled: autoSyncEnabled,
                                             isSignedIn: isSignedIn
                                         });
                                         onAuthStateChanged(true);
                                     } else {
-                                        console.log('🔑 저장된 토큰이 유효하지 않음, 제거');
+                                        console.log(' 저장된 토큰이 유효하지 않음, 제거');
                                         localStorage.removeItem('mwohaji-gdrive-token');
                                         window.gapi.client.setToken(null);
                                     }
                                 } catch (error) {
-                                    console.warn('🔑 저장된 토큰 검증 실패, 제거:', error);
+                                    console.warn(' 저장된 토큰 검증 실패, 제거:', error);
                                     localStorage.removeItem('mwohaji-gdrive-token');
                                     window.gapi.client.setToken(null);
                                 }
                             } else {
-                                console.log('🔑 저장된 토큰이 만료됨, 제거');
+                                console.log(' 저장된 토큰이 만료됨, 제거');
                                 localStorage.removeItem('mwohaji-gdrive-token');
                             }
                         } else {
-                            console.log('🔑 저장된 토큰 없음');
+                            console.log(' 저장된 토큰 없음');
                         }
                     } catch (error) {
-                        console.log('🔑 저장된 토큰 확인 중 오류:', error.message);
+                        console.log(' 저장된 토큰 확인 중 오류:', error.message);
                         localStorage.removeItem('mwohaji-gdrive-token');
                     }
                     
@@ -3996,7 +4014,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log('🔄 [onAuthStateChanged] Google Drive에서 로그아웃되었습니다.');
                 stopAutoSync();
             }
-            updateAuthUI();
+            if (window.updateGoogleDriveUI) {
+                window.updateGoogleDriveUI();
+            }
         };
 
         const signIn = async () => {
@@ -4087,7 +4107,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             // 토큰을 localStorage에 저장
                             try {
                                 localStorage.setItem('mwohaji-gdrive-token', JSON.stringify(tokenData));
-                                console.log('🔑 토큰 저장 완료');
+                                console.log(' 토큰 저장 완료');
                             } catch (error) {
                                 console.warn('토큰 저장 실패:', error);
                             }
@@ -4098,12 +4118,16 @@ document.addEventListener('DOMContentLoaded', () => {
                             try {
                                 await fetchUserInfo();
                                 isSignedIn = true;
+                                // 토큰 만료 스케줄링 시작
+                                scheduleTokenExpiry();
                                 onAuthStateChanged(true);
                                 resolve(true);
                             } catch (userInfoError) {
                                 console.error('[GoogleDrive] 사용자 정보 가져오기 실패, 기본값으로 진행:', userInfoError);
                                 // 사용자 정보 가져오기 실패해도 로그인은 성공으로 처리
                                 isSignedIn = true;
+                                // 토큰 만료 스케줄링 시작
+                                scheduleTokenExpiry();
                                 onAuthStateChanged(true);
                                 resolve(true);
                             }
@@ -4152,7 +4176,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // localStorage에서 토큰 제거
                 try {
                     localStorage.removeItem('mwohaji-gdrive-token');
-                    console.log('🔑 저장된 토큰 제거 완료');
+                    console.log(' 저장된 토큰 제거 완료');
                 } catch (error) {
                     console.warn('저장된 토큰 제거 실패:', error);
                 }
@@ -4263,7 +4287,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             syncInProgress = true;
-            updateSyncUI(true);
+            if (window.updateGoogleDriveUI) {
+                window.updateGoogleDriveUI();
+            }
 
             try {
                 console.log('🔄 [Google Drive 동기화] 시작...');
@@ -4341,8 +4367,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 return { success: false, error: error.message };
             } finally {
                 syncInProgress = false;
-                updateSyncUI(false);
-                updateLastSyncTime();
+                if (window.updateGoogleDriveUI) {
+                    window.updateGoogleDriveUI();
+                }
             }
         };
 
@@ -4413,116 +4440,23 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-        // 토큰 유효성 체크 및 자동 갱신 함수 (안전 모드)
-        const ensureValidToken = async () => {
+        // 토큰 만료 체크만 (자동 갱신 시도 안함)
+        const isTokenExpired = () => {
             try {
                 const savedTokenStr = localStorage.getItem('mwohaji-gdrive-token');
-                if (!savedTokenStr) {
-                    console.warn('⚠️ 저장된 토큰이 없음. 로그인 필요.');
-                    return false; // 에러 대신 false 반환
-                }
+                if (!savedTokenStr) return true;
                 
                 const savedToken = JSON.parse(savedTokenStr);
                 const currentTime = Date.now();
                 const tokenExpiresAt = savedToken.expires_at || 0;
-                const timeUntilExpiry = tokenExpiresAt - currentTime;
                 
-                // 토큰이 5분 이내에 만료되거나 이미 만료된 경우 갱신 시도
-                if (timeUntilExpiry < 5 * 60 * 1000) {
-                    console.log('🔄 토큰 만료 임박/만료됨. 새 토큰 요청 중...');
-                    try {
-                        await requestNewToken();
-                        return true;
-                    } catch (refreshError) {
-                        console.warn('⚠️ 토큰 갱신 실패, 그냥 진행:', refreshError.message);
-                        return false; // 갱신 실패해도 일단 시도는 해볼 수 있게
-                    }
-                } else {
-                    console.log('✅ 토큰 유효. 남은 시간:', Math.round(timeUntilExpiry / 60000), '분');
-                    return true;
-                }
+                return currentTime >= tokenExpiresAt;
             } catch (error) {
-                console.warn('⚠️ 토큰 체크 실패, 그냥 진행:', error.message);
-                return false; // 에러 대신 false 반환하여 API 호출은 시도해볼 수 있게
+                return true;
             }
         };
         
-        // 토큰 갱신 상태 관리
-        let tokenRefreshInProgress = false;
-        let tokenRefreshPromise = null;
-        
-        // 새로운 토큰 요청 함수 (동시 요청 방지 + 타임아웃)
-        const requestNewToken = async () => {
-            // 이미 토큰 갱신이 진행 중이면 기존 Promise 반환
-            if (tokenRefreshInProgress && tokenRefreshPromise) {
-                console.log('🔄 토큰 갱신 진행 중, 기존 요청 대기...');
-                return tokenRefreshPromise;
-            }
-            
-            tokenRefreshInProgress = true;
-            
-            // 30초 타임아웃 설정
-            const timeoutPromise = new Promise((_, reject) => 
-                setTimeout(() => {
-                    tokenRefreshInProgress = false;
-                    tokenRefreshPromise = null;
-                    reject(new Error('토큰 갱신 타임아웃 (30초)'));
-                }, 30000)
-            );
-            
-            const refreshPromise = new Promise((resolve, reject) => {
-                if (!window.tokenClient) {
-                    tokenRefreshInProgress = false;
-                    tokenRefreshPromise = null;
-                    reject(new Error('TokenClient가 초기화되지 않았습니다. 다시 로그인해주세요.'));
-                    return;
-                }
-                
-                const originalCallback = window.tokenClient.callback;
-                window.tokenClient.callback = (response) => {
-                    if (response.error) {
-                        console.error('토큰 갱신 실패:', response.error);
-                        tokenRefreshInProgress = false;
-                        tokenRefreshPromise = null;
-                        window.tokenClient.callback = originalCallback;
-                        reject(new Error(`토큰 갱신 실패: ${response.error}`));
-                        return;
-                    }
-                    
-                    const tokenData = {
-                        access_token: response.access_token,
-                        expires_at: Date.now() + (response.expires_in || 3600) * 1000
-                    };
-                    
-                    window.gapi.client.setToken(tokenData);
-                    
-                    try {
-                        localStorage.setItem('mwohaji-gdrive-token', JSON.stringify(tokenData));
-                        console.log('✅ 새 토큰 저장 완료');
-                    } catch (error) {
-                        console.warn('토큰 저장 실패:', error);
-                    }
-                    
-                    // 원래 callback 복원 및 상태 초기화
-                    window.tokenClient.callback = originalCallback;
-                    tokenRefreshInProgress = false;
-                    tokenRefreshPromise = null;
-                    resolve();
-                };
-                
-                // 자동 토큰 갱신 (사용자 개입 없이)
-                try {
-                    window.tokenClient.requestAccessToken({ prompt: '' });
-                } catch (error) {
-                    tokenRefreshInProgress = false;
-                    tokenRefreshPromise = null;
-                    reject(error);
-                }
-            });
-            
-            tokenRefreshPromise = Promise.race([refreshPromise, timeoutPromise]);
-            return tokenRefreshPromise;
-        };
+
         
         // API 호출 시 오류 자동 재시도 래퍼 함수 (개선된 버전)
         const executeApiWithRetry = async (apiCall, maxRetries = 2) => {
@@ -4541,28 +4475,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         details: error.result?.error || error
                     });
                     
-                    // 401 Unauthorized - 토큰 갱신 후 재시도
-                    if (errorStatus === 401 && attempt < maxRetries) {
-                        console.log('🔄 401 오류: 토큰 갱신 후 재시도...');
-                        try {
-                            await requestNewToken();
-                            console.log('✅ 토큰 갱신 성공, API 재시도...');
-                            continue;
-                        } catch (refreshError) {
-                            console.error('❌ 토큰 갱신 실패:', refreshError);
-                            
-                            // 사용자에게 친화적인 안내 메시지
-                            const errorMsg = refreshError.message?.includes('타임아웃') 
-                                ? '토큰 갱신이 시간 초과되었습니다. 네트워크 연결을 확인하고 다시 로그인해주세요.'
-                                : '인증 토큰 갱신에 실패했습니다. Google Drive 연동을 다시 설정해주세요.';
-                            
-                            // UI에 오류 알림 (있다면)
-                            if (typeof window.showNotification === 'function') {
-                                window.showNotification(errorMsg, 'error');
-                            }
-                            
-                            throw new Error(errorMsg);
-                        }
+                    // 401 Unauthorized - 토큰 만료, 재로그인 필요
+                    if (errorStatus === 401) {
+                        console.log(' 401 오류: 토큰 만료됨, 재로그인 필요');
+                        throw new Error('토큰이 만료되었습니다. 다시 로그인해주세요.');
                     }
                     
                     // 429 Too Many Requests - 지수 백오프로 재시도
@@ -4608,10 +4524,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const getRemoteData = async () => {
             try {
-                // 🔥 토큰 유효성 먼저 체크 (실패해도 일단 시도)
-                const tokenValid = await ensureValidToken();
-                if (!tokenValid) {
-                    console.warn('⚠️ 토큰 상태 불확실, 그래도 API 호출 시도...');
+                // 토큰 만료 체크 (만료되면 바로 실패)
+                if (isTokenExpired()) {
+                    throw new Error('토큰이 만료되었습니다. 다시 로그인해주세요.');
                 }
                 
                 // 고정된 파일명 사용 (날짜별 분리하지 않음)
@@ -4835,10 +4750,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const saveRemoteData = async (data) => {
             try {
-                // 🔥 토큰 유효성 먼저 체크 (실패해도 일단 시도)
-                const tokenValid = await ensureValidToken();
-                if (!tokenValid) {
-                    console.warn('⚠️ 토큰 상태 불확실, 그래도 API 호출 시도...');
+                // 토큰 만료 체크 (만료되면 바로 실패)
+                if (isTokenExpired()) {
+                    throw new Error('토큰이 만료되었습니다. 다시 로그인해주세요.');
                 }
                 
                 if (!drive) {
@@ -5049,24 +4963,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-        const updateAuthUI = () => {
-            if (window.updateGoogleDriveUI) {
-                window.updateGoogleDriveUI();
-            }
-        };
-
-        const updateSyncUI = (inProgress) => {
-            if (window.updateGoogleDriveUI) {
-                window.updateGoogleDriveUI();
-            }
-        };
-
-        const updateLastSyncTime = () => {
-            if (window.updateGoogleDriveUI) {
-                window.updateGoogleDriveUI();
-            }
-        };
-
         // 페이지 언로드 시 리소스 정리
         const cleanup = () => {
             console.log('🧹 [Google Drive Sync] 리소스 정리 중...');
@@ -5077,58 +4973,75 @@ document.addEventListener('DOMContentLoaded', () => {
                 autoSyncInterval = null;
             }
             
-            // 진행 중인 토큰 갱신 정리
-            if (tokenRefreshInProgress) {
-                tokenRefreshInProgress = false;
-                tokenRefreshPromise = null;
-            }
+
             
             console.log('🧹 [Google Drive Sync] 리소스 정리 완료');
         };
         
-        // 네트워크 연결 상태 및 페이지 포커스 처리
-        const handleNetworkRecovery = async () => {
-            if (isSignedIn && window.navigator.onLine) {
-                try {
-                    console.log('🌐 네트워크 연결 복구 감지, 토큰 상태 확인...');
-                    await ensureValidToken();
-                    console.log('✅ 네트워크 복구 후 토큰 상태 정상');
-                } catch (error) {
-                    console.warn('⚠️ 네트워크 복구 후 토큰 확인 실패:', error);
-                }
-            }
-        };
+
         
-        const handlePageFocus = async () => {
-            if (isSignedIn && !document.hidden) {
-                const lastActivity = localStorage.getItem('mwohaji-last-activity');
-                const now = Date.now();
-                
-                // 10분 이상 백그라운드에 있었다면 토큰 상태 재확인
-                if (lastActivity && (now - parseInt(lastActivity)) > 10 * 60 * 1000) {
-                    try {
-                        console.log('👁️ 장시간 백그라운드 후 포커스 복귀, 토큰 재확인...');
-                        await ensureValidToken();
-                        console.log('✅ 포커스 복귀 후 토큰 상태 정상');
-                    } catch (error) {
-                        console.warn('⚠️ 포커스 복귀 후 토큰 확인 실패:', error);
-                    }
-                }
-                localStorage.setItem('mwohaji-last-activity', now.toString());
-            }
-        };
-        
-        // 페이지 언로드 및 네트워크/포커스 이벤트 리스너 등록
+        // 페이지 언로드 이벤트 리스너 등록
         if (typeof window !== 'undefined') {
             window.addEventListener('beforeunload', cleanup);
             window.addEventListener('pagehide', cleanup);
-            window.addEventListener('online', handleNetworkRecovery);
-            window.addEventListener('focus', handlePageFocus);
-            document.addEventListener('visibilitychange', handlePageFocus);
-            
-            // 초기 활동 시간 기록
-            localStorage.setItem('mwohaji-last-activity', Date.now().toString());
         }
+
+        // 토큰 만료로 인한 로그아웃 처리
+        const markAsLoggedOut = () => {
+            console.log('토큰 만료로 인한 로그아웃 처리');
+            isSignedIn = false;
+            
+            // 사용자 정보 초기화
+            window.currentUserInfo = null;
+            
+            // 자동 동기화 중지
+            if (autoSyncInterval) {
+                clearInterval(autoSyncInterval);
+                autoSyncInterval = null;
+                autoSyncEnabled = false;
+            }
+            
+            // 토큰 제거
+            try {
+                localStorage.removeItem('mwohaji-gdrive-token');
+            } catch (error) {
+                console.warn('토큰 제거 실패:', error);
+            }
+            
+            // 무한 루프 방지를 위해 updateAuthUI 대신 직접 호출하지 않음
+            // updateGoogleDriveUI()에서 호출되므로 여기서는 생략
+        };
+
+        // 토큰 만료 스케줄링 함수 (외부에서 접근 가능하도록)
+        const scheduleTokenExpiry = () => {
+            try {
+                const savedTokenStr = localStorage.getItem('mwohaji-gdrive-token');
+                if (savedTokenStr && isSignedIn) {
+                    const savedToken = JSON.parse(savedTokenStr);
+                    const expiresAt = savedToken.expires_at;
+                    const now = Date.now();
+                    const timeUntilExpiry = expiresAt - now;
+                    
+                    if (timeUntilExpiry > 0) {
+                        console.log('토큰 만료 예약:', new Date(expiresAt).toLocaleString(), `(${Math.round(timeUntilExpiry/60000)}분 후)`);
+                        
+                        // 정확한 만료 시점에 로그아웃 처리
+                        setTimeout(() => {
+                            console.log('토큰 만료 시점 도달, 자동 로그아웃');
+                            if (typeof utils !== 'undefined' && utils.showToast) {
+                                utils.showToast('Google Drive 로그인이 만료되었습니다. (1시간 제한)', 'warning');
+                            }
+                            markAsLoggedOut();
+                            if (window.updateGoogleDriveUI) {
+                                window.updateGoogleDriveUI();
+                            }
+                        }, timeUntilExpiry);
+                    }
+                }
+            } catch (error) {
+                console.warn('토큰 만료 스케줄링 실패:', error);
+            }
+        };
 
         return {
             initialize,
@@ -5139,7 +5052,9 @@ document.addEventListener('DOMContentLoaded', () => {
             stopAutoSync,
             markAsDeleted,
             getCurrentUser,
-            cleanup, // 수동 정리 함수 추가
+            markAsLoggedOut, // 토큰 만료 처리 함수 추가
+            isTokenExpired, // 토큰 만료 체크 함수 추가
+            scheduleTokenExpiry, // 토큰 만료 스케줄링 함수 추가
             get isSignedIn() { return isSignedIn; },
             get lastSyncTime() { return lastSyncTime; },
             get autoSyncEnabled() { return autoSyncEnabled; },
