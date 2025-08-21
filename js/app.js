@@ -2993,54 +2993,49 @@ document.addEventListener('DOMContentLoaded', () => {
                 gdriveAuthBtn.disabled = false;
             }
 
-            // 사용자 정보 업데이트
-            if (isSignedIn) {
-                const user = window.googleDriveSync.getCurrentUser();
-                if (user && gdriveUserInfo && gdriveUserAvatar && gdriveUserEmail) {
-                    // 안전한 이미지 URL 설정
-                    const imageUrl = user.picture || user.imageUrl;
-                    if (imageUrl && imageUrl !== 'undefined' && imageUrl.startsWith('http')) {
-                        gdriveUserAvatar.src = imageUrl;
-                        gdriveUserAvatar.style.display = 'inline-block';
-                    } else {
-                        gdriveUserAvatar.style.display = 'none';
-                    }
-                    
-                    // 구글 계정만 표시 (도메인 제거)
-                    const emailCandidate = user?.email || user?.name || '';
-                    let displayName = emailCandidate;
-                    
-                    if (emailCandidate.includes('@')) {
-                        // 이메일에서 도메인 제거 (username@gmail.com -> username)
-                        displayName = emailCandidate.split('@')[0];
-                    }
-                    
-                    // 길면 말줄임표로 표시
-                    if (displayName.length > 15) {
-                        displayName = displayName.substring(0, 15) + '...';
-                    }
-                    
-                    gdriveUserEmail.textContent = displayName;
-                    gdriveUserEmail.title = emailCandidate; // 전체 이메일을 툴팁으로 표시
-                    gdriveUserInfo.style.display = 'block';
+            // 사용자 정보 업데이트 (토큰 만료 시 강제 초기화)
+            const user = isSignedIn ? window.googleDriveSync.getCurrentUser() : null;
+            const hasValidUser = user && window.currentUserInfo; // 추가 안전 체크
+            
+            if (hasValidUser && gdriveUserInfo && gdriveUserAvatar && gdriveUserEmail) {
+                // 안전한 이미지 URL 설정
+                const imageUrl = user.picture || user.imageUrl;
+                if (imageUrl && imageUrl !== 'undefined' && imageUrl.startsWith('http')) {
+                    gdriveUserAvatar.src = imageUrl;
+                    gdriveUserAvatar.style.display = 'inline-block';
                 } else {
-                    // 로그인은 되어 있지만 사용자 정보가 없는 경우 (예: 토큰 만료 후)
-                    if (gdriveUserInfo) {
-                        gdriveUserInfo.style.display = 'none';
-                    }
-                    if (gdriveUserAvatar) {
-                        gdriveUserAvatar.style.display = 'none';
-                        gdriveUserAvatar.removeAttribute('src'); // 깨진 이미지 방지
-                    }
+                    gdriveUserAvatar.style.display = 'none';
                 }
+                
+                // 구글 계정만 표시 (도메인 제거)
+                const emailCandidate = user?.email || user?.name || '';
+                let displayName = emailCandidate;
+                
+                if (emailCandidate.includes('@')) {
+                    // 이메일에서 도메인 제거 (username@gmail.com -> username)
+                    displayName = emailCandidate.split('@')[0];
+                }
+                
+                // 길면 말줄임표로 표시
+                if (displayName.length > 15) {
+                    displayName = displayName.substring(0, 15) + '...';
+                }
+                
+                gdriveUserEmail.textContent = displayName;
+                gdriveUserEmail.title = emailCandidate; // 전체 이메일을 툴팁으로 표시
+                gdriveUserInfo.style.display = 'block';
             } else {
-                // 로그인 안했을 때는 사용자 정보 숨기고 아바타 src도 제거
+                // 로그인 안됨 또는 사용자 정보 없음 - 완전히 숨김
                 if (gdriveUserInfo) {
                     gdriveUserInfo.style.display = 'none';
                 }
                 if (gdriveUserAvatar) {
                     gdriveUserAvatar.style.display = 'none';
                     gdriveUserAvatar.removeAttribute('src'); // 깨진 이미지 방지
+                }
+                if (gdriveUserEmail) {
+                    gdriveUserEmail.textContent = ''; // 텍스트 완전 제거
+                    gdriveUserEmail.title = '';
                 }
             }
 
