@@ -10,14 +10,6 @@
         .help-container {
             max-width: 800px;
             margin: 0 auto;
-            padding: 24px;
-            font-family: "Pretendard", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            line-height: 1.6;
-            color: #1a1a1a;
-            background-color: #f8f9fa;
-        }
-        
-        .help-content {
             background-color: white;
             border: 1px solid #e5e7eb;
             border-radius: 8px;
@@ -25,10 +17,14 @@
             overflow: hidden;
         }
         
+        .help-content {
+            background-color: white;
+        }
+        
         .help-header {
             text-align: center;
             margin-bottom: 0;
-            padding: 20px 24px;
+            padding: 24px;
             background-color: white;
             border-bottom: 1px solid #e5e7eb;
         }
@@ -47,7 +43,7 @@
         }
         
         .help-body {
-            padding: 24px;
+            padding: 32px 24px;
             background-color: white;
         }
         
@@ -148,23 +144,22 @@
             color: #374151;
         }
         
-        .back-btn {
-            display: inline-block;
-            padding: 12px 24px;
-            background: #1a1a1a;
-            color: white;
-            text-decoration: none;
-            border-radius: 6px;
-            margin-bottom: 20px;
-            transition: all 0.2s ease;
-            font-weight: 600;
+        .help-footer {
+            background-color: #f8f9fa;
+            border-top: 1px solid #e5e7eb;
+            padding: 20px 24px;
+            text-align: center;
+            color: #6b7280;
             font-size: 14px;
         }
-        
-        .back-btn:hover {
-            background: #374151;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(26, 26, 26, 0.3);
+
+        .help-footer a {
+            color: #4263EB;
+            text-decoration: none;
+        }
+
+        .help-footer a:hover {
+            text-decoration: underline;
         }
         
         .table {
@@ -246,12 +241,38 @@
         .ui-example.danger svg {
             color: #dc2626;
         }
+
+        /* 모바일 반응형 */
+        @media (max-width: 768px) {
+            .help-container {
+                margin: 0 auto;
+                border-radius: 6px;
+            }
+
+            .help-header {
+                padding: 20px 16px;
+            }
+
+            .help-header h1 {
+                font-size: 20px;
+            }
+
+            .help-body {
+                padding: 24px 16px;
+            }
+
+            .help-section h2 {
+                font-size: 16px;
+            }
+
+            .help-section h3 {
+                font-size: 15px;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="help-container">
-        <a href="index.html" class="back-btn">메인으로 돌아가기</a>
-        
         <div class="help-content">
             <div class="help-header">
                 <h1>Mwohaji 도움말</h1>
@@ -379,12 +400,17 @@
                          <li><strong>토큰 만료:</strong> 구글 정책상 1시간 후 자동 로그아웃 (보안 강화)</li>
                      </ul>
                     
-                    <div class="warning-box">
-                        <strong>주의:</strong> 이 기능은 Beta 버전입니다.
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+                                         <div class="warning-box">
+                         <strong>주의:</strong> 이 기능은 Beta 버전입니다.
+                     </div>
+                 </div>
+             </div>
+         </div>
+
+         <footer class="help-footer">
+             <p>도움말이 도움이 되었나요? 더 나은 사용자 경험을 위해 계속 개선하고 있습니다.</p>
+             <p><a href="index.html">← Mwohaji로 돌아가기</a> | <a href="privacy-policy.html">개인정보처리방침</a></p>
+         </footer>
+     </div>
 </body>
 </html>
