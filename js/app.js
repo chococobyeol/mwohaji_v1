@@ -2683,6 +2683,18 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
         settingsContent.appendChild(dataResetSection);
         
+        // 9. 도움말 및 개인정보처리방침 링크
+        const helpLinksSection = document.createElement('div');
+        helpLinksSection.style.cssText = 'padding: 20px; border-top: 1px solid #e5e7eb; margin-top: 20px;';
+        helpLinksSection.innerHTML = `
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                <a href="help.html" target="_blank" style="color: #1a1a1a; text-decoration: none; font-size: 14px;">도움말</a>
+                <a href="https://docs.google.com/forms/d/1_oWiPHVbg0ohCKPOvx-V9F0Hmjb2e6JDF7LLzqpMWc8/edit" target="_blank" style="color: #1a1a1a; text-decoration: none; font-size: 14px;">문의/버그 제보</a>
+                <a href="privacy-policy.html" target="_blank" style="color: #1a1a1a; text-decoration: none; font-size: 14px;">개인정보처리방침</a>
+            </div>
+        `;
+        settingsContent.appendChild(helpLinksSection);
+        
         // 모든 설정 요소들의 이벤트 리스너와 초기화
         const todoSortSelect = document.getElementById('todo-sort-select');
         const autoScrollToggle = document.getElementById('auto-scroll-toggle');
