@@ -3322,17 +3322,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // textarea 키보드 이벤트 핸들러
-    // 한글 입력 시 중복 입력 방지를 위한 keyup 이벤트 핸들러
-    // 한글 입력 시 중복 입력 방지를 위한 keydown 이벤트 핸들러
-    const handleTodoInputKeydown = (e) => {
+    // 한글 입력 시 중복 입력 방지를 위한 keypress 이벤트 핸들러
+    const handleTodoInputKeypress = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault(); // Enter 키의 기본 동작 방지
-        }
-    };
-
-    // 한글 입력 시 중복 입력 방지를 위한 keyup 이벤트 핸들러
-    const handleTodoInputKeyup = (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault(); // Enter 키의 기본 동작(줄바꿈) 방지
             // 한글 조합 상태 확인 (isComposing이 true이면 조합 중)
             if (!e.isComposing) {
                 handleAddTodo();
@@ -3342,8 +3335,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // EVENT LISTENERS
     addTodoBtn.addEventListener('click', handleAddTodo);
-    todoInput.addEventListener('keydown', handleTodoInputKeydown);
-    todoInput.addEventListener('keyup', handleTodoInputKeyup);
+    todoInput.addEventListener('keypress', handleTodoInputKeypress);
     categorySelector.addEventListener('click', handleCategorySelect);
     todoListContainer.addEventListener('click', handleListClick);
 

@@ -229,9 +229,12 @@ const timer = (() => {
             const input = document.getElementById(id);
             if (input) {
                 input.addEventListener('input', updateTimerDisplay);
-                input.addEventListener('keydown', (e) => {
+                input.addEventListener('keypress', (e) => {
                     if (e.key === 'Enter') {
-                        toggleTimer();
+                        // macOS 한글 입력 이슈 방지를 위해 조합 상태 확인
+                        if (!e.isComposing) {
+                            toggleTimer();
+                        }
                     }
                 });
             }

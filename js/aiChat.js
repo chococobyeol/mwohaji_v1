@@ -275,10 +275,13 @@ const aiChat = (() => {
             console.log('[AIChat] toggleBtn 클릭 이벤트 리스너 추가됨');
             
             sendBtn.addEventListener('click', sendMessage);
-            input.addEventListener('keydown', (e) => {
+            input.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    sendMessage();
+                    // macOS 한글 입력 이슈 방지를 위해 조합 상태 확인
+                    if (!e.isComposing) {
+                        sendMessage();
+                    }
                 }
             });
 
