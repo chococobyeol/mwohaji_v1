@@ -2683,9 +2683,17 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
         settingsContent.appendChild(dataResetSection);
         
+        // 8-1. 바이미어커피 버튼
+        const buyMeCoffeeSection = document.createElement('div');
+        buyMeCoffeeSection.style.cssText = 'padding: 20px; border-top: 0px solid #e5e7eb; margin-top: 20px; text-align: center;';
+        buyMeCoffeeSection.innerHTML = `
+            <a href="https://www.buymeacoffee.com/chococo" target="_blank" rel="noopener" style="display:block;width:100%;box-sizing:border-box;padding:12px 24px;background-color:#f3f4f6;color:#374151;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;font-weight:600;font-size:14px;text-decoration:none;transition:all 0.2s ease;text-align:center;">☕ 후원하기 (Buy me a coffee)</a>
+        `;
+        settingsContent.appendChild(buyMeCoffeeSection);
+        
         // 9. 도움말 및 개인정보처리방침 링크
         const helpLinksSection = document.createElement('div');
-        helpLinksSection.style.cssText = 'padding: 20px; border-top: 1px solid #e5e7eb; margin-top: 20px;';
+        helpLinksSection.style.cssText = 'padding: 20px; border-top: 1px solid #e5e7eb; margin-top: 0px;';
         helpLinksSection.innerHTML = `
             <div style="display: flex; flex-direction: column; gap: 8px;">
                 <a href="help.html" target="_blank" style="color: #1a1a1a; text-decoration: none; font-size: 14px;">도움말</a>
