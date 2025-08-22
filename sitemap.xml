@@ -3,7 +3,7 @@
     <!-- 메인 페이지 - 최고 우선순위 -->
     <url>
         <loc>https://mwohaji.onrender.com/</loc>
-        <lastmod>2024-01-01</lastmod>
+        <lastmod>2025-08-22</lastmod>
         <changefreq>daily</changefreq>
         <priority>1.0</priority>
     </url>
@@ -11,7 +11,7 @@
     <!-- 도움말 페이지 - 낮은 우선순위 (robots.txt에서 크롤링 차단) -->
     <url>
         <loc>https://mwohaji.onrender.com/help.html</loc>
-        <lastmod>2024-01-01</lastmod>
+        <lastmod>2025-08-22</lastmod>
         <changefreq>monthly</changefreq>
         <priority>0.3</priority>
     </url>
@@ -19,7 +19,7 @@
     <!-- 개인정보처리방침 - 낮은 우선순위 (robots.txt에서 크롤링 차단) -->
     <url>
         <loc>https://mwohaji.onrender.com/privacy-policy.html</loc>
-        <lastmod>2024-01-01</lastmod>
+        <lastmod>2025-08-22</lastmod>
         <changefreq>yearly</changefreq>
         <priority>0.2</priority>
     </url>
