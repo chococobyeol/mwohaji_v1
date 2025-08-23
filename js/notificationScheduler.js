@@ -828,20 +828,8 @@ const notificationScheduler = (() => {
                 }
             }
             
-            // 설정 변경 후 즉시 알림 재스케줄링 (기존 알림이 있다면)
-            if (window.todoManager) {
-                try {
-                    const todos = window.todoManager.getTodos();
-                    if (todos && todos.length > 0) {
-                        console.log(`[NotificationScheduler] Service Worker 설정 변경 후 알림 재스케줄링 (useServiceWorker: ${useServiceWorker})`);
-                        setTimeout(() => {
-                            rescheduleAllNotifications(todos);
-                        }, 100);
-                    }
-                } catch (error) {
-                    console.error('[NotificationScheduler] 설정 변경 후 알림 재스케줄링 실패:', error);
-                }
-            }
+            // 🚨 자동 재스케줄링 제거: 이중 실행 문제 해결
+            // 이제 ensureNotificationsRescheduled에서만 알림 재스케줄링 처리
         },
         isUsingServiceWorker: () => useServiceWorker
     };
