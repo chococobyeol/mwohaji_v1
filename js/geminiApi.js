@@ -787,7 +787,7 @@ ${errors.map(e=>`- ${e}`).join('\n')}
                     try { fixed1 = typeof fr === 'string' ? robustParseJson(fr) : JSON.parse(atob(fr || '')); } catch {}
                 }
                 if (!fixed1) fixed1 = await requestSchemaFix(userInput, context, raw, ['JSON 파싱 실패: 유효한 JSON만 출력해야 합니다.'], 1);
-                if (!fixed1) return { success: false, error: 'AI 응답이 JSON 형식이 아닙니다.', message: `모델이 JSON을 반환하지 않았습니다. 계속하려면 아래 중 하나를 말씀해주세요:\n- "목록 보여줘" (후속 수정에 사용할 대상 확인)\n- "몇 번째 항목을 수정"처럼 position 지정\n- 카테고리/시간을 더 구체적으로 지정 (예: "일반에서 다음주 수요일 09:00 항목을 '이기동 보기'로 수정")\n원문 일부: ${String(raw||'').slice(0,160)}` };
+                if (!fixed1) return { success: false, error: 'AI 응답이 JSON 형식이 아닙니다.', message: `모델이 JSON을 반환하지 않았습니다. 계속하려면 아래 중 하나를 말씀해주세요:\n- "목록 보여줘" (후속 수정에 사용할 대상 확인)\n- "몇 번째 항목을 수정"처럼 position 지정\n- 카테고리/시간을 더 구체적으로 지정 (예: "일반에서 다음주 수요일 09:00 항목을 'xx'로 수정")\n원문 일부: ${String(raw||'').slice(0,160)}` };
                 let candidate = fixed1;
                 // 1차 결과도 스키마 위반일 수 있으니 즉시 검증
                 const s1 = validateActions(candidate.actions || []);
