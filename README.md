@@ -177,13 +177,7 @@ mwohaji/
 
 
 
-## 기여하기
 
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the Branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
 
 ## 라이선스
 
@@ -194,13 +188,6 @@ mwohaji/
 - **이메일**: chococobyeol@gmail.com
 - **라이브 데모**: [https://mwohaji.onrender.com](https://mwohaji.onrender.com)
 - **도움말**: [https://mwohaji.onrender.com/help.html](https://mwohaji.onrender.com/help.html)
-
-## 감사의 말
-
-- [marked.js](https://marked.js.org/) - 마크다운 파싱
-- HTML 새니타이저 - XSS 방지
-- [Google Gemini API](https://ai.google.dev/) - AI 기능
-- [Render.com](https://render.com/) - 호스팅 서비스
 
 ---
 
