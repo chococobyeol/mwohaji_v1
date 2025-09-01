@@ -1152,12 +1152,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 gfm: true      // GitHub Flavored Markdown 지원
             });
             
-            // 줄바꿈을 <br>로 변환 (marked.js가 제대로 처리하지 않을 경우를 대비)
-            let textWithBreaks = todo.text.replace(/\n/g, '<br>');
-            
             // 이미지 사이즈 지정을 위한 커스텀 처리
             // ![alt](url){width=300,height=200} 또는 ![alt](url){width=300 height=200} 형식 지원
-            textWithBreaks = textWithBreaks.replace(
+            let processedText = todo.text.replace(
                 /!\[([^\]]*)\]\(([^)]+)\)\{([^}]+)\}/g,
                 (match, alt, src, style) => {
                                 const widthMatch = style.match(/width=(\d+)/);
@@ -1171,9 +1168,12 @@ document.addEventListener('DOMContentLoaded', () => {
             );
             
             // marked.js를 사용하여 마크다운을 HTML로 변환
-            const rawHtml = marked.parse(textWithBreaks);
+            const rawHtml = marked.parse(processedText);
+            
+            // marked.js 파싱 후 줄바꿈을 <br>로 변환
+            const htmlWithBreaks = rawHtml.replace(/\n/g, '<br>');
             // security.js의 sanitizeHtml을 사용하여 안전하게 처리
-            renderedText = security.sanitizeHtml(rawHtml);
+            renderedText = security.sanitizeHtml(htmlWithBreaks);
         } catch (e) {
             console.warn('마크다운 변환 실패:', e);
             // 변환 실패 시 원본 텍스트 사용 (이스케이프 처리)
